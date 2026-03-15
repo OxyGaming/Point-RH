@@ -48,6 +48,18 @@ export default function ResultatCard({
       {/* Motif */}
       <p className="text-xs text-gray-600 line-clamp-2">{resultat.motifPrincipal}</p>
 
+      {/* Points de vigilance GPT */}
+      {(detail.pointsVigilance ?? []).length > 0 && (
+        <div className="space-y-1">
+          {(detail.pointsVigilance ?? []).map((pv, i) => (
+            <div key={i} className="text-xs bg-yellow-50 border border-yellow-200 text-yellow-800 px-2 py-1.5 rounded flex items-start gap-1.5">
+              <span className="shrink-0">⚠️</span>
+              <span>{pv}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Mini stats */}
       <div className="grid grid-cols-2 gap-2 text-xs">
         <div className="bg-gray-50 rounded p-2">

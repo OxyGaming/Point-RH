@@ -104,6 +104,24 @@ export default async function AgentResultatPage({
             </Card>
           )}
 
+          {(detail.pointsVigilance ?? []).length > 0 && (
+            <Card>
+              <CardHeader>
+                <h2 className="font-semibold text-yellow-700">
+                  Points de vigilance ({(detail.pointsVigilance ?? []).length})
+                </h2>
+              </CardHeader>
+              <CardBody className="space-y-2">
+                {(detail.pointsVigilance ?? []).map((pv, i) => (
+                  <div key={i} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm flex items-start gap-2">
+                    <span className="text-yellow-500 shrink-0 mt-0.5">⚠️</span>
+                    <p className="text-yellow-800">{pv}</p>
+                  </div>
+                ))}
+              </CardBody>
+            </Card>
+          )}
+
           {detail.respectees.length > 0 && (
             <Card>
               <CardHeader>

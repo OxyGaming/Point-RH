@@ -40,6 +40,7 @@ export interface DetailCalcul {
   reposPeriodiqueProchain: string | null;
   violations: RegleViolation[];
   respectees: RegleRespectee[];
+  pointsVigilance: string[];   // avertissements non bloquants (GPT min, GPT max avant RP…)
   disponible: boolean;
 }
 

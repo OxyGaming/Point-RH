@@ -227,8 +227,25 @@ export function evaluerMobilisabilite(
 
   // ─ GPT ──────────────────────────────────────────────────────────────────────
   const joursGPT = compterJoursGPT(events, debutImprevu, rules.reposPeriodique.simple);
+  const joursGPTApres = joursGPT + 1; // après ajout de la JS cible
   const maxGPT = rules.gpt.max;
   const cumulTE = cumulTrailEffectifGPT(events, debutImprevu, rules.reposPeriodique.simple);
+
+  // ─ Points de vigilance GPT (non bloquants) ──────────────────────────────────
+  const pointsVigilance: string[] = [];
+
+  if (joursGPTApres < rules.gpt.min) {
+    pointsVigilance.push(
+      `GPT en cours : ${joursGPTApres} jour(s) sur ${rules.gpt.min} minimum — un repos périodique ne peut intervenir qu'après ${rules.gpt.min} jours de GPT`
+    );
+  }
+
+  if (joursGPTApres > rules.gpt.maxAvantRP) {
+    const rpDoubleH = rules.reposPeriodique.double / 60;
+    pointsVigilance.push(
+      `GPT atteindrait ${joursGPTApres} jour(s) (max ${rules.gpt.maxAvantRP}j avant RP simple) — le prochain repos périodique doit être au minimum un RP double (${rpDoubleH}h)`
+    );
+  }
 
   // ─ Évaluation des règles ─────────────────────────────────────────────────────
 
@@ -400,6 +417,7 @@ export function evaluerMobilisabilite(
     reposPeriodiqueProchain: null,
     violations,
     respectees,
+    pointsVigilance,
     disponible: violations.length === 0,
   };
 

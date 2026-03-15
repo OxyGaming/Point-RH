@@ -105,6 +105,18 @@ export default function CandidatCard({ candidat }: { candidat: CandidatResult })
           </div>
         )}
 
+        {/* Points de vigilance GPT */}
+        {(detail.pointsVigilance ?? []).length > 0 && (
+          <div className="mt-2 space-y-1">
+            {(detail.pointsVigilance ?? []).map((pv, i) => (
+              <div key={i} className="text-xs bg-yellow-50 border border-yellow-200 text-yellow-800 px-2 py-1 rounded flex items-start gap-1.5">
+                <span className="shrink-0">⚠️</span>
+                <span>{pv}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Conflits induits */}
         {candidat.conflitsInduits.length > 0 && (
           <div className="mt-2 space-y-1">

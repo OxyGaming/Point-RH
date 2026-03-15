@@ -3,10 +3,16 @@
  * Calcule la mobilisabilité d'un agent pour un imprévu donné
  */
 
-import { timeToMinutes, combineDateTime, diffMinutes, minutesToTime, isJsDeNuit, jsComportePeriode0h4h } from "@/lib/utils";
+import { combineDateTime, diffMinutes, minutesToTime, isJsDeNuit, jsComportePeriode0h4h } from "@/lib/utils";
 import type { DetailCalcul, RegleViolation, RegleRespectee, ResultatAgentDetail, StatutAgent } from "@/types/simulation";
 import type { SimulationInput } from "@/types/simulation";
 import { DEFAULT_WORK_RULES_MINUTES, type WorkRulesMinutes } from "@/lib/rules/workRules";
+import {
+  trouverDebutGPT,
+  cumulTravailEffectifGPT,
+  decoupeEnGPTs,
+  isCongeOuAbsence,
+} from "@/lib/gptUtils";
 
 // ─── Types internes ────────────────────────────────────────────────────────────
 
@@ -38,74 +44,11 @@ export interface PlanningEvent {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// isJsDeNuit et jsComportePeriode0h4h importés depuis utils
-
-function isJourneeJS(event: PlanningEvent): boolean {
-  return event.jsNpo === "JS";
-}
-
-/**
- * Retourne le dernier poste JS (travail effectif) avant la date cible
- */
 function getDernierPoste(events: PlanningEvent[], before: Date): PlanningEvent | null {
   const postes = events
-    .filter((e) => isJourneeJS(e) && e.dateDebut < before)
+    .filter((e) => e.jsNpo === "JS" && e.dateDebut < before)
     .sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime());
   return postes[0] ?? null;
-}
-
-/**
- * Compte les jours dans la GPT courante (depuis dernier repos périodique)
- */
-function compterJoursGPT(
-  events: PlanningEvent[],
-  before: Date,
-  rpSimpleMin: number
-): number {
-  const joursJS = events
-    .filter((e) => isJourneeJS(e) && e.dateDebut < before)
-    .sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
-
-  if (joursJS.length === 0) return 0;
-
-  let gptStart = joursJS[0].dateDebut;
-  for (let i = joursJS.length - 1; i >= 1; i--) {
-    const gap = diffMinutes(joursJS[i - 1].dateFin, joursJS[i].dateDebut);
-    if (gap >= rpSimpleMin) {
-      gptStart = joursJS[i].dateDebut;
-      break;
-    }
-  }
-
-  return joursJS.filter((e) => e.dateDebut >= gptStart).length;
-}
-
-/**
- * Calcule le cumul de travail effectif sur la GPT courante
- */
-function cumulTrailEffectifGPT(
-  events: PlanningEvent[],
-  before: Date,
-  rpSimpleMin: number
-): number {
-  const joursJS = events
-    .filter((e) => isJourneeJS(e) && e.dateDebut < before)
-    .sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
-
-  if (joursJS.length === 0) return 0;
-
-  let gptStart = joursJS[0].dateDebut;
-  for (let i = joursJS.length - 1; i >= 1; i--) {
-    const gap = diffMinutes(joursJS[i - 1].dateFin, joursJS[i].dateDebut);
-    if (gap >= rpSimpleMin) {
-      gptStart = joursJS[i].dateDebut;
-      break;
-    }
-  }
-
-  return joursJS
-    .filter((e) => e.dateDebut >= gptStart)
-    .reduce((sum, e) => sum + (e.dureeEffectiveMin ?? e.amplitudeMin), 0);
 }
 
 /**
@@ -121,33 +64,14 @@ function isGPTDeNuit(joursGPT: PlanningEvent[]): boolean {
 
 /**
  * Vérifie s'il y a eu 2 GPT de nuit consécutives avant la date cible.
+ * Utilise decoupeEnGPTs pour une détection correcte (congés/RU ignorés comme RP).
  */
 function deuxGPTNuitConsecutives(events: PlanningEvent[], before: Date, rpSimpleMin: number): boolean {
-  const joursJS = events
-    .filter((e) => isJourneeJS(e) && e.dateDebut < before)
-    .sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
-
-  if (joursJS.length === 0) return false;
-
-  // Découper en GPTs séparées par des repos périodiques (gap >= rpSimpleMin)
-  const gpts: PlanningEvent[][] = [];
-  let gptCourante: PlanningEvent[] = [joursJS[0]];
-  for (let i = 1; i < joursJS.length; i++) {
-    const gap = diffMinutes(joursJS[i - 1].dateFin, joursJS[i].dateDebut);
-    if (gap >= rpSimpleMin) {
-      gpts.push(gptCourante);
-      gptCourante = [joursJS[i]];
-    } else {
-      gptCourante.push(joursJS[i]);
-    }
-  }
-  gpts.push(gptCourante);
-
-  // Vérifier si les 2 dernières GPTs sont de nuit
+  const eventsAvant = events.filter((e) => e.dateDebut < before);
+  const gpts = decoupeEnGPTs(eventsAvant, rpSimpleMin);
   if (gpts.length < 2) return false;
-  const derniere = gpts[gpts.length - 1];
-  const avantDerniere = gpts[gpts.length - 2];
-  return isGPTDeNuit(derniere) && isGPTDeNuit(avantDerniere);
+  const n = gpts.length;
+  return isGPTDeNuit(gpts[n - 1]) && isGPTDeNuit(gpts[n - 2]);
 }
 
 // ─── Moteur principal ─────────────────────────────────────────────────────────
@@ -225,21 +149,35 @@ export function evaluerMobilisabilite(
     }
   }
 
-  // ─ GPT ──────────────────────────────────────────────────────────────────────
-  const joursGPT = compterJoursGPT(events, debutImprevu, rules.reposPeriodique.simple);
+  // ─ GPT — calcul via gptUtils (congés/RU ne réinitialisent PAS la GPT) ───────
+  const { gptStart, joursGPT: joursGPTArr } = trouverDebutGPT(events, debutImprevu, rules.reposPeriodique.simple);
+  const joursGPT = joursGPTArr.length;
   const joursGPTApres = joursGPT + 1; // après ajout de la JS cible
   const maxGPT = rules.gpt.max;
-  const cumulTE = cumulTrailEffectifGPT(events, debutImprevu, rules.reposPeriodique.simple);
+  const cumulTE = cumulTravailEffectifGPT(events, debutImprevu, rules.reposPeriodique.simple);
 
-  // ─ Points de vigilance GPT (non bloquants) ──────────────────────────────────
+  // ─ Points de vigilance (non bloquants) ───────────────────────────────────────
   const pointsVigilance: string[] = [];
 
+  // Congés / RU dans la GPT courante
+  const congesEnGPT = events.filter(
+    (e) => e.jsNpo === "NPO" && isCongeOuAbsence(e) && e.dateDebut >= gptStart && e.dateDebut < debutImprevu
+  );
+  if (congesEnGPT.length > 0) {
+    const labels = congesEnGPT.map((e) => e.typeJs ?? "NPO").filter((v, i, a) => a.indexOf(v) === i).join(", ");
+    pointsVigilance.push(
+      `${congesEnGPT.length} congé(s)/absence(s) dans la GPT en cours (${labels}) — ils ne constituent pas un repos périodique, la GPT se poursuit (${joursGPT} JS graphiées)`
+    );
+  }
+
+  // GPT minimum
   if (joursGPTApres < rules.gpt.min) {
     pointsVigilance.push(
       `GPT en cours : ${joursGPTApres} jour(s) sur ${rules.gpt.min} minimum — un repos périodique ne peut intervenir qu'après ${rules.gpt.min} jours de GPT`
     );
   }
 
+  // GPT max avant RP simple
   if (joursGPTApres > rules.gpt.maxAvantRP) {
     const rpDoubleH = rules.reposPeriodique.double / 60;
     pointsVigilance.push(
@@ -332,19 +270,21 @@ export function evaluerMobilisabilite(
     respectees.push({ regle: "REPOS_JOURNALIER", description: "Aucun poste précédent trouvé – repos OK" });
   }
 
-  // 5. GPT max
+  // 5. GPT max — une GPT ne peut comporter plus de 6 JS
+  //    Les congés et RU ne sont pas des RP : ils sont comptabilisés dans la GPT
+  //    (ils ne la réinitialisent pas) mais ne comptent pas comme JS.
   if (joursGPT >= maxGPT) {
     violations.push({
       regle: "GPT_MAX",
-      description: "Nombre maximum de jours en GPT atteint",
+      description: `GPT maximale atteinte — une GPT ne peut comporter plus de ${maxGPT} JS`,
       valeur: joursGPT,
       limite: maxGPT,
     });
   } else {
-    respectees.push({ regle: "GPT_MAX", description: "GPT dans les limites", valeur: joursGPT });
+    respectees.push({ regle: "GPT_MAX", description: "Nombre de JS en GPT dans les limites", valeur: joursGPT });
   }
 
-  // 7. Poste de nuit interdit si non habilité
+  // 6. Poste de nuit interdit si non habilité
   if ((isNuitImprevu || simulation.posteNuit) && !agent.peutFaireNuit) {
     violations.push({
       regle: "NUIT_HABILITATION",
@@ -352,7 +292,7 @@ export function evaluerMobilisabilite(
     });
   }
 
-  // 8. Déplacement interdit si non habilité
+  // 7. Déplacement interdit si non habilité
   if (simulation.deplacement && !agent.peutEtreDeplace) {
     violations.push({
       regle: "DEPLACEMENT_HABILITATION",
@@ -360,7 +300,7 @@ export function evaluerMobilisabilite(
     });
   }
 
-  // 9. 2 GPT de nuit consécutives
+  // 8. 2 GPT de nuit consécutives
   if ((isNuitImprevu || simulation.posteNuit) && deuxGPTNuitConsecutives(events, debutImprevu, rules.reposPeriodique.simple)) {
     violations.push({
       regle: "GPT_NUIT_CONSECUTIVES",
@@ -368,7 +308,7 @@ export function evaluerMobilisabilite(
     });
   }
 
-  // 10. Régime B/C – durée minimale
+  // 9. Régime B/C – durée minimale
   if ((agent.regimeB || agent.regimeC) && amplitudeImprevu < rules.travailEffectif.minRegimeBC) {
     violations.push({
       regle: "MIN_REGIME_BC",

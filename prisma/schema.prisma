@@ -1,0 +1,179 @@
+generator client {
+  provider        = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Utilisateurs & rôles ─────────────────────────────────────────────────────
+
+/// Rôles applicatifs :
+/// - ADMIN  : accès total (paramètres, suppression agent, gestion utilisateurs)
+/// - USER   : accès fonctionnel (import, consultation, simulation)
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String   // bcrypt hash
+  role      String   @default("USER") // "ADMIN" | "USER"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AuditLog[]
+}
+
+/// Journal d'audit — trace les actions sensibles (suppression, modification RH, etc.)
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  userEmail String?
+  action    String   // ex : "DELETE_AGENT", "UPDATE_WORK_RULES", "LOGIN"
+  entity    String   // ex : "Agent", "WorkRule", "User"
+  entityId  String?
+  details   String   @default("{}") // JSON
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ─── Agents ──────────────────────────────────────────────────────────────────
+
+/// Règle de gestion : un agent importé est RÉMANENT.
+/// Il ne peut être supprimé QUE par un administrateur via une action explicite.
+/// Un import ultérieur ne supprime jamais un agent absent du fichier.
+/// La suppression est LOGIQUE (deletedAt non null) pour préserver l'historique.
+model Agent {
+  id               String    @id @default(cuid())
+  matricule        String    @unique
+  nom              String
+  prenom           String
+  uch              String?
+  codeUch          String?
+  codeApes         String?
+  codeSymboleGrade String?
+  codeCollegeGrade Int?
+  posteAffectation String?
+  agentReserve     Boolean   @default(false)
+  peutFaireNuit    Boolean   @default(true)
+  peutEtreDeplace  Boolean   @default(false)
+  regimeB          Boolean   @default(false)
+  regimeC          Boolean   @default(false)
+  habilitations    String    @default("[]")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  /// Suppression logique — null = agent actif, non-null = supprimé par un admin
+  deletedAt        DateTime?
+  deletedByEmail   String?   // email de l'admin ayant supprimé
+
+  planningLignes PlanningLigne[]
+  resultatsAgent ResultatAgent[]
+
+  @@index([deletedAt])
+}
+
+// ─── Planning ─────────────────────────────────────────────────────────────────
+
+model PlanningImport {
+  id         String   @id @default(cuid())
+  filename   String
+  importedAt DateTime @default(now())
+  nbLignes   Int
+  nbAgents   Int
+  erreurs    String   @default("[]")
+  isActive   Boolean  @default(true)
+
+  lignes      PlanningLigne[]
+  simulations Simulation[]
+}
+
+model PlanningLigne {
+  id               String   @id @default(cuid())
+  importId         String
+  agentId          String?
+  uch              String?
+  codeUch          String?
+  nom              String
+  prenom           String
+  matricule        String
+  codeApes         String?
+  codeSymboleGrade String?
+  codeCollegeGrade Int?
+
+  dateDebutPop        DateTime
+  heureDebutPop       String
+  heureFinPop         String
+  dateFinPop          DateTime
+  amplitudeCentesimal Int?
+  amplitudeHHMM       String?
+  dureeEffectiveCent  Int?
+  dureeEffectiveHHMM  String?
+
+  jsNpo          String
+  codeJs         String?
+  typeJs         String?
+  valeurNpo      Int?
+  uchJs          String?
+  codeUchJs      String?
+  codeRoulementJs String?
+  numeroJs       String?
+
+  import PlanningImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  agent  Agent?         @relation(fields: [agentId], references: [id])
+
+  @@index([agentId])
+  @@index([importId])
+  @@index([matricule])
+  @@index([dateDebutPop])
+}
+
+// ─── Simulations ─────────────────────────────────────────────────────────────
+
+model Simulation {
+  id          String   @id @default(cuid())
+  importId    String
+  dateDebut   DateTime
+  dateFin     DateTime
+  heureDebut  String
+  heureFin    String
+  poste       String
+  remplacement Boolean @default(false)
+  deplacement  Boolean @default(false)
+  posteNuit    Boolean @default(false)
+  commentaire String?
+  createdAt   DateTime @default(now())
+
+  import    PlanningImport @relation(fields: [importId], references: [id])
+  resultats ResultatAgent[]
+}
+
+model ResultatAgent {
+  id              String @id @default(cuid())
+  simulationId    String
+  agentId         String
+  statut          String
+  scorePertinence Int    @default(0)
+  motifPrincipal  String?
+  detail          String @default("{}")
+
+  simulation Simulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+  agent      Agent      @relation(fields: [agentId], references: [id])
+
+  @@index([simulationId])
+  @@index([agentId])
+}
+
+// ─── Règles métier ────────────────────────────────────────────────────────────
+
+model WorkRule {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Float
+  category  String
+  updatedAt DateTime @updatedAt
+}

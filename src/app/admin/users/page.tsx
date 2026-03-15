@@ -1,0 +1,255 @@
+"use client";
+
+/**
+ * Page de gestion des utilisateurs — Admin uniquement.
+ * Protégée côté serveur par le middleware (route /admin/*).
+ * Permet : créer, désactiver/activer, changer le rôle, supprimer.
+ */
+import { useEffect, useState, useCallback } from "react";
+
+interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+interface NewUserForm {
+  email: string;
+  name: string;
+  password: string;
+  role: string;
+}
+
+const EMPTY_FORM: NewUserForm = { email: "", name: "", password: "", role: "USER" };
+
+export default function UsersAdminPage() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState<NewUserForm>(EMPTY_FORM);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/users");
+      if (!res.ok) { setError("Accès refusé."); return; }
+      const data = await res.json() as User[];
+      setUsers(data);
+    } catch {
+      setError("Erreur lors du chargement.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const res = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json() as { error?: string };
+      if (!res.ok) { setCreateError(data.error ?? "Erreur."); return; }
+      setForm(EMPTY_FORM);
+      setShowForm(false);
+      await fetchUsers();
+    } catch {
+      setCreateError("Erreur réseau.");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleToggleActive(user: User) {
+    await fetch(`/api/users/${user.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: !user.isActive }),
+    });
+    await fetchUsers();
+  }
+
+  async function handleToggleRole(user: User) {
+    const newRole = user.role === "ADMIN" ? "USER" : "ADMIN";
+    await fetch(`/api/users/${user.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: newRole }),
+    });
+    await fetchUsers();
+  }
+
+  async function handleDelete(user: User) {
+    if (!confirm(`Supprimer définitivement ${user.name} (${user.email}) ?`)) return;
+    await fetch(`/api/users/${user.id}`, { method: "DELETE" });
+    await fetchUsers();
+  }
+
+  return (
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
+      {/* En-tête */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 sm:mb-8">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Gestion des utilisateurs</h1>
+          <p className="text-gray-500 text-sm mt-1">Créez et gérez les comptes d'accès à l'application.</p>
+        </div>
+        <button
+          onClick={() => setShowForm(!showForm)}
+          className="self-start sm:self-auto px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors"
+        >
+          {showForm ? "Annuler" : "+ Nouvel utilisateur"}
+        </button>
+      </div>
+
+      {/* Formulaire création */}
+      {showForm && (
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 mb-6">
+          <h2 className="font-semibold text-gray-800 mb-4">Créer un compte</h2>
+          <form onSubmit={handleCreate} className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Nom complet</label>
+              <input
+                type="text" required value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Prénom Nom"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Adresse e-mail</label>
+              <input
+                type="email" required value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="user@sncf.fr"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Mot de passe (min. 8 car.)</label>
+              <input
+                type="password" required minLength={8} value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="••••••••"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Rôle</label>
+              <select
+                value={form.role}
+                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="USER">Utilisateur standard</option>
+                <option value="ADMIN">Administrateur</option>
+              </select>
+            </div>
+            {createError && (
+              <div className="sm:col-span-2 bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-lg">
+                {createError}
+              </div>
+            )}
+            <div className="sm:col-span-2 flex justify-end">
+              <button
+                type="submit" disabled={creating}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg text-sm font-semibold transition-colors"
+              >
+                {creating ? "Création..." : "Créer le compte"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Liste */}
+      {loading ? (
+        <p className="text-gray-400 text-sm">Chargement...</p>
+      ) : error ? (
+        <p className="text-red-600 text-sm">{error}</p>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 bg-gray-50">
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Utilisateur</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Rôle</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">Statut</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">Créé le</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((user) => (
+                  <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-gray-900">{user.name}</p>
+                      <p className="text-xs text-gray-500">{user.email}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-block text-xs px-2 py-0.5 rounded font-medium ${
+                        user.role === "ADMIN"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-gray-100 text-gray-600"
+                      }`}>
+                        {user.role === "ADMIN" ? "Admin" : "Utilisateur"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 hidden sm:table-cell">
+                      <span className={`inline-block text-xs px-2 py-0.5 rounded font-medium ${
+                        user.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+                      }`}>
+                        {user.isActive ? "Actif" : "Désactivé"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs hidden md:table-cell">
+                      {new Date(user.createdAt).toLocaleDateString("fr-FR")}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        <button
+                          onClick={() => handleToggleRole(user)}
+                          className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                          title="Changer le rôle"
+                        >
+                          {user.role === "ADMIN" ? "→ User" : "→ Admin"}
+                        </button>
+                        <button
+                          onClick={() => handleToggleActive(user)}
+                          className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                        >
+                          {user.isActive ? "Désactiver" : "Activer"}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(user)}
+                          className="text-xs px-2 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {users.length === 0 && (
+            <p className="text-center text-gray-400 text-sm py-8">Aucun utilisateur</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

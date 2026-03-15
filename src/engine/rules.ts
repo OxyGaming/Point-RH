@@ -152,7 +152,7 @@ export function evaluerMobilisabilite(
   // ─ GPT — calcul via gptUtils (congés/RU ne réinitialisent PAS la GPT) ───────
   const { gptStart, joursGPT: joursGPTArr } = trouverDebutGPT(events, debutImprevu, rules.reposPeriodique.simple);
   const joursGPT = joursGPTArr.length;
-  const joursGPTApres = joursGPT + 1; // après ajout de la JS cible
+  const joursGPTApres = joursGPT + 1; // après ajout de la JS cible (pour les règles de conformité)
   const maxGPT = rules.gpt.max;
   const cumulTE = cumulTravailEffectifGPT(events, debutImprevu, rules.reposPeriodique.simple);
 
@@ -352,7 +352,7 @@ export function evaluerMobilisabilite(
     dernierPosteDebut: dernierPoste ? dernierPoste.heureDebut : null,
     dernierPosteFin: dernierPoste ? dernierPoste.heureFin : null,
     reposJournalierDisponible: reposDisponible,
-    gptActuel: joursGPT,
+    gptActuel: joursGPTApres,
     gptMax: maxGPT,
     reposPeriodiqueProchain: null,
     violations,

@@ -42,7 +42,12 @@ export default function CandidatCard({ candidat }: { candidat: CandidatResult })
             {candidat.agentReserve && (
               <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Réserve</span>
             )}
-            {candidat.surJsZ && (
+            {candidat.surJsZ && /^FO/i.test(candidat.codeJsZOrigine ?? "") && (
+              <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-semibold" title={`Prévu sur JS FO : ${candidat.codeJsZOrigine}`}>
+                JS FO
+              </span>
+            )}
+            {candidat.surJsZ && !/^FO/i.test(candidat.codeJsZOrigine ?? "") && (
               <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded" title={`Prévu sur JS Z : ${candidat.codeJsZOrigine}`}>
                 JS Z
               </span>
@@ -98,10 +103,17 @@ export default function CandidatCard({ candidat }: { candidat: CandidatResult })
           </div>
         </div>
 
-        {/* Info JS Z sans cascade */}
+        {/* Info JS FO / JS Z sans cascade */}
         {candidat.surJsZ && candidat.nbConflits === 0 && (
-          <div className="mt-2 text-xs bg-purple-50 text-purple-700 px-2 py-1 rounded">
-            Mobilisable depuis une JS Z ({candidat.codeJsZOrigine}) — aucune cascade nécessaire
+          <div className={`mt-2 text-xs px-2 py-1 rounded ${
+            /^FO/i.test(candidat.codeJsZOrigine ?? "")
+              ? "bg-orange-50 text-orange-700"
+              : "bg-purple-50 text-purple-700"
+          }`}>
+            {/^FO/i.test(candidat.codeJsZOrigine ?? "")
+              ? `Mobilisable depuis une JS FO (${candidat.codeJsZOrigine}) — aucune cascade nécessaire`
+              : `Mobilisable depuis une JS Z (${candidat.codeJsZOrigine}) — aucune cascade nécessaire`
+            }
           </div>
         )}
 

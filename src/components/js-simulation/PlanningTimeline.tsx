@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cn, isJsDeNuit } from "@/lib/utils";
+import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
 import type { JsCible } from "@/types/js-simulation";
 
 interface PlanningLigne {
@@ -192,6 +193,12 @@ export default function PlanningTimeline({
               </span>
               {l.codeJs && (
                 <span className={cn("text-xs truncate", isJs ? "text-slate-600" : "text-slate-400")}>{l.codeJs}</span>
+              )}
+              {isJs && /^FO/i.test(l.codeJs ?? "") && (
+                <span className="text-xs bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded font-semibold shrink-0">JS FO</span>
+              )}
+              {isJs && isZeroLoadJs(l.codeJs) && !/^FO/i.test(l.codeJs ?? "") && (
+                <span className="text-xs bg-purple-100 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded font-semibold shrink-0">JS Z</span>
               )}
               {isJsDeNuit(l.heureDebutPop, l.heureFinPop) && isJs && (
                 <span className="text-xs bg-indigo-100 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded font-semibold shrink-0 hidden xs:inline">Nuit</span>

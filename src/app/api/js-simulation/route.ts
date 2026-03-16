@@ -4,10 +4,14 @@ import { executerSimulationJS } from "@/lib/simulation";
 import { combineDateTime } from "@/lib/utils";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { JsSimulationRequest } from "@/types/js-simulation";
+import { checkAuth } from "@/lib/session";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const auth = checkAuth(req);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = (await req.json()) as JsSimulationRequest;
     const { jsCible, imprevu } = body;
@@ -79,7 +83,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("[API/js-simulation]", err);
     return NextResponse.json(
-      { error: "Erreur lors de la simulation", details: String(err) },
+      { error: "Erreur lors de la simulation" },
       { status: 500 }
     );
   }

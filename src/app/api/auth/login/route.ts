@@ -15,8 +15,33 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { comparePassword, signToken, COOKIE_NAME } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
+import { rateLimit } from "@/lib/rateLimit";
+
+/** 10 tentatives maximum par IP sur 15 minutes. */
+const LOGIN_RATE_LIMIT = { max: 10, windowMs: 15 * 60 * 1000 };
 
 export async function POST(req: NextRequest) {
+  // ── Rate limiting anti-brute-force ──────────────────────────────────────────
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    req.headers.get("x-real-ip") ??
+    "unknown";
+
+  const rl = rateLimit("login", ip, LOGIN_RATE_LIMIT);
+  if (!rl.ok) {
+    const retryAfterSec = Math.ceil((rl.resetAt - Date.now()) / 1000);
+    return NextResponse.json(
+      { error: "Trop de tentatives. Réessayez dans quelques minutes." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(retryAfterSec),
+          "X-RateLimit-Reset": String(Math.ceil(rl.resetAt / 1000)),
+        },
+      }
+    );
+  }
+
   try {
     const body = await req.json() as { email?: string; password?: string };
 

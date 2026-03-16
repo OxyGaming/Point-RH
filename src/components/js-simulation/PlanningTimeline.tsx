@@ -146,7 +146,7 @@ export default function PlanningTimeline({
   };
 
   return (
-    <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
+    <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto overflow-x-auto">
       {lignes.map((l) => {
         const isJs = l.jsNpo === "JS";
         const isSelected = l.id === selectedJsId;
@@ -157,7 +157,7 @@ export default function PlanningTimeline({
             key={l.id}
             onClick={() => isJs && handleClickJs(l)}
             className={cn(
-              "flex items-center gap-4 px-5 py-3 text-sm transition-all border-l-2",
+              "flex items-center gap-3 sm:gap-4 px-3 sm:px-5 py-3 text-sm transition-all border-l-2 min-w-0",
               isJs
                 ? "cursor-pointer hover:bg-blue-50 group border-transparent hover:border-blue-400"
                 : "cursor-default bg-slate-50/50 border-transparent",
@@ -166,7 +166,7 @@ export default function PlanningTimeline({
             )}
           >
             {/* Date */}
-            <div className={cn("w-24 text-xs shrink-0", isJs ? "text-slate-700 font-medium" : "text-slate-400")}>
+            <div className={cn("w-16 sm:w-24 text-xs shrink-0", isJs ? "text-slate-700 font-medium" : "text-slate-400")}>
               {new Date(l.dateDebutPop).toLocaleDateString("fr-FR", {
                 day: "numeric",
                 month: "short",
@@ -174,15 +174,15 @@ export default function PlanningTimeline({
             </div>
 
             {/* Horaires */}
-            <div className={cn("w-28 text-xs font-mono shrink-0", isJs ? "text-slate-800 font-semibold" : "text-slate-400")}>
-              {l.heureDebutPop} → {l.heureFinPop}
+            <div className={cn("w-24 sm:w-28 text-xs font-mono shrink-0", isJs ? "text-slate-800 font-semibold" : "text-slate-400")}>
+              {l.heureDebutPop}→{l.heureFinPop}
             </div>
 
             {/* Badge JS/NPO */}
-            <div className="flex-1 flex items-center gap-2">
+            <div className="flex-1 flex items-center gap-1.5 sm:gap-2 min-w-0">
               <span
                 className={cn(
-                  "text-xs px-2 py-0.5 rounded font-semibold border",
+                  "text-xs px-2 py-0.5 rounded font-semibold border shrink-0",
                   isJs
                     ? "bg-blue-100 text-blue-800 border-blue-300 group-hover:bg-blue-200"
                     : "bg-slate-100 text-slate-500 border-slate-200"
@@ -191,25 +191,25 @@ export default function PlanningTimeline({
                 {l.jsNpo}
               </span>
               {l.codeJs && (
-                <span className={cn("text-xs", isJs ? "text-slate-600" : "text-slate-400")}>{l.codeJs}</span>
+                <span className={cn("text-xs truncate", isJs ? "text-slate-600" : "text-slate-400")}>{l.codeJs}</span>
               )}
               {isJsDeNuit(l.heureDebutPop, l.heureFinPop) && isJs && (
-                <span className="text-xs bg-indigo-100 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded font-semibold">Nuit</span>
+                <span className="text-xs bg-indigo-100 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded font-semibold shrink-0 hidden xs:inline">Nuit</span>
               )}
             </div>
 
-            {/* Amplitude */}
-            <div className={cn("text-xs shrink-0", isJs ? "text-slate-600 font-medium" : "text-slate-400")}>
+            {/* Amplitude — masquée sur très petit écran */}
+            <div className={cn("text-xs shrink-0 hidden sm:block", isJs ? "text-slate-600 font-medium" : "text-slate-400")}>
               {l.amplitudeHHMM ?? "—"}
             </div>
 
-            {/* Type */}
-            <div className={cn("w-32 text-xs shrink-0 truncate", isJs ? "text-slate-600" : "text-slate-400")}>
+            {/* Type — masqué sur mobile */}
+            <div className={cn("w-28 text-xs shrink-0 truncate hidden md:block", isJs ? "text-slate-600" : "text-slate-400")}>
               {l.typeJs ?? ""}
             </div>
 
             {/* Cumul GPT */}
-            <div className="w-14 shrink-0 flex items-center justify-end gap-1">
+            <div className="w-12 sm:w-14 shrink-0 flex items-center justify-end gap-1">
               {gpt.count > 0 ? (
                 <>
                   {gpt.isFirstOfGpt && (

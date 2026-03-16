@@ -29,8 +29,8 @@ export default async function AgentResultatPage({
   const agent = resultat.agent;
 
   return (
-    <div className="p-8 max-w-4xl">
-      <div className="flex items-center gap-2 mb-6 text-sm text-gray-400">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
+      <div className="flex flex-wrap items-center gap-2 mb-6 text-sm text-gray-400">
         <Link href="/resultats" className="hover:text-gray-600">Résultats</Link>
         <span>/</span>
         <Link href={`/resultats/${simulationId}`} className="hover:text-gray-600">
@@ -41,12 +41,12 @@ export default async function AgentResultatPage({
       </div>
 
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">{agent.nom} {agent.prenom}</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{agent.nom} {agent.prenom}</h1>
           <p className="text-gray-500 text-sm font-mono">{agent.matricule}</p>
         </div>
-        <div className="text-right">
+        <div className="sm:text-right shrink-0">
           <StatutBadge statut={resultat.statut as StatutAgent} />
           <p className="text-xs text-gray-400 mt-1">Score {resultat.scorePertinence}/100</p>
         </div>

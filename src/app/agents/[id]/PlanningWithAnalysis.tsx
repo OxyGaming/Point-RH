@@ -40,7 +40,7 @@ export default function PlanningWithAnalysis({
   const resolvedImportId = importId ?? "";
 
   return (
-    <div className={`flex gap-0 transition-all ${selectedJs ? "xl:gap-6" : ""}`}>
+    <div className={`flex flex-col xl:flex-row gap-0 transition-all ${selectedJs ? "xl:gap-6" : ""}`}>
       {/* Planning timeline */}
       <div className={`flex-1 min-w-0 transition-all ${selectedJs ? "xl:max-w-[55%]" : ""}`}>
         {hasJsLines && !selectedJs && (

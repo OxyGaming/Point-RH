@@ -34,7 +34,7 @@ export default function JsResultatsTabs({ resultat }: { resultat: JsSimulationRe
   return (
     <div className="border-t border-gray-200">
       {/* Summary bar */}
-      <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex gap-3 text-xs">
+      <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap gap-x-3 gap-y-1 text-xs">
         <span className="text-gray-500">{resultat.nbAgentsAnalyses} agents analysés</span>
         <span className="text-green-600 font-semibold">{resultat.directsUtilisables.length} mobilisables</span>
         <span className="text-yellow-600">{resultat.vigilance.length} vigilance</span>

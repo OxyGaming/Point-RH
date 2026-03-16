@@ -67,7 +67,7 @@ export default function PlanningWithAnalysis({
 
       {/* Panel d'analyse — slide-in */}
       {selectedJs && (
-        <div className="w-full xl:w-[45%] min-w-0 border-t xl:border-t-0 xl:border-l border-gray-200 bg-white flex flex-col max-h-[700px] overflow-hidden">
+        <div className="w-full xl:w-[45%] min-w-0 border-t xl:border-t-0 xl:border-l border-gray-200 bg-white flex flex-col xl:max-h-[700px] xl:overflow-hidden">
           <JsAnalysisPanel
             jsCible={selectedJs}
             onClose={() => setSelectedJs(null)}

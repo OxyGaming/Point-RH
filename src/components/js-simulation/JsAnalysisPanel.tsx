@@ -48,7 +48,7 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col xl:h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-blue-50">
         <div>
@@ -67,7 +67,7 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="xl:flex-1 xl:overflow-y-auto">
         {/* Informations JS */}
         <section className="px-5 py-4 border-b border-gray-100">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">

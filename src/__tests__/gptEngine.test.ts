@@ -24,6 +24,8 @@ import {
   type WorkSequence,
 } from "@/lib/rules/gptEngine";
 import { isJourTravailleGPT, isCongeOuAbsence, decoupeEnGPTs } from "@/lib/gptUtils";
+import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
+import { DEFAULT_WORK_RULES_MINUTES } from "@/lib/rules/workRules";
 import type { PlanningEvent } from "@/engine/rules";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -766,5 +768,154 @@ describe("injecterJsDansPlanning — retrait correct des NPO C chevauchants", ()
 
     // RP(26) + JS(26 injectée) + JS(27) = 3 événements
     expect(eventsAvecJs).toHaveLength(3);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Suite : detecterConflitsInduits — repos post-nuit (14h)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Crée une JS de nuit : 22:00 → 06:00 le lendemain (8h, +4h30 dans la plage nocturne 21h30-06h30).
+ */
+function makeNightShift(dateStr: string): PlanningEvent {
+  const dateDebut = new Date(`${dateStr}T22:00:00.000Z`);
+  // La JS finit le lendemain à 06:00 UTC
+  const nextDay = new Date(dateDebut);
+  nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+  nextDay.setUTCHours(6, 0, 0, 0);
+  return {
+    dateDebut,
+    dateFin: nextDay,
+    heureDebut: "22:00",
+    heureFin: "06:00",
+    amplitudeMin: 480,
+    dureeEffectiveMin: 480,
+    jsNpo: "JS",
+    codeJs: "NUIT",
+    typeJs: null,
+  };
+}
+
+/**
+ * Crée une JS de jour générique à l'heure donnée.
+ */
+function makeShift(dateStr: string, heureDebut: string, heureFin: string): PlanningEvent {
+  const [hD, mD] = heureDebut.split(":").map(Number);
+  const [hF, mF] = heureFin.split(":").map(Number);
+  const dateDebut = new Date(`${dateStr}T${heureDebut}:00.000Z`);
+  const dateFin   = new Date(`${dateStr}T${heureFin}:00.000Z`);
+  if (dateFin <= dateDebut) dateFin.setUTCDate(dateFin.getUTCDate() + 1);
+  const amplitudeMin = (dateFin.getTime() - dateDebut.getTime()) / 60000;
+  return {
+    dateDebut,
+    dateFin,
+    heureDebut,
+    heureFin,
+    amplitudeMin,
+    dureeEffectiveMin: amplitudeMin,
+    jsNpo: "JS",
+    codeJs: "JS",
+    typeJs: null,
+  };
+}
+
+describe("detecterConflitsInduits — repos post-nuit (14h)", () => {
+  const rules = DEFAULT_WORK_RULES_MINUTES;
+  // La JS injectée est la nuit du 26 au 27 : 22:00→06:00 → finit à 06:00 le 27
+  const jsNuit = makeNightShift("2026-03-26");
+  const heureFinJs = jsNuit.dateFin; // 2026-03-27T06:00:00Z
+
+  it("repos de 13h après nuit → REPOS_INSUFFISANT (< 14h requis)", () => {
+    // JS suivante à 19:00 le 27 → gap 13h (06:00→19:00)
+    const jsSuivante = makeShift("2026-03-27", "19:00", "03:00");
+    jsSuivante.dateDebut = new Date("2026-03-27T19:00:00.000Z");
+    jsSuivante.dateFin   = new Date("2026-03-28T03:00:00.000Z");
+
+    const events: PlanningEvent[] = [jsNuit, jsSuivante];
+    const conflits = detecterConflitsInduits(events, heureFinJs, false, true, rules);
+
+    const reposConflits = conflits.filter((c) => c.type === "REPOS_INSUFFISANT");
+    expect(reposConflits).toHaveLength(1);
+    expect(reposConflits[0].description).toMatch(/post-nuit/);
+  });
+
+  it("repos de 13h après nuit — agent réserve remplacement → quand même REPOS_INSUFFISANT (14h prioritaire sur 10h)", () => {
+    // Même scénario mais agentReserve=true, remplacement=true
+    // La règle 14h doit l'emporter sur la réduction à 10h
+    const jsSuivante: PlanningEvent = {
+      dateDebut: new Date("2026-03-27T19:00:00.000Z"),
+      dateFin:   new Date("2026-03-28T03:00:00.000Z"),
+      heureDebut: "19:00",
+      heureFin:   "03:00",
+      amplitudeMin: 480,
+      dureeEffectiveMin: 480,
+      jsNpo: "JS",
+      codeJs: "JS",
+      typeJs: null,
+    };
+
+    const events: PlanningEvent[] = [jsNuit, jsSuivante];
+    const conflits = detecterConflitsInduits(events, heureFinJs, true, true, rules);
+
+    const reposConflits = conflits.filter((c) => c.type === "REPOS_INSUFFISANT");
+    expect(reposConflits).toHaveLength(1);
+    expect(reposConflits[0].description).toMatch(/post-nuit/);
+  });
+
+  it("repos de 15h après nuit → aucun conflit REPOS_INSUFFISANT", () => {
+    // JS suivante à 21:00 le 27 → gap 15h (06:00→21:00)
+    const jsSuivante: PlanningEvent = {
+      dateDebut: new Date("2026-03-27T21:00:00.000Z"),
+      dateFin:   new Date("2026-03-28T05:00:00.000Z"),
+      heureDebut: "21:00",
+      heureFin:   "05:00",
+      amplitudeMin: 480,
+      dureeEffectiveMin: 480,
+      jsNpo: "JS",
+      codeJs: "JS",
+      typeJs: null,
+    };
+
+    const events: PlanningEvent[] = [jsNuit, jsSuivante];
+    const conflits = detecterConflitsInduits(events, heureFinJs, false, false, rules);
+
+    const reposConflits = conflits.filter((c) => c.type === "REPOS_INSUFFISANT");
+    expect(reposConflits).toHaveLength(0);
+  });
+
+  it("repos de 11h après JS de jour → REPOS_INSUFFISANT (< 12h standard)", () => {
+    // JS de jour 08:00→16:00, suivante 03:00 lendemain → gap 11h
+    const jsJour: PlanningEvent = {
+      dateDebut: new Date("2026-03-26T08:00:00.000Z"),
+      dateFin:   new Date("2026-03-26T16:00:00.000Z"),
+      heureDebut: "08:00",
+      heureFin:   "16:00",
+      amplitudeMin: 480,
+      dureeEffectiveMin: 480,
+      jsNpo: "JS",
+      codeJs: "JS",
+      typeJs: null,
+    };
+    const heureFinJsJour = jsJour.dateFin;
+    const jsSuivante: PlanningEvent = {
+      dateDebut: new Date("2026-03-27T03:00:00.000Z"),
+      dateFin:   new Date("2026-03-27T11:00:00.000Z"),
+      heureDebut: "03:00",
+      heureFin:   "11:00",
+      amplitudeMin: 480,
+      dureeEffectiveMin: 480,
+      jsNpo: "JS",
+      codeJs: "JS",
+      typeJs: null,
+    };
+
+    const events: PlanningEvent[] = [jsJour, jsSuivante];
+    const conflits = detecterConflitsInduits(events, heureFinJsJour, false, false, rules);
+
+    const reposConflits = conflits.filter((c) => c.type === "REPOS_INSUFFISANT");
+    expect(reposConflits).toHaveLength(1);
+    // Le message ne doit PAS mentionner post-nuit (la JS précédente n'est pas de nuit)
+    expect(reposConflits[0].description).not.toMatch(/post-nuit/);
   });
 });

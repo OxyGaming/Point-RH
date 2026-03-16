@@ -24,9 +24,6 @@ export function detecterConflitsInduits(
   rules: WorkRulesMinutes = DEFAULT_WORK_RULES_MINUTES
 ): ConflitInduit[] {
   const conflits: ConflitInduit[] = [];
-  const reposMin = agentReserve && remplacement
-    ? rules.reposJournalier.reduitReserve
-    : rules.reposJournalier.standard;
 
   // Trier les événements chronologiquement
   const sortedEvents = [...eventsAvecJs].sort(
@@ -43,12 +40,21 @@ export function detecterConflitsInduits(
   // Vérifier les événements suivants dans les 72h
   for (let i = jsIdx + 1; i < sortedEvents.length; i++) {
     const next = sortedEvents[i];
-    const gap = diffMinutes(sortedEvents[i - 1].dateFin, next.dateDebut);
+    const prev = sortedEvents[i - 1];
+    const gap = diffMinutes(prev.dateFin, next.dateDebut);
     const deltaDays = diffMinutes(heureFinJs, next.dateDebut) / 60 / 24;
 
     if (deltaDays > 3) break; // Au-delà de 3 jours, on arrête
 
     if (next.jsNpo === "JS") {
+      // Repos minimum requis : 14h après JS de nuit, 10h réserve+remplacement, 12h sinon
+      const prevEstNuit = prev.jsNpo === "JS" && isJsDeNuit(prev.heureDebut, prev.heureFin);
+      const reposMin = prevEstNuit
+        ? rules.reposJournalier.apresNuit        // 14h — prioritaire sur toute réduction
+        : agentReserve && remplacement
+          ? rules.reposJournalier.reduitReserve  // 10h
+          : rules.reposJournalier.standard;      // 12h
+
       // Repos journalier insuffisant
       if (gap < reposMin) {
         conflits.push({
@@ -57,7 +63,7 @@ export function detecterConflitsInduits(
           heureDebut: next.heureDebut,
           heureFin: next.heureFin,
           type: "REPOS_INSUFFISANT",
-          description: `Repos insuffisant avant JS du ${dateToYYYYMMDD(next.dateDebut)} ${next.heureDebut}: ${minutesToTime(gap)} disponibles (min: ${minutesToTime(reposMin)})`,
+          description: `Repos insuffisant avant JS du ${dateToYYYYMMDD(next.dateDebut)} ${next.heureDebut}: ${minutesToTime(gap)} disponibles (min: ${minutesToTime(reposMin)}${prevEstNuit ? " — post-nuit" : ""})`,
           regleCode: "REPOS_JOURNALIER",
           resolvable: true,
         });

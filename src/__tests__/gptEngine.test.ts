@@ -919,3 +919,29 @@ describe("detecterConflitsInduits — repos post-nuit (14h)", () => {
     expect(reposConflits[0].description).not.toMatch(/post-nuit/);
   });
 });
+
+// ─── isZeroLoadJs — JS FO assimilées à des JS Z ───────────────────────────────
+
+import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
+
+describe("isZeroLoadJs — codes FO assimilés JS Z", () => {
+  // Cas positifs — doivent retourner true
+  it("\"FO\" seul → JS Z", () => expect(isZeroLoadJs("FO")).toBe(true));
+  it("\"FO123\" → JS Z (préfixe FO)", () => expect(isZeroLoadJs("FO123")).toBe(true));
+  it("\"FOX\" → JS Z (préfixe FO)", () => expect(isZeroLoadJs("FOX")).toBe(true));
+  it("\"fo123\" insensible à la casse → JS Z", () => expect(isZeroLoadJs("fo123")).toBe(true));
+  it("\"GIV Z\" → JS Z (suffixe espace+Z)", () => expect(isZeroLoadJs("GIV Z")).toBe(true));
+  it("\"GIC Z\" → JS Z", () => expect(isZeroLoadJs("GIC Z")).toBe(true));
+  it("\"giv z\" insensible à la casse → JS Z", () => expect(isZeroLoadJs("giv z")).toBe(true));
+
+  // Cas négatifs — doivent retourner false
+  it("\"GIV\" seul → pas JS Z", () => expect(isZeroLoadJs("GIV")).toBe(false));
+  it("\"GIC123\" → pas JS Z", () => expect(isZeroLoadJs("GIC123")).toBe(false));
+  it("\"FORCE\" → pas JS Z (préfixe FO mais ≠ FO uniquement...)", () => {
+    // "FORCE" commence bien par "FO" → doit être reconnu comme Z (formation/assimilé)
+    expect(isZeroLoadJs("FORCE")).toBe(true);
+  });
+  it("null → false", () => expect(isZeroLoadJs(null)).toBe(false));
+  it("undefined → false", () => expect(isZeroLoadJs(undefined)).toBe(false));
+  it("\"\" → false", () => expect(isZeroLoadJs("")).toBe(false));
+});

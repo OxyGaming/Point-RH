@@ -4,10 +4,16 @@
 
 /**
  * Détecte une journée de service sans charge réelle ("journée Z").
- * Exemples : "GIV Z", "GIC Z", "PEY Z", "BAD Z"
- * Règle : le code JS se termine par " Z" (espace + lettre Z), insensible à la casse.
+ *
+ * Deux familles reconnues :
+ *  1. Code se terminant par " Z"  → ex : "GIV Z", "GIC Z", "PEY Z"
+ *  2. Code commençant par "FO"    → ex : "FO123", "FOX", "FO" (formation, assimilé Z)
+ *
+ * Dans les deux cas, l'agent peut être réaffecté sans nécessiter le remplacement
+ * de sa journée d'origine (pas de cascade).
  */
 export function isZeroLoadJs(codeJs: string | null | undefined): boolean {
   if (!codeJs) return false;
-  return /\sZ$/i.test(codeJs.trim());
+  const code = codeJs.trim();
+  return /\sZ$/i.test(code) || /^FO/i.test(code);
 }

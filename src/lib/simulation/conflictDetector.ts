@@ -48,7 +48,11 @@ export function detecterConflitsInduits(
 
     if (next.jsNpo === "JS") {
       // Repos minimum requis : 14h après JS de nuit, 10h réserve+remplacement, 12h sinon
-      const prevEstNuit = prev.jsNpo === "JS" && isJsDeNuit(prev.heureDebut, prev.heureFin);
+      const prevEstNuit = prev.jsNpo === "JS" && isJsDeNuit(prev.heureDebut, prev.heureFin, {
+        debutSoirMin: rules.periodeNocturne.debutSoir,
+        finMatinMin: rules.periodeNocturne.finMatin,
+        seuilMin: rules.periodeNocturne.seuilJsNuit,
+      });
       const reposMin = prevEstNuit
         ? rules.reposJournalier.apresNuit        // 14h — prioritaire sur toute réduction
         : agentReserve && remplacement
@@ -109,7 +113,7 @@ export function detecterConflitsInduits(
   // ─ 2 GPT de nuit consécutives ───────────────────────────────────────────────
   // Une GPT est de nuit si au moins la moitié de ses JS comportent la période 0h-4h.
   const isGPTDeNuit = (days: PlanningEvent[]) => {
-    const nb = days.filter((j) => jsComportePeriode0h4h(j.heureDebut, j.heureFin)).length;
+    const nb = days.filter((j) => jsComportePeriode0h4h(j.heureDebut, j.heureFin, rules.periodeNocturne.seuilGptNuit)).length;
     return nb >= days.length / 2;
   };
 

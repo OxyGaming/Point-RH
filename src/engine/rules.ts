@@ -57,9 +57,9 @@ function getDernierPoste(events: PlanningEvent[], before: Date): PlanningEvent |
  * Une GPT est de nuit si au moins la moitié de ses journées de service
  * comporte la période de 0h à 4h.
  */
-function isGPTDeNuit(joursGPT: PlanningEvent[]): boolean {
+function isGPTDeNuit(joursGPT: PlanningEvent[], seuilGptNuitMin: number): boolean {
   if (joursGPT.length === 0) return false;
-  const nbAvec0h4h = joursGPT.filter((j) => jsComportePeriode0h4h(j.heureDebut, j.heureFin)).length;
+  const nbAvec0h4h = joursGPT.filter((j) => jsComportePeriode0h4h(j.heureDebut, j.heureFin, seuilGptNuitMin)).length;
   return nbAvec0h4h >= joursGPT.length / 2;
 }
 
@@ -67,12 +67,12 @@ function isGPTDeNuit(joursGPT: PlanningEvent[]): boolean {
  * Vérifie s'il y a eu 2 GPT de nuit consécutives avant la date cible.
  * Utilise decoupeEnGPTs pour une détection correcte (congés/RU ignorés comme RP).
  */
-function deuxGPTNuitConsecutives(events: PlanningEvent[], before: Date, rpSimpleMin: number): boolean {
+function deuxGPTNuitConsecutives(events: PlanningEvent[], before: Date, rules: WorkRulesMinutes): boolean {
   const eventsAvant = events.filter((e) => e.dateDebut < before);
-  const gpts = decoupeEnGPTs(eventsAvant, rpSimpleMin);
+  const gpts = decoupeEnGPTs(eventsAvant, rules.reposPeriodique.simple);
   if (gpts.length < 2) return false;
   const n = gpts.length;
-  return isGPTDeNuit(gpts[n - 1]) && isGPTDeNuit(gpts[n - 2]);
+  return isGPTDeNuit(gpts[n - 1], rules.periodeNocturne.seuilGptNuit) && isGPTDeNuit(gpts[n - 2], rules.periodeNocturne.seuilGptNuit);
 }
 
 // ─── Moteur principal ─────────────────────────────────────────────────────────
@@ -89,7 +89,12 @@ export function evaluerMobilisabilite(
   const debutImprevu = combineDateTime(simulation.dateDebut, simulation.heureDebut);
   const finImprevu = combineDateTime(simulation.dateFin, simulation.heureFin);
   const amplitudeImprevu = diffMinutes(debutImprevu, finImprevu);
-  const isNuitImprevu = isJsDeNuit(simulation.heureDebut, simulation.heureFin);
+  const nightOpts = {
+    debutSoirMin: rules.periodeNocturne.debutSoir,
+    finMatinMin: rules.periodeNocturne.finMatin,
+    seuilMin: rules.periodeNocturne.seuilJsNuit,
+  };
+  const isNuitImprevu = isJsDeNuit(simulation.heureDebut, simulation.heureFin, nightOpts);
 
   // ─ Amplitude maximale autorisée ─────────────────────────────────────────────
   let amplitudeMax = rules.amplitude.general;
@@ -133,7 +138,7 @@ export function evaluerMobilisabilite(
     reposDisponible = diffMinutes(dernierPoste.dateFin, debutImprevu);
 
     // 14h après poste de nuit
-    if (isJsDeNuit(dernierPoste.heureDebut, dernierPoste.heureFin)) {
+    if (isJsDeNuit(dernierPoste.heureDebut, dernierPoste.heureFin, nightOpts)) {
       reposJournalierMin = rules.reposJournalier.apresNuit;
     } else if (agent.agentReserve && simulation.remplacement) {
       // 10h réduit pour agent de réserve assurant un remplacement (1× par GPT)
@@ -144,7 +149,7 @@ export function evaluerMobilisabilite(
     if (
       dernierPoste.dureeEffectiveMin &&
       dernierPoste.dureeEffectiveMin > rules.pause.seuilTE &&
-      !isJsDeNuit(dernierPoste.heureDebut, dernierPoste.heureFin)
+      !isJsDeNuit(dernierPoste.heureDebut, dernierPoste.heureFin, nightOpts)
     ) {
       reposJournalierMin += rules.pause.supplementSansCoupure;
     }
@@ -340,7 +345,7 @@ export function evaluerMobilisabilite(
   }
 
   // 8. 2 GPT de nuit consécutives
-  if ((isNuitImprevu || simulation.posteNuit) && deuxGPTNuitConsecutives(events, debutImprevu, rules.reposPeriodique.simple)) {
+  if ((isNuitImprevu || simulation.posteNuit) && deuxGPTNuitConsecutives(events, debutImprevu, rules)) {
     violations.push({
       regle: "GPT_NUIT_CONSECUTIVES",
       description: "Agent aurait 2 GPT de nuit consécutives",

@@ -80,22 +80,36 @@ export function centesimalToMinutes(cent: number): number {
 }
 
 /**
+ * Options pour paramétrer la plage nocturne.
+ * Toutes les valeurs en minutes. Par défaut : 21h30–06h30.
+ */
+export interface NightOpts {
+  debutSoirMin?: number;  // début plage nocturne en min (défaut 1290 = 21h30)
+  finMatinMin?: number;   // fin plage nocturne en min (défaut 390 = 06h30)
+  seuilMin?: number;      // chevauchement min pour qualifier une JS de "nuit" (défaut 150 = 2h30)
+}
+
+/**
  * Calcule la durée de chevauchement (en minutes) d'une JS avec la période nocturne [21h30, 06h30].
  * Gère le passage minuit.
  */
-export function minutesNocturnes(heureDebut: string, heureFin: string): number {
+export function minutesNocturnes(
+  heureDebut: string,
+  heureFin: string,
+  opts?: NightOpts
+): number {
   const debut = timeToMinutes(heureDebut);
   let fin = timeToMinutes(heureFin);
   if (fin <= debut) fin += 24 * 60; // passage minuit
 
-  const NUIT_MATIN_FIN = 6 * 60 + 30;   // 390 min : 06h30
-  const NUIT_SOIR_DEB  = 21 * 60 + 30;  // 1290 min : 21h30
+  const NUIT_MATIN_FIN = opts?.finMatinMin  ?? 6 * 60 + 30;   // 390 min : 06h30
+  const NUIT_SOIR_DEB  = opts?.debutSoirMin ?? 21 * 60 + 30;  // 1290 min : 21h30
 
   let overlap = 0;
-  // Segment avant minuit : [1290, 1440]
+  // Segment avant minuit
   overlap += Math.max(0, Math.min(fin, 1440) - Math.max(debut, NUIT_SOIR_DEB));
   if (fin > 1440) {
-    // Passage minuit : segment [1440, 1830]
+    // Passage minuit
     overlap += Math.max(0, Math.min(fin, 1440 + NUIT_MATIN_FIN) - Math.max(debut, 1440));
   } else {
     // JS sans passage minuit qui commence tôt le matin
@@ -106,22 +120,33 @@ export function minutesNocturnes(heureDebut: string, heureFin: string): number {
 
 /**
  * Une JS est de nuit si elle comprend plus de 2h30 dans la période nocturne (21h30-06h30).
+ * Paramétrable via opts.
  */
-export function isJsDeNuit(heureDebut: string, heureFin: string): boolean {
-  return minutesNocturnes(heureDebut, heureFin) > 150; // 2h30 = 150 min
+export function isJsDeNuit(
+  heureDebut: string,
+  heureFin: string,
+  opts?: NightOpts
+): boolean {
+  const seuilMin = opts?.seuilMin ?? 150; // 2h30 = 150 min
+  return minutesNocturnes(heureDebut, heureFin, opts) > seuilMin;
 }
 
 /**
- * Une JS "comporte la période 0h-4h" si elle chevauche la fenêtre [00h00, 04h00].
+ * Une JS "comporte la période 0h-4h" si elle chevauche la fenêtre [00h00, borneMin].
  * Utilisé pour déterminer si une GPT est de nuit.
+ * @param borneMin — borne en minutes (défaut 240 = 04h00)
  */
-export function jsComportePeriode0h4h(heureDebut: string, heureFin: string): boolean {
+export function jsComportePeriode0h4h(
+  heureDebut: string,
+  heureFin: string,
+  borneMin = 240
+): boolean {
   const debut = timeToMinutes(heureDebut);
   let fin = timeToMinutes(heureFin);
   if (fin <= debut) fin += 24 * 60;
   const overlap =
-    Math.max(0, Math.min(fin, 240) - Math.max(debut, 0)) +
-    (fin > 1440 ? Math.max(0, Math.min(fin, 1680) - Math.max(debut, 1440)) : 0);
+    Math.max(0, Math.min(fin, borneMin) - Math.max(debut, 0)) +
+    (fin > 1440 ? Math.max(0, Math.min(fin, 1440 + borneMin) - Math.max(debut, 1440)) : 0);
   return overlap > 0;
 }
 

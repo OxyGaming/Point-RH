@@ -29,6 +29,7 @@ export async function loadWorkRules(): Promise<WorkRulesMinutes> {
       reposPeriodique: { ...DEFAULT_WORK_RULES.reposPeriodique },
       pause: { ...DEFAULT_WORK_RULES.pause },
       gpt: { ...DEFAULT_WORK_RULES.gpt },
+      periodeNocturne: { ...DEFAULT_WORK_RULES.periodeNocturne },
     };
 
     for (const rule of dbRules) {

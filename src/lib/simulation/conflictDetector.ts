@@ -7,7 +7,7 @@ import { diffMinutes, minutesToTime, isJsDeNuit, jsComportePeriode0h4h } from "@
 import type { PlanningEvent } from "@/engine/rules";
 import type { ConflitInduit, TypeConflit } from "@/types/js-simulation";
 import { DEFAULT_WORK_RULES_MINUTES, type WorkRulesMinutes } from "@/lib/rules/workRules";
-import { decoupeEnGPTs } from "@/lib/gptUtils";
+import { computeWorkSequences } from "@/lib/rules/gptEngine";
 
 function dateToYYYYMMDD(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -79,20 +79,20 @@ export function detecterConflitsInduits(
     }
   }
 
-  // ─ Vérification GPT_MAX via decoupeEnGPTs (congés/RU ne réinitialisent pas la GPT) ─
-  const gpts = decoupeEnGPTs(eventsAvecJs, rules.reposPeriodique.simple);
-  const gptsTriees = gpts.sort(
-    (a, b) => (a[0]?.dateDebut.getTime() ?? 0) - (b[0]?.dateDebut.getTime() ?? 0)
+  // ─ Vérification GPT_MAX via computeWorkSequences (congés/RU ne réinitialisent pas la GPT) ─
+  const sequences = computeWorkSequences(eventsAvecJs, rules.reposPeriodique.simple);
+  const sequencesTriees = [...sequences].sort(
+    (a, b) => a.startDate.getTime() - b.startDate.getTime()
   );
 
-  for (const gpt of gptsTriees) {
-    if (gpt.length > rules.gpt.max) {
-      const e = gpt[rules.gpt.max]; // première JS en dépassement
+  for (const seq of sequencesTriees) {
+    if (seq.length > rules.gpt.max) {
+      const e = seq.days[rules.gpt.max]; // première JS en dépassement
       conflits.push({
         planningLigneId: null,
         date: dateToYYYYMMDD(e.dateDebut),
         type: "GPT_MAX",
-        description: `GPT dépasse le maximum de ${rules.gpt.max} JS (jour ${gpt.length}) — les congés/RU ne constituent pas un RP`,
+        description: `GPT dépasse le maximum de ${rules.gpt.max} JS (jour ${seq.length}) — les congés/RU ne constituent pas un RP`,
         regleCode: "GPT_MAX",
         resolvable: false,
       });
@@ -102,17 +102,16 @@ export function detecterConflitsInduits(
 
   // ─ 2 GPT de nuit consécutives ───────────────────────────────────────────────
   // Une GPT est de nuit si au moins la moitié de ses JS comportent la période 0h-4h.
-  const isGPTDeNuit = (gpt: PlanningEvent[]) => {
-    const nb = gpt.filter((j) => jsComportePeriode0h4h(j.heureDebut, j.heureFin)).length;
-    return nb >= gpt.length / 2;
+  const isGPTDeNuit = (days: PlanningEvent[]) => {
+    const nb = days.filter((j) => jsComportePeriode0h4h(j.heureDebut, j.heureFin)).length;
+    return nb >= days.length / 2;
   };
 
-  // decoupeEnGPTs retourne toutes les GPTs détectées
-  const allGpts = decoupeEnGPTs(eventsAvecJs, rules.reposPeriodique.simple);
-  if (allGpts.length >= 2) {
-    const n = allGpts.length;
-    if (isGPTDeNuit(allGpts[n - 1]) && isGPTDeNuit(allGpts[n - 2])) {
-      const e = allGpts[n - 1][0];
+  const allSequences = computeWorkSequences(eventsAvecJs, rules.reposPeriodique.simple);
+  if (allSequences.length >= 2) {
+    const n = allSequences.length;
+    if (isGPTDeNuit(allSequences[n - 1].days) && isGPTDeNuit(allSequences[n - 2].days)) {
+      const e = allSequences[n - 1].days[0];
       conflits.push({
         planningLigneId: null,
         date: dateToYYYYMMDD(e.dateDebut),

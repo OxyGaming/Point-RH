@@ -8,21 +8,63 @@
  *   – Seul un repos PÉRIODIQUE (RP, graphié) réinitialise la GPT.
  *   – Les congés, absences et RU (repos universels) ne sont PAS des RP :
  *     ils s'inscrivent à l'intérieur de la GPT sans la clore.
- *   – Un gap entre deux JS est un RP uniquement si aucun congé/absence/RU
- *     ne l'occupe ET si sa durée est ≥ rpSimpleMin (36 h en minutes).
+ *   – Un gap entre deux jours travaillés est un RP uniquement si aucun
+ *     congé/absence/RU ne l'occupe ET si sa durée est ≥ rpSimpleMin (36 h).
+ *
+ * Journées comptant dans une GPT (isJourTravailleGPT) :
+ *   – JS (jsNpo === "JS") — toutes les journées de service
+ *   – C  (jsNpo === "NPO", codeJs === "C") — congé-repos planifié
+ *     Ces jours ne constituent pas un repos périodique : ils s'inscrivent
+ *     dans la continuité de la séquence de travail.
  */
 
 import type { PlanningEvent } from "@/engine/rules";
 import { diffMinutes } from "@/lib/utils";
+
+// ─── Identification des jours travaillés (comptant dans une GPT) ──────────────
+
+/**
+ * Retourne true si l'événement compte comme une journée travaillée dans une GPT.
+ *
+ * Sont considérés comme jours travaillés :
+ *  - Toutes les JS (jsNpo === "JS")
+ *  - Les congés-repos planifiés de type C (jsNpo === "NPO", codeJs === "C")
+ *    Ils participent à la continuité de la séquence entre deux RP.
+ *
+ * Corollaire : remplacer une journée C par une JS simulée ne modifie PAS
+ * la longueur de la GPT car la continuité reste identique.
+ */
+export function isJourTravailleGPT(event: PlanningEvent): boolean {
+  if (event.jsNpo === "JS") return true;
+  if (event.jsNpo === "NPO") {
+    const code = (event.codeJs ?? "").toUpperCase().trim();
+    return code === "C";
+  }
+  return false;
+}
 
 // ─── Identification des congés / absences / RU ────────────────────────────────
 
 /**
  * Retourne true si l'événement NPO est un congé, une absence ou un RU.
  * Ces événements ne constituent PAS un repos périodique.
+ *
+ * Exclusions explicites (ne sont PAS des congés/absences pour ce test) :
+ *  - RP (repos périodique graphié) : codeJs === "RP" ou startsWith("RP")
+ *  - C  (congé-repos planifié)     : codeJs === "C" — compte comme travail
  */
 export function isCongeOuAbsence(event: PlanningEvent): boolean {
   if (event.jsNpo !== "NPO") return false;
+
+  const code = (event.codeJs ?? "").toUpperCase().trim();
+
+  // Les RP graphiés ne sont jamais des congés/absences
+  if (code === "RP" || code.startsWith("RP")) return false;
+
+  // Les C (congé-repos planifié) comptent comme travail dans la GPT —
+  // ils ne bloquent pas la détection de frontière RP
+  if (code === "C") return false;
+
   const t = (event.typeJs ?? "").toLowerCase();
   return (
     t.includes("congé") ||
@@ -77,7 +119,7 @@ export function trouverDebutGPT(
   rpSimpleMin: number
 ): { gptStart: Date; joursGPT: PlanningEvent[] } {
   const joursJS = allEvents
-    .filter((e) => e.jsNpo === "JS" && e.dateDebut < before)
+    .filter((e) => isJourTravailleGPT(e) && e.dateDebut < before)
     .sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
 
   if (joursJS.length === 0) {
@@ -127,7 +169,7 @@ export function decoupeEnGPTs(
   rpSimpleMin: number
 ): PlanningEvent[][] {
   const joursJS = allEvents
-    .filter((e) => e.jsNpo === "JS")
+    .filter((e) => isJourTravailleGPT(e))
     .sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
 
   if (joursJS.length === 0) return [];

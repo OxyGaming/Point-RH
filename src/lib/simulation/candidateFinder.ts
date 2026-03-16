@@ -7,6 +7,7 @@ import { combineDateTime, diffMinutes, timeToMinutes } from "@/lib/utils";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { JsCible, ImpreuvuConfig } from "@/types/js-simulation";
 import { isZeroLoadJs } from "./jsUtils";
+import { isJourTravailleGPT } from "@/lib/gptUtils";
 
 export interface AgentWithPlanning {
   context: AgentContext;
@@ -86,6 +87,11 @@ export function preFilterCandidats(
 
 /**
  * Calcule la liste des événements d'un agent incluant fictivement la JS cible.
+ *
+ * Correctif GPT : la JS simulée REMPLACE toute journée existante sur le même
+ * créneau horaire (overlap), pas uniquement la JS Z déjà filtrée en amont.
+ * Cela garantit qu'aucun doublon n'est injecté dans le planning simulé et que
+ * le calcul GPT via computeWorkSequences reste cohérent.
  */
 export function injecterJsDansPlanning(
   events: PlanningEvent[],
@@ -108,7 +114,17 @@ export function injecterJsDansPlanning(
     typeJs: jsCible.typeJs,
   };
 
-  return [...events, jsInjectee].sort(
+  // Supprimer tout événement TRAVAILLÉ (JS ou NPO C) qui chevauche la nouvelle JS.
+  // Correction GPT : un NPO C remplacé par une JS doit être retiré du planning simulé
+  // pour éviter un doublon qui fausserait le calcul de la longueur de GPT.
+  // isJourTravailleGPT couvre JS (jsNpo="JS") et congé-repos C (jsNpo="NPO", codeJs="C").
+  const eventsFiltrés = events.filter((e) => {
+    if (!isJourTravailleGPT(e)) return true; // Conserver RP, absences, etc.
+    const overlap = e.dateDebut < dateFin && e.dateFin > dateDebut;
+    return !overlap;
+  });
+
+  return [...eventsFiltrés, jsInjectee].sort(
     (a, b) => a.dateDebut.getTime() - b.dateDebut.getTime()
   );
 }

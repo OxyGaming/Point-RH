@@ -12,6 +12,7 @@ import {
   cumulTravailEffectifGPT,
   decoupeEnGPTs,
   isCongeOuAbsence,
+  isJourTravailleGPT,
 } from "@/lib/gptUtils";
 
 // ─── Types internes ────────────────────────────────────────────────────────────
@@ -150,11 +151,49 @@ export function evaluerMobilisabilite(
   }
 
   // ─ GPT — calcul via gptUtils (congés/RU ne réinitialisent PAS la GPT) ───────
+  // trouverDebutGPT sert uniquement à obtenir gptStart pour la détection de congés.
   const { gptStart, joursGPT: joursGPTArr } = trouverDebutGPT(events, debutImprevu, rules.reposPeriodique.simple);
   const joursGPT = joursGPTArr.length;
-  const joursGPTApres = joursGPT + 1; // après ajout de la JS cible (pour les règles de conformité)
   const maxGPT = rules.gpt.max;
   const cumulTE = cumulTravailEffectifGPT(events, debutImprevu, rules.reposPeriodique.simple);
+
+  // Calcul CORRECT de joursGPTApres :
+  //  – Simuler le remplacement : retirer TOUS les événements travaillés (JS + NPO C)
+  //    sur la date cible, puis injecter la JS simulée.
+  //  – Découper en GPTs et retrouver la séquence contenant la date cible.
+  //  – Sa longueur = nombre de jours réels dans la GPT après le remplacement,
+  //    y compris les jours APRÈS la date simulée (ex : C(27) pour OLLIER).
+  //
+  //  Garantie : C → JS ne modifie PAS la longueur de la GPT si la continuité
+  //  entre les deux RP encadrants reste identique.
+  const simDateStr = debutImprevu.toISOString().slice(0, 10);
+  const jsSimulee: PlanningEvent = {
+    dateDebut: debutImprevu,
+    dateFin: finImprevu,
+    heureDebut: simulation.heureDebut,
+    heureFin: simulation.heureFin,
+    amplitudeMin: amplitudeImprevu,
+    dureeEffectiveMin: amplitudeImprevu,
+    jsNpo: "JS",
+    codeJs: simulation.codeJs ?? null,
+    typeJs: null,
+  };
+  const eventsSimules: PlanningEvent[] = [
+    // Retirer tous les événements travaillés sur la même date calendaire
+    // (JS existantes ET NPO C — tous remplacés par la JS simulée)
+    ...events.filter(
+      (e) =>
+        !isJourTravailleGPT(e) ||
+        e.dateDebut.toISOString().slice(0, 10) !== simDateStr
+    ),
+    jsSimulee,
+  ];
+  const gptsApres = decoupeEnGPTs(eventsSimules, rules.reposPeriodique.simple);
+  const gptContenant = gptsApres.find((gpt) =>
+    gpt.some((e) => e.dateDebut.toISOString().slice(0, 10) === simDateStr)
+  );
+  // Fallback : si la date simulée n'apparaît dans aucune GPT (ne devrait pas arriver)
+  const joursGPTApres = gptContenant?.length ?? joursGPT + 1;
 
   // ─ Points de vigilance (non bloquants) ───────────────────────────────────────
   const pointsVigilance: string[] = [];
@@ -271,17 +310,17 @@ export function evaluerMobilisabilite(
   }
 
   // 5. GPT max — une GPT ne peut comporter plus de 6 JS
-  //    Les congés et RU ne sont pas des RP : ils sont comptabilisés dans la GPT
-  //    (ils ne la réinitialisent pas) mais ne comptent pas comme JS.
-  if (joursGPT >= maxGPT) {
+  //    Vérifie la longueur APRÈS simulation (joursGPTApres) pour éviter les
+  //    faux positifs et les faux négatifs liés au simple +1 de l'ancienne logique.
+  if (joursGPTApres > maxGPT) {
     violations.push({
       regle: "GPT_MAX",
-      description: `GPT maximale atteinte — une GPT ne peut comporter plus de ${maxGPT} JS`,
-      valeur: joursGPT,
+      description: `GPT maximale dépassée — la GPT atteindrait ${joursGPTApres} JS (max ${maxGPT})`,
+      valeur: joursGPTApres,
       limite: maxGPT,
     });
   } else {
-    respectees.push({ regle: "GPT_MAX", description: "Nombre de JS en GPT dans les limites", valeur: joursGPT });
+    respectees.push({ regle: "GPT_MAX", description: "Nombre de JS en GPT dans les limites", valeur: joursGPTApres });
   }
 
   // 6. Poste de nuit interdit si non habilité

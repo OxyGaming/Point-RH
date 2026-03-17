@@ -10,6 +10,7 @@ const NAV = [
   { href: "/import", label: "Import planning", icon: "📥" },
   { href: "/agents", label: "Agents", icon: "👥" },
   { href: "/simulation", label: "Nouvelle simulation", icon: "⚡" },
+  { href: "/simulations/multi-js", label: "Simulation multi-JS", icon: "🎯" },
   { href: "/resultats", label: "Résultats", icon: "📊" },
 ];
 

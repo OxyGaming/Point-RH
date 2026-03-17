@@ -73,19 +73,6 @@ export function detecterConflitsInduits(
         });
       }
 
-      // Amplitude de la JS suivante
-      if (next.amplitudeMin > rules.amplitude.general) {
-        conflits.push({
-          planningLigneId: null,
-          date: dateToYYYYMMDD(next.dateDebut),
-          heureDebut: next.heureDebut,
-          heureFin: next.heureFin,
-          type: "AMPLITUDE_DEPASSEE",
-          description: `Amplitude dépassée pour JS du ${dateToYYYYMMDD(next.dateDebut)}: ${minutesToTime(next.amplitudeMin)} (max ${minutesToTime(rules.amplitude.general)})`,
-          regleCode: "AMPLITUDE",
-          resolvable: false,
-        });
-      }
     }
   }
 

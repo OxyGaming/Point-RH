@@ -160,3 +160,18 @@ export function truncate(str: string, max = 30): string {
 export function cn(...classes: (string | undefined | null | false)[]): string {
   return classes.filter(Boolean).join(" ");
 }
+
+/**
+ * Retourne la date de fin d'une JS en tenant compte du passage minuit.
+ * Si heureFin <= heureDebut, la JS se termine le lendemain (J+1).
+ */
+export function getDateFinJs(date: string, heureDebut: string, heureFin: string): string {
+  const debutMin = timeToMinutes(heureDebut);
+  const finMin = timeToMinutes(heureFin);
+  if (finMin <= debutMin) {
+    const d = new Date(date);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
+  return date;
+}

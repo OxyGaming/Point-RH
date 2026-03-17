@@ -5,7 +5,7 @@
 
 import { evaluerMobilisabilite } from "@/engine/rules";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
-import { combineDateTime, diffMinutes, isJsDeNuit } from "@/lib/utils";
+import { combineDateTime, diffMinutes, isJsDeNuit, getDateFinJs } from "@/lib/utils";
 import { loadWorkRules } from "@/lib/rules/workRulesLoader";
 import { preFilterCandidats, injecterJsDansPlanning } from "./candidateFinder";
 import { detecterConflitsInduits } from "./conflictDetector";
@@ -56,7 +56,7 @@ export async function executerSimulationJS(
     const simulationInput = {
       importId: jsCible.importId,
       dateDebut: jsCible.date,
-      dateFin: jsCible.date,
+      dateFin: getDateFinJs(jsCible.date, imprevu.heureDebutReel, imprevu.heureFinEstimee),
       heureDebut: imprevu.heureDebutReel,
       heureFin: imprevu.heureFinEstimee,
       poste: jsCible.codeJs ?? "JS",
@@ -128,7 +128,7 @@ export async function executerSimulationJS(
     const simulationInput = {
       importId: jsCible.importId,
       dateDebut: jsCible.date,
-      dateFin: jsCible.date,
+      dateFin: getDateFinJs(jsCible.date, imprevu.heureDebutReel, imprevu.heureFinEstimee),
       heureDebut: imprevu.heureDebutReel,
       heureFin: imprevu.heureFinEstimee,
       poste: jsCible.codeJs ?? "JS",

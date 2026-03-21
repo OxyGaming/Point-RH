@@ -1,0 +1,264 @@
+generator client {
+  provider        = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ─── Utilisateurs & rôles ─────────────────────────────────────────────────────
+
+/// Rôles applicatifs :
+/// - ADMIN  : accès total (paramètres, suppression agent, gestion utilisateurs)
+/// - USER   : accès fonctionnel (import, consultation, simulation)
+model User {
+  id                   String   @id @default(cuid())
+  email                String   @unique
+  name                 String
+  password             String   // bcrypt hash
+  role                 String   @default("USER") // "ADMIN" | "USER"
+  isActive             Boolean  @default(true)
+  /// Statut de validation du compte : "PENDING" | "APPROVED" | "REJECTED"
+  /// Les comptes créés directement par l'admin sont APPROVED par défaut.
+  /// Les demandes via le formulaire public d'inscription démarrent en PENDING.
+  registrationStatus   String   @default("APPROVED")
+  registrationComment  String?  // Motif fourni lors de l'inscription
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  auditLogs AuditLog[]
+}
+
+/// Journal d'audit — trace les actions sensibles (suppression, modification RH, etc.)
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  userEmail String?
+  action    String   // ex : "DELETE_AGENT", "UPDATE_WORK_RULES", "LOGIN"
+  entity    String   // ex : "Agent", "WorkRule", "User"
+  entityId  String?
+  details   String   @default("{}") // JSON
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ─── Agents ──────────────────────────────────────────────────────────────────
+
+/// Règle de gestion : un agent importé est RÉMANENT.
+/// Il ne peut être supprimé QUE par un administrateur via une action explicite.
+/// Un import ultérieur ne supprime jamais un agent absent du fichier.
+/// La suppression est LOGIQUE (deletedAt non null) pour préserver l'historique.
+model Agent {
+  id               String    @id @default(cuid())
+  matricule        String    @unique
+  nom              String
+  prenom           String
+  uch              String?
+  codeUch          String?
+  codeApes         String?
+  codeSymboleGrade String?
+  codeCollegeGrade Int?
+  posteAffectation String?
+  agentReserve     Boolean   @default(false)
+  peutFaireNuit    Boolean   @default(true)
+  peutEtreDeplace  Boolean   @default(false)
+  regimeB          Boolean   @default(false)
+  regimeC          Boolean   @default(false)
+  habilitations    String    @default("[]")
+  /// LPA de base (Lieu de Prise d'Attachement) — détermine le hors-LPA
+  lpaBaseId        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  /// Suppression logique — null = agent actif, non-null = supprimé par un admin
+  deletedAt        DateTime?
+  deletedByEmail   String?   // email de l'admin ayant supprimé
+
+  lpaBase                 Lpa?                     @relation(fields: [lpaBaseId], references: [id])
+  planningLignes          PlanningLigne[]
+  resultatsAgent          ResultatAgent[]
+  agentJsDeplacementRules AgentJsDeplacementRule[]
+
+  @@index([deletedAt])
+}
+
+// ─── Planning ─────────────────────────────────────────────────────────────────
+
+model PlanningImport {
+  id         String   @id @default(cuid())
+  filename   String
+  importedAt DateTime @default(now())
+  nbLignes   Int
+  nbAgents   Int
+  erreurs    String   @default("[]")
+  isActive   Boolean  @default(true)
+
+  lignes      PlanningLigne[]
+  simulations Simulation[]
+}
+
+model PlanningLigne {
+  id               String   @id @default(cuid())
+  importId         String
+  agentId          String?
+  uch              String?
+  codeUch          String?
+  nom              String
+  prenom           String
+  matricule        String
+  codeApes         String?
+  codeSymboleGrade String?
+  codeCollegeGrade Int?
+
+  dateDebutPop        DateTime
+  heureDebutPop       String
+  heureFinPop         String
+  dateFinPop          DateTime
+  amplitudeCentesimal Int?
+  amplitudeHHMM       String?
+  dureeEffectiveCent  Int?
+  dureeEffectiveHHMM  String?
+
+  jsNpo          String
+  codeJs         String?
+  typeJs         String?
+  valeurNpo      Int?
+  uchJs          String?
+  codeUchJs      String?
+  codeRoulementJs String?
+  numeroJs       String?
+
+  import PlanningImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  agent  Agent?         @relation(fields: [agentId], references: [id])
+
+  @@index([agentId])
+  @@index([importId])
+  @@index([matricule])
+  @@index([dateDebutPop])
+}
+
+// ─── Simulations ─────────────────────────────────────────────────────────────
+
+model Simulation {
+  id          String   @id @default(cuid())
+  importId    String
+  dateDebut   DateTime
+  dateFin     DateTime
+  heureDebut  String
+  heureFin    String
+  poste       String
+  remplacement Boolean @default(false)
+  deplacement  Boolean @default(false)
+  posteNuit    Boolean @default(false)
+  commentaire String?
+  createdAt   DateTime @default(now())
+
+  import    PlanningImport @relation(fields: [importId], references: [id])
+  resultats ResultatAgent[]
+}
+
+model ResultatAgent {
+  id              String @id @default(cuid())
+  simulationId    String
+  agentId         String
+  statut          String
+  scorePertinence Int    @default(0)
+  motifPrincipal  String?
+  detail          String @default("{}")
+
+  simulation Simulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+  agent      Agent      @relation(fields: [agentId], references: [id])
+
+  @@index([simulationId])
+  @@index([agentId])
+}
+
+// ─── Règles métier ────────────────────────────────────────────────────────────
+
+model WorkRule {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     Float
+  category  String
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Référentiel JsType ───────────────────────────────────────────────────────
+
+/// Type de journée de service (référentiel central).
+/// code peut être un préfixe (ex: "GIV") ou un typeJs exact (ex: "FIX").
+/// Définit les horaires standard et la nature nuit/jour.
+model JsType {
+  id                 String   @id @default(cuid())
+  code               String   @unique
+  libelle            String
+  heureDebutStandard String   // "HH:MM"
+  heureFinStandard   String   // "HH:MM"
+  dureeStandard      Int      // minutes
+  estNuit            Boolean  @default(false)
+  regime             String?  // optionnel : ex "B", "C"
+  actif              Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  lpaJsTypes            LpaJsType[]
+  agentDeplacementRules AgentJsDeplacementRule[]
+}
+
+// ─── LPA — Lieu de Prise d'Attachement ────────────────────────────────────────
+
+/// Lieu de prise d'attachement d'un agent.
+/// Détermine quelles JS sont considérées "dans la LPA" via la table LpaJsType.
+model Lpa {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  libelle   String
+  actif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agents     Agent[]
+  lpaJsTypes LpaJsType[]
+}
+
+/// Table de correspondance LPA ↔ JsType.
+/// Si un JsType est référencé pour une LPA → JS considérée "dans la LPA".
+/// Sinon → JS hors LPA → déclenchement possible du déplacement.
+model LpaJsType {
+  id       String @id @default(cuid())
+  lpaId    String
+  jsTypeId String
+
+  lpa    Lpa    @relation(fields: [lpaId], references: [id], onDelete: Cascade)
+  jsType JsType @relation(fields: [jsTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([lpaId, jsTypeId])
+  @@index([lpaId])
+}
+
+// ─── Règles de déplacement agent ──────────────────────────────────────────────
+
+/// Règles spécifiques de déplacement par agent.
+/// Permet de définir les temps de trajet et d'éventuels overrides horsLpa.
+/// Match par jsTypeId (prioritaire) OU prefixeJs (fallback, préfixe le plus long).
+model AgentJsDeplacementRule {
+  id                       String   @id @default(cuid())
+  agentId                  String
+  jsTypeId                 String?  // match exact via JsType
+  prefixeJs                String?  // match par préfixe sur codeJs (fallback)
+  horsLpa                  Boolean? // override : force JS hors/dans LPA
+  tempsTrajetAllerMinutes  Int      @default(0)
+  tempsTrajetRetourMinutes Int      @default(0)
+  actif                    Boolean  @default(true)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  agent  Agent   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  jsType JsType? @relation(fields: [jsTypeId], references: [id])
+
+  @@index([agentId])
+}

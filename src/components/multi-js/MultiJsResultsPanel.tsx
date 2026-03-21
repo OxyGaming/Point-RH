@@ -1,0 +1,533 @@
+"use client";
+
+import { useState } from "react";
+import { cn } from "@/lib/utils";
+import type {
+  MultiJsSimulationResultat,
+  MultiJsScenario,
+  AffectationJs,
+  AffectationsParAgent,
+} from "@/types/multi-js-simulation";
+
+interface Props {
+  resultat: MultiJsSimulationResultat;
+}
+
+type Tab = "resume" | "affectations" | "agents" | "non-couvertes" | "conflits";
+
+function ScoreBadge({ score }: { score: number }) {
+  const color =
+    score >= 80
+      ? "bg-emerald-100 text-emerald-700"
+      : score >= 50
+      ? "bg-amber-100 text-amber-700"
+      : "bg-red-100 text-red-700";
+  return (
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-bold", color)}>
+      {score}/100
+    </span>
+  );
+}
+
+function RobustesseBadge({ robustesse }: { robustesse: string }) {
+  const map: Record<string, string> = {
+    HAUTE: "bg-emerald-100 text-emerald-700",
+    MOYENNE: "bg-amber-100 text-amber-700",
+    FAIBLE: "bg-red-100 text-red-700",
+  };
+  const labels: Record<string, string> = {
+    HAUTE: "Robuste",
+    MOYENNE: "Moyenne",
+    FAIBLE: "Fragile",
+  };
+  return (
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold", map[robustesse] ?? "bg-slate-100 text-slate-600")}>
+      {labels[robustesse] ?? robustesse}
+    </span>
+  );
+}
+
+function StatutBadge({ statut }: { statut: "DIRECT" | "VIGILANCE" | "NON_CONFORME" | "CONFORME" }) {
+  const map: Record<string, string> = {
+    DIRECT: "bg-emerald-100 text-emerald-700",
+    CONFORME: "bg-emerald-100 text-emerald-700",
+    VIGILANCE: "bg-amber-100 text-amber-700",
+    NON_CONFORME: "bg-red-100 text-red-700",
+  };
+  const labels: Record<string, string> = {
+    DIRECT: "Direct",
+    CONFORME: "Conforme",
+    VIGILANCE: "Vigilance",
+    NON_CONFORME: "Non conforme",
+  };
+  return (
+    <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold", map[statut] ?? "bg-slate-100")}>
+      {labels[statut] ?? statut}
+    </span>
+  );
+}
+
+function SeveriteBadge({ severity }: { severity: string }) {
+  const map: Record<string, string> = {
+    INFO: "bg-blue-100 text-blue-700",
+    AVERTISSEMENT: "bg-amber-100 text-amber-700",
+    BLOQUANT: "bg-red-100 text-red-700",
+  };
+  return (
+    <span className={cn("inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium", map[severity] ?? "bg-slate-100")}>
+      {severity}
+    </span>
+  );
+}
+
+function ScopeBadge({ scope }: { scope: string }) {
+  return (
+    <span className={cn(
+      "inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold",
+      scope === "reserve_only"
+        ? "bg-violet-100 text-violet-700"
+        : "bg-blue-100 text-blue-700"
+    )}>
+      {scope === "reserve_only" ? "🛡️ Réserve" : "👥 Tous agents"}
+    </span>
+  );
+}
+
+// ─── Résumé d'un scénario ─────────────────────────────────────────────────────
+
+function ScenarioResume({ scenario }: { scenario: MultiJsScenario }) {
+  const pct = scenario.tauxCouverture;
+  return (
+    <div className="bg-slate-50 rounded-xl p-4 space-y-3">
+      <div className="flex items-start justify-between gap-2 flex-wrap">
+        <div>
+          <p className="text-sm font-bold text-slate-800">{scenario.titre}</p>
+          <p className="text-xs text-slate-500 mt-0.5">{scenario.description}</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <ScopeBadge scope={scenario.candidateScope} />
+          <ScoreBadge score={scenario.score} />
+          <RobustesseBadge robustesse={scenario.robustesse} />
+        </div>
+      </div>
+
+      {/* Barre de couverture */}
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[10px] font-semibold text-slate-600 uppercase tracking-wide">
+            Taux de couverture
+          </span>
+          <span className="text-xs font-bold text-slate-700">{pct}%</span>
+        </div>
+        <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+          <div
+            className={cn(
+              "h-full rounded-full transition-all",
+              pct === 100
+                ? "bg-emerald-500"
+                : pct >= 70
+                ? "bg-amber-400"
+                : "bg-red-400"
+            )}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: "JS sélectionnées", val: scenario.nbJsCouvertes + scenario.nbJsNonCouvertes },
+          { label: "JS couvertes", val: scenario.nbJsCouvertes, color: "text-emerald-600" },
+          { label: "JS non couvertes", val: scenario.nbJsNonCouvertes, color: scenario.nbJsNonCouvertes > 0 ? "text-red-600" : "text-slate-600" },
+          { label: "Agents mobilisés", val: scenario.nbAgentsMobilises, color: "text-blue-600" },
+        ].map(({ label, val, color }) => (
+          <div key={label} className="bg-white rounded-lg p-2.5 border border-slate-100 text-center">
+            <p className={cn("text-xl font-bold", color ?? "text-slate-800")}>{val}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">{label}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Tableau affectations ─────────────────────────────────────────────────────
+
+function AffectationsTable({ affectations }: { affectations: AffectationJs[] }) {
+  if (affectations.length === 0) {
+    return <p className="text-sm text-slate-400 italic py-4 text-center">Aucune affectation dans ce scénario.</p>;
+  }
+  return (
+    <div className="space-y-1.5">
+      {affectations.map((aff) => {
+        const hasIssue = aff.statut === "VIGILANCE" || aff.conflitsInduits.length > 0;
+        return (
+          <div
+            key={aff.jsId}
+            className={cn(
+              "rounded-lg border px-3 py-2",
+              hasIssue ? "border-amber-200 bg-amber-50" : "border-slate-100 bg-white"
+            )}
+          >
+            {/* Ligne principale */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="font-mono text-[10px] text-slate-500 min-w-[60px]">
+                {new Date(aff.jsCible.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
+              </span>
+              <span className="font-mono text-xs text-slate-600">
+                {aff.jsCible.heureDebut}–{aff.jsCible.heureFin}
+              </span>
+              <span className="font-mono font-bold text-xs text-slate-800 min-w-[70px]">
+                {aff.jsCible.codeJs ?? "—"}
+              </span>
+              <span className="flex-1 text-xs font-medium text-slate-700">
+                {aff.agentPrenom} {aff.agentNom}
+                {aff.agentReserve && (
+                  <span className="ml-1 text-[9px] bg-violet-100 text-violet-600 px-1 py-0.5 rounded font-semibold">
+                    RES
+                  </span>
+                )}
+              </span>
+              <StatutBadge statut={aff.statut} />
+              <div className="flex items-center gap-1">
+                <div className="w-12 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full rounded-full",
+                      aff.score >= 80 ? "bg-emerald-400" : aff.score >= 50 ? "bg-amber-400" : "bg-red-400"
+                    )}
+                    style={{ width: `${aff.score}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-slate-500">{aff.score}</span>
+              </div>
+            </div>
+
+            {/* Motif vigilance */}
+            {aff.statut === "VIGILANCE" && aff.justification && (
+              <p className="mt-1.5 text-[10px] text-amber-700 flex items-start gap-1">
+                <span className="shrink-0">⚠</span>
+                <span>{aff.justification}</span>
+              </p>
+            )}
+
+            {/* Conflits induits */}
+            {aff.conflitsInduits.length > 0 && (
+              <div className="mt-1.5 space-y-0.5">
+                {aff.conflitsInduits.map((c, i) => (
+                  <p key={i} className="text-[10px] text-amber-700 flex items-start gap-1">
+                    <span className="shrink-0">↳</span>
+                    <span>{c.description}</span>
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Affectations par agent ───────────────────────────────────────────────────
+
+function AgentCard({ agent }: { agent: AffectationsParAgent }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border border-slate-200 rounded-lg overflow-hidden">
+      <button
+        type="button"
+        className="w-full flex items-center justify-between px-4 py-3 bg-white hover:bg-slate-50 transition-colors text-left"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-blue-600">
+              {agent.agentPrenom?.[0]}{agent.agentNom?.[0]}
+            </span>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-slate-800">
+              {agent.agentPrenom} {agent.agentNom}
+              {agent.agentReserve && (
+                <span className="ml-2 text-[9px] bg-violet-100 text-violet-600 px-1 py-0.5 rounded font-semibold">
+                  RÉSERVE
+                </span>
+              )}
+            </p>
+            <p className="text-[10px] text-slate-500 font-mono">{agent.agentMatricule}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-slate-700">{agent.nbJs} JS</span>
+          <StatutBadge statut={agent.conformiteGlobale} />
+          <span className="text-slate-400 text-sm">{open ? "▲" : "▼"}</span>
+        </div>
+      </button>
+
+      {open && (
+        <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 space-y-2">
+          {agent.jsAssignees.map((aff, i) => {
+            const hasIssue = aff.statut === "VIGILANCE" || aff.conflitsInduits.length > 0;
+            return (
+              <div
+                key={aff.jsId}
+                className={cn(
+                  "rounded-lg px-3 py-2 text-xs",
+                  hasIssue ? "bg-amber-50 border border-amber-200" : "bg-white border border-slate-100"
+                )}
+              >
+                {/* Ligne principale */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="text-[10px] font-bold text-slate-400 w-4">{i + 1}</span>
+                  <span className="font-mono text-slate-600 min-w-[70px]">
+                    {new Date(aff.jsCible.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
+                  </span>
+                  <span className="font-mono text-slate-500">{aff.jsCible.heureDebut}–{aff.jsCible.heureFin}</span>
+                  <span className="font-bold font-mono text-slate-800">{aff.jsCible.codeJs ?? "—"}</span>
+                  <StatutBadge statut={aff.statut} />
+                </div>
+
+                {/* Motif vigilance RH */}
+                {aff.statut === "VIGILANCE" && aff.justification && (
+                  <p className="mt-1.5 text-[10px] text-amber-700 flex items-start gap-1">
+                    <span className="shrink-0">⚠</span>
+                    <span>{aff.justification}</span>
+                  </p>
+                )}
+
+                {/* Conflits induits */}
+                {aff.conflitsInduits.length > 0 && (
+                  <div className="mt-1.5 space-y-0.5">
+                    {aff.conflitsInduits.map((c, j) => (
+                      <p key={j} className="text-[10px] text-amber-700 flex items-start gap-1">
+                        <span className="shrink-0">↳</span>
+                        <span>{c.description}</span>
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Composant principal ──────────────────────────────────────────────────────
+
+export default function MultiJsResultsPanel({ resultat }: Props) {
+  const [activeScenarioIdx, setActiveScenarioIdx] = useState(0);
+  const [activeTab, setActiveTab] = useState<Tab>("resume");
+
+  const scenario = resultat.scenarios[activeScenarioIdx];
+  if (!scenario) return null;
+
+  const tabs: { id: Tab; label: string; count?: number }[] = [
+    { id: "resume", label: "Résumé" },
+    { id: "affectations", label: "Affectations", count: scenario.affectations.length },
+    { id: "agents", label: "Par agent", count: scenario.affectationsParAgent.length },
+    { id: "non-couvertes", label: "Non couvertes", count: scenario.jsNonCouvertes.length },
+    { id: "conflits", label: "Conflits", count: scenario.conflitsDetectes.length },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* ─── Comparaison réserve / tous agents ──────────────────────── */}
+      {resultat.scenarioReserveOnly && resultat.scenarioTousAgents && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <p className="text-xs font-semibold text-blue-800 mb-3">
+            Comparaison des scénarios
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { s: resultat.scenarioReserveOnly, label: "🛡️ Réserve uniquement" },
+              { s: resultat.scenarioTousAgents, label: "👥 Tous agents" },
+            ].map(({ s, label }) => (
+              <div key={s.id} className="bg-white rounded-lg p-3 border border-blue-100">
+                <p className="text-[10px] font-semibold text-slate-600 mb-2">{label}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold text-slate-800">{s.tauxCouverture}%</span>
+                  <ScoreBadge score={s.score} />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  {s.nbJsCouvertes}/{s.nbJsCouvertes + s.nbJsNonCouvertes} JS · {s.nbAgentsMobilises} agents
+                </p>
+                <RobustesseBadge robustesse={s.robustesse} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Sélecteur de scénario ────────────────────────────────────── */}
+      {resultat.scenarios.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {resultat.scenarios.map((s, idx) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => { setActiveScenarioIdx(idx); setActiveTab("resume"); }}
+              className={cn(
+                "shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all",
+                activeScenarioIdx === idx
+                  ? "border-blue-400 bg-blue-50 text-blue-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-blue-300"
+              )}
+            >
+              <ScopeBadge scope={s.candidateScope} />
+              <span className="font-mono">{s.tauxCouverture}%</span>
+              <ScoreBadge score={s.score} />
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ─── Onglets ──────────────────────────────────────────────────── */}
+      <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+        <div className="flex border-b border-slate-200 overflow-x-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "shrink-0 flex items-center gap-1.5 px-3 py-3 text-xs font-medium transition-colors whitespace-nowrap border-b-2",
+                activeTab === tab.id
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
+              )}
+            >
+              {tab.label}
+              {tab.count !== undefined && tab.count > 0 && (
+                <span
+                  className={cn(
+                    "inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold",
+                    tab.id === "non-couvertes" && tab.count > 0
+                      ? "bg-red-100 text-red-600"
+                      : tab.id === "conflits" && tab.count > 0
+                      ? "bg-amber-100 text-amber-600"
+                      : "bg-slate-100 text-slate-600"
+                  )}
+                >
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="p-4">
+          {/* Résumé */}
+          {activeTab === "resume" && <ScenarioResume scenario={scenario} />}
+
+          {/* Affectations */}
+          {activeTab === "affectations" && (
+            <AffectationsTable affectations={scenario.affectations} />
+          )}
+
+          {/* Par agent */}
+          {activeTab === "agents" && (
+            <div className="space-y-2">
+              {scenario.affectationsParAgent.length === 0 ? (
+                <p className="text-sm text-slate-400 italic py-4 text-center">
+                  Aucun agent mobilisé dans ce scénario.
+                </p>
+              ) : (
+                scenario.affectationsParAgent.map((agent) => (
+                  <AgentCard key={agent.agentId} agent={agent} />
+                ))
+              )}
+            </div>
+          )}
+
+          {/* JS non couvertes */}
+          {activeTab === "non-couvertes" && (
+            <div className="space-y-2">
+              {scenario.jsNonCouvertes.length === 0 ? (
+                <div className="py-6 text-center">
+                  <p className="text-2xl mb-1">✅</p>
+                  <p className="text-sm font-semibold text-emerald-600">
+                    Toutes les JS sont couvertes
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-red-600 font-semibold mb-2">
+                    {scenario.jsNonCouvertes.length} JS impossible(s) à couvrir dans ce scénario
+                  </p>
+                  {scenario.jsNonCouvertes.map((js) => (
+                    <div
+                      key={js.planningLigneId}
+                      className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg"
+                    >
+                      <span className="text-red-400 text-lg">⛔</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-slate-800">
+                          {js.codeJs ?? "JS sans code"}
+                        </p>
+                        <p className="text-[10px] text-slate-500">
+                          {new Date(js.date).toLocaleDateString("fr-FR", {
+                            weekday: "long",
+                            day: "2-digit",
+                            month: "long",
+                          })}{" "}
+                          · {js.heureDebut}–{js.heureFin}
+                        </p>
+                        <p className="text-[10px] text-slate-400">
+                          Agent prévu : {js.agentPrenom} {js.agentNom}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Conflits */}
+          {activeTab === "conflits" && (
+            <div className="space-y-2">
+              {scenario.conflitsDetectes.length === 0 ? (
+                <div className="py-6 text-center">
+                  <p className="text-2xl mb-1">✅</p>
+                  <p className="text-sm font-semibold text-emerald-600">
+                    Aucun conflit détecté
+                  </p>
+                </div>
+              ) : (
+                scenario.conflitsDetectes.map((c, i) => (
+                  <div
+                    key={i}
+                    className={cn(
+                      "flex items-start gap-3 p-3 rounded-lg border",
+                      c.severity === "BLOQUANT"
+                        ? "bg-red-50 border-red-200"
+                        : c.severity === "AVERTISSEMENT"
+                        ? "bg-amber-50 border-amber-200"
+                        : "bg-blue-50 border-blue-200"
+                    )}
+                  >
+                    <span className="text-sm shrink-0 mt-0.5">
+                      {c.severity === "BLOQUANT" ? "⛔" : c.severity === "AVERTISSEMENT" ? "⚠️" : "ℹ️"}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <SeveriteBadge severity={c.severity} />
+                        <span className="text-[10px] text-slate-500 font-mono">{c.type}</span>
+                      </div>
+                      <p className="text-xs text-slate-700">{c.description}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

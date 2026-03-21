@@ -18,6 +18,7 @@ const NAV_ADMIN = [
   { href: "/admin/registrations", label: "Inscriptions", icon: "📋" },
   { href: "/admin/work-rules", label: "Règles de travail", icon: "⚙️" },
   { href: "/lpa", label: "LPA & Types JS", icon: "📍" },
+  { href: "/admin/parametrage", label: "Import/Export paramétrage", icon: "📤" },
   { href: "/admin/users", label: "Utilisateurs", icon: "🔑" },
 ];
 

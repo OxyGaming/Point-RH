@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
             regimeB: ligne.agent.regimeB,
             regimeC: ligne.agent.regimeC,
             prefixesJs: JSON.parse(ligne.agent.habilitations) as string[],
+            lpaBaseId: ligne.agent.lpaBaseId,
           },
           events: [],
         });

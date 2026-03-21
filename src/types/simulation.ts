@@ -27,6 +27,8 @@ export interface RegleRespectee {
   valeur?: number | string;
 }
 
+import type { EffectiveServiceInfo } from "./deplacement";
+
 export interface DetailCalcul {
   amplitudeMaxAutorisee: number;
   amplitudeImprevu: number;
@@ -42,6 +44,8 @@ export interface DetailCalcul {
   respectees: RegleRespectee[];
   pointsVigilance: string[];   // avertissements non bloquants (GPT min, GPT max avant RP…)
   disponible: boolean;
+  /** Informations de déplacement calculées (null si non disponibles / LPA non configurée) */
+  deplacementInfo: EffectiveServiceInfo | null;
 }
 
 export interface ResultatAgentDetail {

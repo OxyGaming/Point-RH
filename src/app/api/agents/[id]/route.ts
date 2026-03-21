@@ -47,6 +47,7 @@ export async function PATCH(
     "nom", "prenom", "uch", "codeUch", "codeApes", "codeSymboleGrade",
     "codeCollegeGrade", "posteAffectation", "agentReserve",
     "peutFaireNuit", "peutEtreDeplace", "regimeB", "regimeC",
+    "lpaBaseId", // LPA de base (null = aucune LPA configurée)
   ];
   const safeData: Record<string, unknown> = {};
   for (const key of ALLOWED) {

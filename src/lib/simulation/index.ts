@@ -12,6 +12,9 @@ import { detecterConflitsInduits } from "./conflictDetector";
 import { construireScenarios } from "./scenarioBuilder";
 import { scorerCandidat } from "./scenarioScorer";
 import { isZeroLoadJs } from "./jsUtils";
+import { loadLpaContext } from "@/lib/deplacement/loadLpaContext";
+import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
+import type { EffectiveServiceInfo } from "@/types/deplacement";
 import type { JsSimulationRequest, JsSimulationResultat, CandidatResult, StatutCandidat } from "@/types/js-simulation";
 
 export interface AgentDataForSimulation {
@@ -28,9 +31,36 @@ export async function executerSimulationJS(
   // Charger les règles dynamiques (fallback sur défauts si base vide)
   const rules = await loadWorkRules();
 
+  // ─── Chargement du contexte LPA ──────────────────────────────────────────────
+  const agentIds = agents.map((a) => a.context.id);
+  const lpaContext = await loadLpaContext(agentIds);
+
+  // ─── Calcul du service effectif par agent (LPA-based) ────────────────────────
+  // Calculé une fois pour tous les agents (y compris les futurs exclus)
+  // pour une utilisation cohérente dans preFilterCandidats et evaluerMobilisabilite.
+  const effectiveServiceMap = new Map<string, EffectiveServiceInfo>();
+  for (const { context } of agents) {
+    if (context.id === jsCible.agentId) continue; // agent initial exclu de la simulation
+    const effSvc = computeEffectiveService(
+      { id: context.id, lpaBaseId: context.lpaBaseId, peutEtreDeplace: context.peutEtreDeplace },
+      {
+        codeJs: jsCible.codeJs,
+        typeJs: jsCible.typeJs,
+        heureDebut: jsCible.heureDebut,
+        heureFin: jsCible.heureFin,
+        estNuit: jsCible.isNuit,
+      },
+      lpaContext,
+      { remplacement: imprevu.remplacement }
+    );
+    effectiveServiceMap.set(context.id, effSvc);
+  }
+
   // ─── Étape 1 : pré-filtre ────────────────────────────────────────────────────
   const agentInitialId = jsCible.agentId;
-  const { eligible, exclus } = preFilterCandidats(agents, jsCible, imprevu, agentInitialId);
+  const { eligible, exclus } = preFilterCandidats(
+    agents, jsCible, imprevu, agentInitialId, effectiveServiceMap
+  );
 
   // ─── Étape 2 : simulation pour chaque candidat ───────────────────────────────
   const candidats: CandidatResult[] = [];
@@ -53,16 +83,32 @@ export async function executerSimulationJS(
     ) ?? null;
     const surJsZ = jsZOrigine !== null;
 
+    // ─── Service effectif pour cet agent ───────────────────────────────────────
+    const effectiveService = effectiveServiceMap.get(context.id) ?? null;
+
+    // Utiliser les horaires effectifs si déplacement calculé
+    const heureDebutSim = effectiveService && !effectiveService.indeterminable
+      ? effectiveService.heureDebutEffective
+      : imprevu.heureDebutReel;
+    const heureFinSim = effectiveService && !effectiveService.indeterminable
+      ? effectiveService.heureFinEffective
+      : imprevu.heureFinEstimee;
+
+    // Le déplacement effectif (LPA-based ou fallback)
+    const deplacementEffectif = effectiveService && effectiveService.estEnDeplacement !== null
+      ? effectiveService.estEnDeplacement
+      : imprevu.deplacement;
+
     const simulationInput = {
       importId: jsCible.importId,
       dateDebut: jsCible.date,
-      dateFin: getDateFinJs(jsCible.date, imprevu.heureDebutReel, imprevu.heureFinEstimee),
-      heureDebut: imprevu.heureDebutReel,
-      heureFin: imprevu.heureFinEstimee,
+      dateFin: getDateFinJs(jsCible.date, heureDebutSim, heureFinSim),
+      heureDebut: heureDebutSim,
+      heureFin: heureFinSim,
       poste: jsCible.codeJs ?? "JS",
       codeJs: jsCible.codeJs,
       remplacement: imprevu.remplacement,
-      deplacement: imprevu.deplacement,
+      deplacement: deplacementEffectif,
       posteNuit: isNuitImprevu || jsCible.isNuit,
     };
 
@@ -72,7 +118,7 @@ export async function executerSimulationJS(
       ? events.filter((e) => e !== jsZOrigine)
       : events;
 
-    const resultat = evaluerMobilisabilite(context, eventsEffectifs, simulationInput, rules);
+    const resultat = evaluerMobilisabilite(context, eventsEffectifs, simulationInput, rules, effectiveService);
 
     // ─── Étape 3 : détection des conflits induits ──────────────────────────────
     const eventsAvecJs = injecterJsDansPlanning(eventsEffectifs, jsCible, imprevu);
@@ -125,19 +171,27 @@ export async function executerSimulationJS(
 
   // Ajouter les exclus comme refusés
   for (const { agent, raison } of exclus) {
+    const effectiveService = effectiveServiceMap.get(agent.context.id) ?? null;
+    const heureDebutSim = effectiveService && !effectiveService.indeterminable
+      ? effectiveService.heureDebutEffective
+      : imprevu.heureDebutReel;
+    const heureFinSim = effectiveService && !effectiveService.indeterminable
+      ? effectiveService.heureFinEffective
+      : imprevu.heureFinEstimee;
+
     const simulationInput = {
       importId: jsCible.importId,
       dateDebut: jsCible.date,
-      dateFin: getDateFinJs(jsCible.date, imprevu.heureDebutReel, imprevu.heureFinEstimee),
-      heureDebut: imprevu.heureDebutReel,
-      heureFin: imprevu.heureFinEstimee,
+      dateFin: getDateFinJs(jsCible.date, heureDebutSim, heureFinSim),
+      heureDebut: heureDebutSim,
+      heureFin: heureFinSim,
       poste: jsCible.codeJs ?? "JS",
       codeJs: jsCible.codeJs,
       remplacement: imprevu.remplacement,
       deplacement: imprevu.deplacement,
       posteNuit: isNuitImprevu || jsCible.isNuit,
     };
-    const resultat = evaluerMobilisabilite(agent.context, agent.events, simulationInput);
+    const resultat = evaluerMobilisabilite(agent.context, agent.events, simulationInput, rules, effectiveService);
 
     candidats.push({
       agentId: agent.context.id,

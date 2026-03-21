@@ -79,6 +79,7 @@ export async function lancerSimulation(input: SimulationInput): Promise<Simulati
       regimeB: agent.regimeB,
       regimeC: agent.regimeC,
       prefixesJs: JSON.parse(agent.habilitations) as string[],
+      lpaBaseId: agent.lpaBaseId,
     };
 
     const resultat = evaluerMobilisabilite(ctx, events, input, rules);

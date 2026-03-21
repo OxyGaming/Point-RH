@@ -152,6 +152,106 @@ export default function CandidatCard({ candidat }: { candidat: CandidatResult })
       {/* Détails calculs */}
       {open && (
         <div className="border-t border-white/50 px-4 py-3 bg-white/40 space-y-3">
+
+          {/* ── Analyse déplacement (LPA-based) ── */}
+          {detail.deplacementInfo && (
+            <div>
+              <p className="text-xs font-semibold text-gray-600 mb-1.5">Analyse déplacement</p>
+              <div className="bg-white/70 rounded-lg p-2.5 space-y-1 text-xs">
+                {detail.deplacementInfo.indeterminable ? (
+                  <>
+                    {detail.deplacementInfo.jsTypeCode && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">JS de référence</span>
+                        <span className="font-mono font-semibold text-gray-700">
+                          {detail.deplacementInfo.jsTypeCode}
+                          {detail.deplacementInfo.heureDebutReference && (
+                            <span className="text-gray-500 font-normal ml-1">
+                              {detail.deplacementInfo.heureDebutReference}→{detail.deplacementInfo.heureFinReference}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    <p className="text-amber-700 font-medium">
+                      ⚠ Indéterminable — {detail.deplacementInfo.raisonIndeterminable}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    {/* JS de référence */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500">JS de référence</span>
+                      <span className="font-mono font-semibold text-gray-800">
+                        {detail.deplacementInfo.jsTypeCode}
+                        <span className="text-gray-500 font-normal ml-1">
+                          {detail.deplacementInfo.heureDebutReference}→{detail.deplacementInfo.heureFinReference}
+                        </span>
+                      </span>
+                    </div>
+                    {detail.deplacementInfo.jsTypeLibelle && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-500">Type</span>
+                        <span className="text-gray-600">{detail.deplacementInfo.jsTypeLibelle}</span>
+                      </div>
+                    )}
+                    <div className="border-t border-gray-100 pt-1 mt-1" />
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500">JS dans la LPA</span>
+                      <span className={`font-semibold ${detail.deplacementInfo.jsDansLpa ? "text-green-700" : "text-orange-700"}`}>
+                        {detail.deplacementInfo.jsDansLpa ? "Oui" : "Non"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500">En déplacement</span>
+                      <span className={`font-semibold ${detail.deplacementInfo.estEnDeplacement ? "text-blue-700" : "text-gray-600"}`}>
+                        {detail.deplacementInfo.estEnDeplacement ? "Oui" : "Non"}
+                      </span>
+                    </div>
+                    {detail.deplacementInfo.estEnDeplacement && (
+                      <>
+                        <div className="border-t border-gray-100 pt-1 mt-1" />
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-500">Trajet aller</span>
+                          <span className="font-mono text-gray-700">
+                            {detail.deplacementInfo.tempsTrajetAllerMin > 0
+                              ? `−${detail.deplacementInfo.tempsTrajetAllerMin} min`
+                              : "0 min"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-500">Trajet retour</span>
+                          <span className="font-mono text-gray-700">
+                            {detail.deplacementInfo.tempsTrajetRetourMin > 0
+                              ? `+${detail.deplacementInfo.tempsTrajetRetourMin} min`
+                              : "0 min"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-500">JS effective finale</span>
+                          <span className="font-mono text-blue-700 font-semibold">
+                            {detail.deplacementInfo.heureDebutEffective}→{detail.deplacementInfo.heureFinEffective}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-500">Amplitude effective</span>
+                          <span className="font-mono text-blue-700">
+                            {minutesToTime(detail.deplacementInfo.amplitudeEffectiveMin)}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    <div className="border-t border-gray-100 pt-1 mt-1" />
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500">Régime RH</span>
+                      <span className="text-gray-700 capitalize">{detail.deplacementInfo.regimeRH}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Règles respectées */}
           {detail.respectees.length > 0 && (
             <div>

@@ -18,6 +18,8 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
     partiel: false,
     heureDebutReel: jsCible.heureDebut,
     heureFinEstimee: jsCible.heureFin,
+    // deplacement est maintenant calculé automatiquement côté serveur (LPA-based)
+    // on conserve le champ pour rétrocompatibilité mais il n'est plus affiché
     deplacement: false,
     remplacement: true,
     commentaire: "",
@@ -138,22 +140,24 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
               </div>
             )}
 
-            {[
-              { key: "remplacement", label: "Remplacement (agent remplaçant)" },
-              { key: "deplacement", label: "Déplacement requis" },
-            ].map(({ key, label }) => (
-              <label key={key} className="flex items-center gap-2 cursor-pointer text-sm">
-                <input
-                  type="checkbox"
-                  checked={imprevu[key as keyof ImpreuvuConfig] as boolean}
-                  onChange={(e) =>
-                    setImprevu((f) => ({ ...f, [key]: e.target.checked }))
-                  }
-                  className="w-4 h-4 text-blue-600 rounded"
-                />
-                <span className="text-gray-700">{label}</span>
-              </label>
-            ))}
+            <label className="flex items-center gap-2 cursor-pointer text-sm">
+              <input
+                type="checkbox"
+                checked={imprevu.remplacement}
+                onChange={(e) => setImprevu((f) => ({ ...f, remplacement: e.target.checked }))}
+                className="w-4 h-4 text-blue-600 rounded"
+              />
+              <span className="text-gray-700">Remplacement (agent remplaçant)</span>
+            </label>
+
+            {/* Info : déplacement calculé automatiquement */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 text-xs text-blue-800">
+              <p className="font-semibold mb-0.5">Déplacement calculé automatiquement</p>
+              <p className="text-blue-700">
+                Le déplacement est déterminé par la LPA de chaque candidat.
+                Configurez les LPA dans <a href="/lpa" className="underline font-medium">Gestion LPA</a>.
+              </p>
+            </div>
 
             {/* Commentaire */}
             <div>

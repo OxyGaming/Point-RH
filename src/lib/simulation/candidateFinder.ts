@@ -6,6 +6,7 @@
 import { combineDateTime, diffMinutes, timeToMinutes } from "@/lib/utils";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { JsCible, ImpreuvuConfig } from "@/types/js-simulation";
+import type { EffectiveServiceInfo } from "@/types/deplacement";
 import { isZeroLoadJs } from "./jsUtils";
 import { isJourTravailleGPT } from "@/lib/gptUtils";
 
@@ -16,12 +17,17 @@ export interface AgentWithPlanning {
 
 /**
  * Critères d'élimination immédiate (avant simulation fine)
+ *
+ * effectiveServiceMap (optionnel) : résultats pré-calculés de computeEffectiveService
+ * par agentId. Si fourni, le filtre déplacement utilise la logique LPA-based.
+ * Sinon, fallback sur imprevu.deplacement (ancien comportement).
  */
 export function preFilterCandidats(
   agents: AgentWithPlanning[],
   jsCible: JsCible,
   imprevu: ImpreuvuConfig,
-  agentInitialId: string
+  agentInitialId: string,
+  effectiveServiceMap?: Map<string, EffectiveServiceInfo>
 ): { eligible: AgentWithPlanning[]; exclus: { agent: AgentWithPlanning; raison: string }[] } {
   const eligible: AgentWithPlanning[] = [];
   const exclus: { agent: AgentWithPlanning; raison: string }[] = [];
@@ -60,9 +66,28 @@ export function preFilterCandidats(
     }
 
     // Vérifier habilitation déplacement
-    if (imprevu.deplacement && !a.context.peutEtreDeplace) {
-      exclus.push({ agent: a, raison: "Non autorisé déplacement" });
-      continue;
+    // Nouveau système LPA : on utilise effectiveServiceMap si disponible
+    if (effectiveServiceMap) {
+      const effSvc = effectiveServiceMap.get(a.context.id);
+      if (effSvc && !effSvc.indeterminable) {
+        // jsDansLpa = false + non autorisé → exclusion
+        if (effSvc.jsDansLpa === false && !a.context.peutEtreDeplace) {
+          exclus.push({ agent: a, raison: "JS hors LPA — agent non autorisé au déplacement" });
+          continue;
+        }
+      } else {
+        // Indéterminable ou pas de contexte LPA → fallback booléen
+        if (imprevu.deplacement && !a.context.peutEtreDeplace) {
+          exclus.push({ agent: a, raison: "Non autorisé déplacement" });
+          continue;
+        }
+      }
+    } else {
+      // Ancien système (fallback)
+      if (imprevu.deplacement && !a.context.peutEtreDeplace) {
+        exclus.push({ agent: a, raison: "Non autorisé déplacement" });
+        continue;
+      }
     }
 
     // Vérifier que l'agent n'a pas déjà une JS non-Z pendant l'imprévu

@@ -7,6 +7,7 @@ import { combineDateTime, diffMinutes, minutesToTime, isJsDeNuit, jsComportePeri
 import type { DetailCalcul, RegleViolation, RegleRespectee, ResultatAgentDetail, StatutAgent } from "@/types/simulation";
 import type { SimulationInput } from "@/types/simulation";
 import { DEFAULT_WORK_RULES_MINUTES, type WorkRulesMinutes } from "@/lib/rules/workRules";
+import type { EffectiveServiceInfo } from "@/types/deplacement";
 import {
   trouverDebutGPT,
   cumulTravailEffectifGPT,
@@ -29,6 +30,8 @@ export interface AgentContext {
   regimeB: boolean;
   regimeC: boolean;
   prefixesJs: string[];  // préfixes des codes JS autorisés — vide = aucune restriction
+  /** LPA de base de l'agent (Lieu de Prise d'Attachement) */
+  lpaBaseId: string | null;
 }
 
 export interface PlanningEvent {
@@ -81,20 +84,48 @@ export function evaluerMobilisabilite(
   agent: AgentContext,
   events: PlanningEvent[],
   simulation: SimulationInput,
-  rules: WorkRulesMinutes = DEFAULT_WORK_RULES_MINUTES
+  rules: WorkRulesMinutes = DEFAULT_WORK_RULES_MINUTES,
+  /** Résultat du calcul LPA-based (computeEffectiveService). Null = fallback booléen. */
+  effectiveService?: EffectiveServiceInfo | null
 ): ResultatAgentDetail {
   const violations: RegleViolation[] = [];
   const respectees: RegleRespectee[] = [];
 
-  const debutImprevu = combineDateTime(simulation.dateDebut, simulation.heureDebut);
-  const finImprevu = combineDateTime(simulation.dateFin, simulation.heureFin);
-  const amplitudeImprevu = diffMinutes(debutImprevu, finImprevu);
+  // ─ Horaires effectifs (incluant temps de trajet si déplacement) ──────────────
+  // Si effectiveService est fourni et non-indéterminable, on utilise les horaires
+  // effectifs (JS standard ± trajet) pour le calcul d'amplitude.
+  const heureDebutEffective = effectiveService && !effectiveService.indeterminable
+    ? effectiveService.heureDebutEffective
+    : simulation.heureDebut;
+  const heureFinEffective = effectiveService && !effectiveService.indeterminable
+    ? effectiveService.heureFinEffective
+    : simulation.heureFin;
+  const dateDebutEffective = simulation.dateDebut; // la date reste inchangée
+  const dateFinEffective = simulation.dateFin;
+
+  const debutImprevu = combineDateTime(dateDebutEffective, heureDebutEffective);
+  const finImprevu = combineDateTime(dateFinEffective, heureFinEffective);
+  const amplitudeImprevu = effectiveService && !effectiveService.indeterminable
+    ? effectiveService.amplitudeEffectiveMin
+    : diffMinutes(debutImprevu, finImprevu);
+
+  // ─ Déplacement effectif (LPA-based ou fallback booléen) ─────────────────────
+  // effectiveService.estEnDeplacement = null  → indéterminable, utiliser simulation.deplacement
+  // effectiveService.estEnDeplacement = bool  → valeur calculée automatiquement
+  const deplacement: boolean =
+    effectiveService && effectiveService.estEnDeplacement !== null
+      ? effectiveService.estEnDeplacement
+      : simulation.deplacement;
+
+  // JS dans la LPA (pour le message de violation)
+  const jsDansLpa: boolean | null = effectiveService?.jsDansLpa ?? null;
   const nightOpts = {
     debutSoirMin: rules.periodeNocturne.debutSoir,
     finMatinMin: rules.periodeNocturne.finMatin,
     seuilMin: rules.periodeNocturne.seuilJsNuit,
   };
-  const isNuitImprevu = isJsDeNuit(simulation.heureDebut, simulation.heureFin, nightOpts);
+  // isNuit calculé sur les horaires effectifs (incluant trajet si déplacement)
+  const isNuitImprevu = isJsDeNuit(heureDebutEffective, heureFinEffective, nightOpts);
 
   // ─ Amplitude maximale autorisée ─────────────────────────────────────────────
   let amplitudeMax = rules.amplitude.general;
@@ -106,10 +137,10 @@ export function evaluerMobilisabilite(
   } else if (agent.agentReserve) {
     amplitudeMax = rules.amplitude.general;
     amplitudeRaison = "agent de réserve";
-  } else if (simulation.deplacement && simulation.remplacement && agent.peutEtreDeplace) {
+  } else if (deplacement && simulation.remplacement && agent.peutEtreDeplace) {
     amplitudeMax = rules.amplitude.deplacementRemplacement;
     amplitudeRaison = "agent en déplacement avec remplacement";
-  } else if (simulation.deplacement && agent.peutEtreDeplace) {
+  } else if (deplacement && agent.peutEtreDeplace) {
     amplitudeMax = rules.amplitude.deplacement;
     amplitudeRaison = "agent en déplacement sans remplacement";
   } else if (isNuitImprevu || simulation.posteNuit) {
@@ -337,10 +368,31 @@ export function evaluerMobilisabilite(
   }
 
   // 7. Déplacement interdit si non habilité
-  if (simulation.deplacement && !agent.peutEtreDeplace) {
+  // – Nouveau système LPA : JS hors LPA + agent non autorisé
+  // – Ancien système (fallback) : simulation.deplacement + !peutEtreDeplace
+  const horsLpaEtNonAutorise = jsDansLpa === false && !agent.peutEtreDeplace;
+  const deplacementManuelNonAutorise = jsDansLpa === null && simulation.deplacement && !agent.peutEtreDeplace;
+  if (horsLpaEtNonAutorise || deplacementManuelNonAutorise) {
+    const contexte = jsDansLpa === false
+      ? "JS hors LPA de l'agent"
+      : "déplacement requis";
     violations.push({
       regle: "DEPLACEMENT_HABILITATION",
-      description: "Agent non autorisé pour déplacement",
+      description: `Agent non autorisé pour déplacement (${contexte})`,
+    });
+  }
+
+  // 7b. Déplacement sans règle de trajet (si indéterminable et LPA configurée)
+  if (
+    effectiveService &&
+    !effectiveService.indeterminable &&
+    effectiveService.estEnDeplacement === true &&
+    effectiveService.tempsTrajetAllerMin === 0 &&
+    effectiveService.tempsTrajetRetourMin === 0
+  ) {
+    violations.push({
+      regle: "TRAJET_ABSENT",
+      description: "Agent en déplacement : aucun temps de trajet configuré — amplitude sous-évaluée",
     });
   }
 
@@ -403,6 +455,8 @@ export function evaluerMobilisabilite(
     respectees,
     pointsVigilance,
     disponible: violations.length === 0,
+    // Informations de déplacement calculées (null si non disponibles)
+    deplacementInfo: effectiveService ?? null,
   };
 
   return {

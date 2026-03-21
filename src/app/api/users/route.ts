@@ -13,8 +13,17 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.response;
 
   const users = await prisma.user.findMany({
-    select: { id: true, email: true, name: true, role: true, isActive: true, createdAt: true },
-    orderBy: [{ role: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      isActive: true,
+      registrationStatus: true,
+      registrationComment: true,
+      createdAt: true,
+    },
+    orderBy: [{ registrationStatus: "asc" }, { role: "asc" }, { name: "asc" }],
   });
   return NextResponse.json(users);
 }

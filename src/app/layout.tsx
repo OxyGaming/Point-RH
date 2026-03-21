@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
-import { DesktopSidebar, MobileNav } from "@/components/layout/Sidebar";
+import { AppShell } from "@/components/layout/AppShell";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
@@ -16,18 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr">
       <body className={`${geist.variable} antialiased bg-gray-50 min-h-screen`}>
         <AuthProvider>
-          {/* Barre de navigation mobile (fixed top) */}
-          <MobileNav />
-
-          <div className="flex min-h-screen">
-            {/* Sidebar desktop */}
-            <DesktopSidebar />
-
-            {/* Contenu principal — décalé sur mobile pour la top bar fixe */}
-            <main className="flex-1 min-w-0 overflow-auto pt-14 lg:pt-0">
-              {children}
-            </main>
-          </div>
+          <AppShell>{children}</AppShell>
         </AuthProvider>
       </body>
     </html>

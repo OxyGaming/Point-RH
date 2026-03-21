@@ -3,7 +3,9 @@
 /**
  * Page de gestion des utilisateurs — Admin uniquement.
  * Protégée côté serveur par le middleware (route /admin/*).
- * Permet : créer, désactiver/activer, changer le rôle, supprimer.
+ * Sections :
+ *  1. Demandes d'accès en attente (registrationStatus = PENDING)
+ *  2. Utilisateurs actifs / désactivés
  */
 import { useEffect, useState, useCallback } from "react";
 
@@ -13,6 +15,8 @@ interface User {
   name: string;
   role: string;
   isActive: boolean;
+  registrationStatus: string;
+  registrationComment: string | null;
   createdAt: string;
 }
 
@@ -33,6 +37,7 @@ export default function UsersAdminPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [processingId, setProcessingId] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -72,6 +77,28 @@ export default function UsersAdminPage() {
     }
   }
 
+  async function handleApprove(user: User) {
+    setProcessingId(user.id);
+    await fetch(`/api/users/${user.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ registrationStatus: "APPROVED" }),
+    });
+    setProcessingId(null);
+    await fetchUsers();
+  }
+
+  async function handleReject(user: User) {
+    setProcessingId(user.id);
+    await fetch(`/api/users/${user.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ registrationStatus: "REJECTED" }),
+    });
+    setProcessingId(null);
+    await fetchUsers();
+  }
+
   async function handleToggleActive(user: User) {
     await fetch(`/api/users/${user.id}`, {
       method: "PATCH",
@@ -97,13 +124,16 @@ export default function UsersAdminPage() {
     await fetchUsers();
   }
 
+  const pending = users.filter((u) => u.registrationStatus === "PENDING");
+  const others = users.filter((u) => u.registrationStatus !== "PENDING");
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
       {/* En-tête */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 sm:mb-8">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Gestion des utilisateurs</h1>
-          <p className="text-gray-500 text-sm mt-1">Créez et gérez les comptes d'accès à l'application.</p>
+          <p className="text-gray-500 text-sm mt-1">Gérez les comptes et validez les demandes d'accès.</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
@@ -173,81 +203,146 @@ export default function UsersAdminPage() {
         </div>
       )}
 
-      {/* Liste */}
       {loading ? (
         <p className="text-gray-400 text-sm">Chargement...</p>
       ) : error ? (
         <p className="text-red-600 text-sm">{error}</p>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Utilisateur</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Rôle</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">Statut</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">Créé le</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-600">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-gray-900">{user.name}</p>
-                      <p className="text-xs text-gray-500">{user.email}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block text-xs px-2 py-0.5 rounded font-medium ${
-                        user.role === "ADMIN"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-gray-100 text-gray-600"
-                      }`}>
-                        {user.role === "ADMIN" ? "Admin" : "Utilisateur"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 hidden sm:table-cell">
-                      <span className={`inline-block text-xs px-2 py-0.5 rounded font-medium ${
-                        user.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
-                      }`}>
-                        {user.isActive ? "Actif" : "Désactivé"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 text-xs hidden md:table-cell">
-                      {new Date(user.createdAt).toLocaleDateString("fr-FR")}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
+        <div className="space-y-8">
+
+          {/* ── Demandes en attente ──────────────────────────────────── */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="text-base font-semibold text-gray-800">Demandes d&apos;accès en attente</h2>
+              {pending.length > 0 && (
+                <span className="inline-flex items-center justify-center w-5 h-5 bg-amber-500 text-white text-xs font-bold rounded-full">
+                  {pending.length}
+                </span>
+              )}
+            </div>
+
+            {pending.length === 0 ? (
+              <div className="bg-white border border-gray-200 rounded-xl shadow-sm px-4 py-6 text-center text-gray-400 text-sm">
+                Aucune demande en attente
+              </div>
+            ) : (
+              <div className="bg-white border border-amber-200 rounded-xl shadow-sm overflow-hidden divide-y divide-gray-100">
+                {pending.map((user) => (
+                  <div key={user.id} className="px-4 py-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900">{user.name}</p>
+                        <p className="text-xs text-gray-500">{user.email}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          Demande le {new Date(user.createdAt).toLocaleDateString("fr-FR")}
+                        </p>
+                        {user.registrationComment && (
+                          <p className="mt-2 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 leading-snug">
+                            &ldquo;{user.registrationComment}&rdquo;
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2 shrink-0">
                         <button
-                          onClick={() => handleToggleRole(user)}
-                          className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
-                          title="Changer le rôle"
+                          onClick={() => handleApprove(user)}
+                          disabled={processingId === user.id}
+                          className="px-3 py-1.5 text-xs font-semibold bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white rounded-lg transition-colors"
                         >
-                          {user.role === "ADMIN" ? "→ User" : "→ Admin"}
+                          {processingId === user.id ? "..." : "Approuver"}
                         </button>
                         <button
-                          onClick={() => handleToggleActive(user)}
-                          className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                          onClick={() => handleReject(user)}
+                          disabled={processingId === user.id}
+                          className="px-3 py-1.5 text-xs font-semibold border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 rounded-lg transition-colors"
                         >
-                          {user.isActive ? "Désactiver" : "Activer"}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(user)}
-                          className="text-xs px-2 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors"
-                        >
-                          Supprimer
+                          {processingId === user.id ? "..." : "Refuser"}
                         </button>
                       </div>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-          {users.length === 0 && (
-            <p className="text-center text-gray-400 text-sm py-8">Aucun utilisateur</p>
-          )}
+              </div>
+            )}
+          </section>
+
+          {/* ── Liste des utilisateurs ───────────────────────────────── */}
+          <section>
+            <h2 className="text-base font-semibold text-gray-800 mb-3">Utilisateurs</h2>
+            <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Utilisateur</th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Rôle</th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-600 hidden sm:table-cell">Statut</th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-600 hidden md:table-cell">Créé le</th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-600">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {others.map((user) => (
+                      <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-900">{user.name}</p>
+                          <p className="text-xs text-gray-500">{user.email}</p>
+                          {user.registrationStatus === "REJECTED" && (
+                            <span className="text-xs text-red-500 font-medium">Refusé</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-block text-xs px-2 py-0.5 rounded font-medium ${
+                            user.role === "ADMIN"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-gray-100 text-gray-600"
+                          }`}>
+                            {user.role === "ADMIN" ? "Admin" : "Utilisateur"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 hidden sm:table-cell">
+                          <span className={`inline-block text-xs px-2 py-0.5 rounded font-medium ${
+                            user.isActive ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+                          }`}>
+                            {user.isActive ? "Actif" : "Désactivé"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 text-xs hidden md:table-cell">
+                          {new Date(user.createdAt).toLocaleDateString("fr-FR")}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            <button
+                              onClick={() => handleToggleRole(user)}
+                              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                              title="Changer le rôle"
+                            >
+                              {user.role === "ADMIN" ? "→ User" : "→ Admin"}
+                            </button>
+                            <button
+                              onClick={() => handleToggleActive(user)}
+                              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                            >
+                              {user.isActive ? "Désactiver" : "Activer"}
+                            </button>
+                            <button
+                              onClick={() => handleDelete(user)}
+                              className="text-xs px-2 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors"
+                            >
+                              Supprimer
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {others.length === 0 && (
+                <p className="text-center text-gray-400 text-sm py-8">Aucun utilisateur</p>
+              )}
+            </div>
+          </section>
+
         </div>
       )}
     </div>

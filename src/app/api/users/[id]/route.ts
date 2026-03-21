@@ -23,12 +23,21 @@ export async function PATCH(
       role?: string;
       isActive?: boolean;
       password?: string;
+      registrationStatus?: string;
     };
 
     const data: Record<string, unknown> = {};
     if (body.name) data.name = body.name.trim();
     if (body.role === "ADMIN" || body.role === "USER") data.role = body.role;
     if (typeof body.isActive === "boolean") data.isActive = body.isActive;
+    // Approbation : active automatiquement le compte
+    if (body.registrationStatus === "APPROVED") {
+      data.registrationStatus = "APPROVED";
+      data.isActive = true;
+    } else if (body.registrationStatus === "REJECTED") {
+      data.registrationStatus = "REJECTED";
+      data.isActive = false;
+    }
     if (body.password) {
       if (body.password.length < 8) {
         return NextResponse.json(

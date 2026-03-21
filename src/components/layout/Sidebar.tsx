@@ -19,6 +19,7 @@ const NAV_ADMIN = [
   { href: "/admin/registrations", label: "Inscriptions", icon: "📋" },
   { href: "/admin/work-rules", label: "Règles de travail", icon: "⚙️" },
   { href: "/admin/users", label: "Utilisateurs", icon: "🔑" },
+  { href: "/admin/parametrage", label: "Import/Export Excel", icon: "📑" },
 ];
 
 function NavLinks({ onClose }: { onClose?: () => void }) {

@@ -2,6 +2,8 @@ import ImportForm from "@/components/import/ImportForm";
 import { prisma } from "@/lib/prisma";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 
+export const dynamic = "force-dynamic";
+
 async function getRecentImports() {
   return prisma.planningImport.findMany({
     orderBy: { importedAt: "desc" },

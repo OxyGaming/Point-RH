@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import PurgeButton from "./PurgeButton";
 
+export const dynamic = "force-dynamic";
+
 async function getSimulations() {
   return prisma.simulation.findMany({
     orderBy: { createdAt: "desc" },

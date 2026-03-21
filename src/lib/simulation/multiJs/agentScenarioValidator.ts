@@ -15,6 +15,7 @@ import type { JsCible } from "@/types/js-simulation";
 import { injecterJsDansPlanning } from "@/lib/simulation/candidateFinder";
 import { buildImprevu } from "./multiJsCandidateFinder";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
+import type { EffectiveServiceInfo } from "@/types/deplacement";
 
 /**
  * Résultat de la vérification d'une nouvelle affectation.
@@ -42,7 +43,8 @@ export function canAssignJsToAgentInScenario(
   jsDejaAffectees: JsCible[],
   rules: WorkRulesMinutes,
   remplacement = true,
-  deplacement = false
+  deplacement = false,
+  effectiveServiceMap?: Map<string, EffectiveServiceInfo>
 ): CompatibiliteResult {
   const newStart = combineDateTime(newJs.date, newJs.heureDebut);
   const newEnd = combineDateTime(newJs.date, newJs.heureFin);
@@ -72,16 +74,28 @@ export function canAssignJsToAgentInScenario(
   const imprevuNew = buildImprevu(newJs, remplacement, deplacement);
   const isNuitJs = isJsDeNuit(newJs.heureDebut, newJs.heureFin);
 
+  // Service effectif LPA-based
+  const effectiveService = effectiveServiceMap?.get(`${agentData.context.id}:${newJs.planningLigneId}`) ?? null;
+  const heureDebutSim = effectiveService && !effectiveService.indeterminable
+    ? effectiveService.heureDebutEffective
+    : imprevuNew.heureDebutReel;
+  const heureFinSim = effectiveService && !effectiveService.indeterminable
+    ? effectiveService.heureFinEffective
+    : imprevuNew.heureFinEstimee;
+  const deplacementEffectif = effectiveService && effectiveService.estEnDeplacement !== null
+    ? effectiveService.estEnDeplacement
+    : imprevuNew.deplacement;
+
   const simulationInput = {
     importId: newJs.importId,
     dateDebut: newJs.date,
-    dateFin: getDateFinJs(newJs.date, imprevuNew.heureDebutReel, imprevuNew.heureFinEstimee),
-    heureDebut: imprevuNew.heureDebutReel,
-    heureFin: imprevuNew.heureFinEstimee,
+    dateFin: getDateFinJs(newJs.date, heureDebutSim, heureFinSim),
+    heureDebut: heureDebutSim,
+    heureFin: heureFinSim,
     poste: newJs.codeJs ?? "JS",
     codeJs: newJs.codeJs,
     remplacement: imprevuNew.remplacement,
-    deplacement: imprevuNew.deplacement,
+    deplacement: deplacementEffectif,
     posteNuit: isNuitJs || newJs.isNuit,
   };
 
@@ -89,7 +103,8 @@ export function canAssignJsToAgentInScenario(
     agentData.context,
     eventsSimules,
     simulationInput,
-    rules
+    rules,
+    effectiveService
   );
 
   if (resultat.statut === "NON_CONFORME") {

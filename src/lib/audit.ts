@@ -17,7 +17,10 @@ export type AuditAction =
   | "UPDATE_WORK_RULES"
   | "RESET_WORK_RULES"
   | "IMPORT_PLANNING"
-  | "PURGE_SIMULATIONS";
+  | "PURGE_SIMULATIONS"
+  | "REGISTER_REQUEST"
+  | "APPROVE_REGISTRATION"
+  | "REJECT_REGISTRATION";
 
 export async function logAudit(
   action: AuditAction,

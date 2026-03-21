@@ -14,6 +14,7 @@ import { scorerCandidat } from "@/lib/simulation/scenarioScorer";
 import { isJsDeNuit, diffMinutes } from "@/lib/utils";
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 import { injecterJsDansPlanning } from "@/lib/simulation/candidateFinder";
+import type { EffectiveServiceInfo } from "@/types/deplacement";
 
 export interface AgentDataMultiJs {
   context: AgentContext;
@@ -43,7 +44,8 @@ export function trouverCandidatsPourJs(
   candidateScope: CandidateScope,
   rules: WorkRulesMinutes,
   remplacement = true,
-  deplacement = false
+  deplacement = false,
+  effectiveServiceMap?: Map<string, EffectiveServiceInfo>
 ): CandidatMultiJs[] {
   const imprevu = buildImprevu(js, remplacement, deplacement);
   const debutImprevu = combineDateTime(js.date, js.heureDebut);
@@ -98,20 +100,32 @@ export function trouverCandidatsPourJs(
       ? events.filter((e) => e !== jsZOrigine)
       : events;
 
+    // ─── Service effectif LPA-based ────────────────────────────────────────────
+    const effectiveService = effectiveServiceMap?.get(`${context.id}:${js.planningLigneId}`) ?? null;
+    const heureDebutSim = effectiveService && !effectiveService.indeterminable
+      ? effectiveService.heureDebutEffective
+      : imprevu.heureDebutReel;
+    const heureFinSim = effectiveService && !effectiveService.indeterminable
+      ? effectiveService.heureFinEffective
+      : imprevu.heureFinEstimee;
+    const deplacementEffectif = effectiveService && effectiveService.estEnDeplacement !== null
+      ? effectiveService.estEnDeplacement
+      : imprevu.deplacement;
+
     const simulationInput = {
       importId: js.importId,
       dateDebut: js.date,
-      dateFin: getDateFinJs(js.date, imprevu.heureDebutReel, imprevu.heureFinEstimee),
-      heureDebut: imprevu.heureDebutReel,
-      heureFin: imprevu.heureFinEstimee,
+      dateFin: getDateFinJs(js.date, heureDebutSim, heureFinSim),
+      heureDebut: heureDebutSim,
+      heureFin: heureFinSim,
       poste: js.codeJs ?? "JS",
       codeJs: js.codeJs,
       remplacement: imprevu.remplacement,
-      deplacement: imprevu.deplacement,
+      deplacement: deplacementEffectif,
       posteNuit: isNuitJs || js.isNuit,
     };
 
-    const resultat = evaluerMobilisabilite(context, eventsEffectifs, simulationInput, rules);
+    const resultat = evaluerMobilisabilite(context, eventsEffectifs, simulationInput, rules, effectiveService);
     if (resultat.statut === "NON_CONFORME") continue;
 
     // Conflits induits

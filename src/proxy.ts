@@ -17,6 +17,7 @@ const PUBLIC_PATHS = [
   "/api/auth/login",
   "/api/auth/logout",
   "/api/auth/me",
+  "/api/auth/register",
 ];
 
 // Chemins réservés aux administrateurs
@@ -24,6 +25,7 @@ const ADMIN_PATHS = [
   "/admin/",
   "/api/admin/",
   "/api/users",
+  "/lpa",
 ];
 
 function isPublic(pathname: string): boolean {

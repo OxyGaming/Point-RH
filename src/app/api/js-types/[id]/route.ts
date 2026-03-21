@@ -5,7 +5,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { checkAuth } from "@/lib/session";
+import { checkAuth, checkAdmin } from "@/lib/session";
 
 export async function GET(
   req: NextRequest,
@@ -31,7 +31,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = checkAuth(req);
+  const auth = checkAdmin(req);
   if (!auth.ok) return auth.response;
 
   const { id } = await params;
@@ -62,7 +62,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = checkAuth(req);
+  const auth = checkAdmin(req);
   if (!auth.ok) return auth.response;
 
   const { id } = await params;

@@ -68,9 +68,40 @@ export async function POST(req: NextRequest) {
       ? await comparePassword(password, user.password)
       : false; // Exécuter quand même pour éviter le timing attack
 
-    if (!user || !passwordOk || !user.isActive) {
+    if (!user || !passwordOk) {
       await logAudit("LOGIN", "User", {
         details: { email, success: false, reason: "bad_credentials" },
+      });
+      return NextResponse.json(
+        { error: "Identifiants incorrects." },
+        { status: 401 }
+      );
+    }
+
+    // Vérification du statut de la demande d'inscription
+    if (user.registrationStatus === "PENDING") {
+      await logAudit("LOGIN", "User", {
+        details: { email, success: false, reason: "pending_validation" },
+      });
+      return NextResponse.json(
+        { error: "Votre compte est en attente de validation par un administrateur." },
+        { status: 403 }
+      );
+    }
+
+    if (user.registrationStatus === "REJECTED") {
+      await logAudit("LOGIN", "User", {
+        details: { email, success: false, reason: "rejected" },
+      });
+      return NextResponse.json(
+        { error: "Votre demande d'inscription a été refusée. Contactez un administrateur pour plus d'informations." },
+        { status: 403 }
+      );
+    }
+
+    if (!user.isActive) {
+      await logAudit("LOGIN", "User", {
+        details: { email, success: false, reason: "inactive" },
       });
       return NextResponse.json(
         { error: "Identifiants incorrects." },

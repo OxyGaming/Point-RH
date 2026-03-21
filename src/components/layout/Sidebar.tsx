@@ -9,7 +9,6 @@ import { useAuth } from "@/components/auth/AuthProvider";
 const NAV = [
   { href: "/import", label: "Import planning", icon: "📥" },
   { href: "/agents", label: "Agents", icon: "👥" },
-  { href: "/lpa", label: "LPA & Types JS", icon: "📍" },
   { href: "/simulation", label: "Nouvelle simulation", icon: "⚡" },
   { href: "/simulations/multi-js", label: "Simulation multi-JS", icon: "🎯" },
   { href: "/resultats", label: "Résultats", icon: "📊" },
@@ -18,6 +17,7 @@ const NAV = [
 const NAV_ADMIN = [
   { href: "/admin/registrations", label: "Inscriptions", icon: "📋" },
   { href: "/admin/work-rules", label: "Règles de travail", icon: "⚙️" },
+  { href: "/lpa", label: "LPA & Types JS", icon: "📍" },
   { href: "/admin/users", label: "Utilisateurs", icon: "🔑" },
 ];
 

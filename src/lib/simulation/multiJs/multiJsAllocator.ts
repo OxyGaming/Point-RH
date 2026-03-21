@@ -25,6 +25,7 @@ import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 import { injecterJsDansPlanning } from "@/lib/simulation/candidateFinder";
 import { buildImprevu } from "./multiJsCandidateFinder";
 import { combineDateTime } from "@/lib/utils";
+import type { EffectiveServiceInfo } from "@/types/deplacement";
 
 let scenarioCounter = 0;
 
@@ -40,7 +41,8 @@ export function allouerJsMultiple(
   titre: string,
   description: string,
   remplacement = true,
-  deplacement = false
+  deplacement = false,
+  effectiveServiceMap?: Map<string, EffectiveServiceInfo>
 ): MultiJsScenario {
   scenarioCounter++;
 
@@ -86,7 +88,8 @@ export function allouerJsMultiple(
         existingAssignments,
         rules,
         remplacement,
-        deplacement
+        deplacement,
+        effectiveServiceMap
       );
 
       if (!compatible) continue;

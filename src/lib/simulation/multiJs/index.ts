@@ -16,6 +16,9 @@ import type { MultiJsSimulationResultat, CandidateScope } from "@/types/multi-js
 import { trouverCandidatsPourJs } from "./multiJsCandidateFinder";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
 import { allouerJsMultiple } from "./multiJsAllocator";
+import { loadLpaContext } from "@/lib/deplacement/loadLpaContext";
+import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
+import type { EffectiveServiceInfo } from "@/types/deplacement";
 
 export type { AgentDataMultiJs };
 
@@ -30,13 +33,39 @@ export async function executerSimulationMultiJs(
 
   const agentsMap = new Map(agents.map((a) => [a.context.id, a]));
 
+  // ─── Chargement du contexte LPA ──────────────────────────────────────────────
+  const agentIds = agents.map((a) => a.context.id);
+  const lpaContext = await loadLpaContext(agentIds);
+
+  // ─── Pré-calcul du service effectif par (agent × JS) ─────────────────────────
+  // Clé : "${agentId}:${js.planningLigneId}"
+  const effectiveServiceMap = new Map<string, EffectiveServiceInfo>();
+  for (const { context } of agents) {
+    for (const js of jsSelectionnees) {
+      if (context.id === js.agentId) continue; // agent source exclu
+      const key = `${context.id}:${js.planningLigneId}`;
+      const effSvc = computeEffectiveService(
+        { id: context.id, lpaBaseId: context.lpaBaseId, peutEtreDeplace: context.peutEtreDeplace },
+        {
+          codeJs: js.codeJs,
+          typeJs: js.typeJs,
+          heureDebut: js.heureDebut,
+          heureFin: js.heureFin,
+          estNuit: js.isNuit,
+        },
+        lpaContext,
+        { remplacement }
+      );
+      effectiveServiceMap.set(key, effSvc);
+    }
+  }
+
   // ─── Fonction utilitaire : construire candidats + scénario pour un scope donné ─
   function construireScenario(scope: CandidateScope, titre: string, description: string) {
-    // Construire la map candidats pour chaque JS avec ce scope
     const candidatesPerJs = new Map(
       jsSelectionnees.map((js) => [
         js.planningLigneId,
-        trouverCandidatsPourJs(js, agents, scope, rules, remplacement, deplacement),
+        trouverCandidatsPourJs(js, agents, scope, rules, remplacement, deplacement, effectiveServiceMap),
       ])
     );
 
@@ -49,7 +78,8 @@ export async function executerSimulationMultiJs(
       titre,
       description,
       remplacement,
-      deplacement
+      deplacement,
+      effectiveServiceMap
     );
   }
 

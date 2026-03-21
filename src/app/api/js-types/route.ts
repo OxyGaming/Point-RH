@@ -4,7 +4,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { checkAuth } from "@/lib/session";
+import { checkAuth, checkAdmin } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
   const auth = checkAuth(req);
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = checkAuth(req);
+  const auth = checkAdmin(req);
   if (!auth.ok) return auth.response;
 
   const body = await req.json() as {

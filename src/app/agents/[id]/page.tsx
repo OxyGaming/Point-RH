@@ -115,7 +115,19 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
             </CardBody>
           </Card>
 
-          <AgentEditForm agent={{ ...agent, habilitations }} />
+          <AgentEditForm
+            agent={{
+              id: agent.id,
+              posteAffectation: agent.posteAffectation,
+              agentReserve: agent.agentReserve,
+              peutFaireNuit: agent.peutFaireNuit,
+              peutEtreDeplace: agent.peutEtreDeplace,
+              regimeB: agent.regimeB,
+              regimeC: agent.regimeC,
+              habilitations,
+              lpaBaseId: agent.lpaBaseId,
+            }}
+          />
 
           {/* Zone admin — suppression */}
           {isAdmin && (

@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Point RH — Présentation complète de l'application</title>
+  <style>
+    :root {
+      --primary: #1a3a5c;
+      --accent: #2e86c1;
+      --accent2: #1abc9c;
+      --warn: #e67e22;
+      --danger: #c0392b;
+      --success: #27ae60;
+      --light: #f4f8fb;
+      --border: #d0dce8;
+      --text: #2c3e50;
+      --muted: #7f8c8d;
+      --card-bg: #ffffff;
+      --shadow: 0 2px 12px rgba(0,0,0,0.08);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--light);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* === HEADER === */
+    header {
+      background: linear-gradient(135deg, var(--primary) 0%, #2c5f8a 100%);
+      color: white;
+      padding: 2.5rem 2rem 2rem;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    header .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 20px;
+      padding: 0.3rem 1rem;
+      font-size: 0.8rem;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+    header h1 { font-size: 2.6rem; font-weight: 700; margin-bottom: 0.5rem; }
+    header p { font-size: 1.1rem; opacity: 0.85; max-width: 600px; margin: 0 auto; }
+
+    /* === NAV === */
+    nav {
+      background: var(--primary);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    nav ul { list-style: none; display: flex; padding: 0 1rem; }
+    nav ul li a {
+      display: block;
+      padding: 0.9rem 1rem;
+      color: rgba(255,255,255,0.8);
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 500;
+      transition: all 0.2s;
+      border-bottom: 3px solid transparent;
+    }
+    nav ul li a:hover, nav ul li a.active {
+      color: white;
+      border-bottom-color: var(--accent2);
+    }
+
+    /* === LAYOUT === */
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+    /* === SECTIONS === */
+    .section {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+    .section.active { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* === SECTION TITLE === */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid var(--border);
+    }
+    .section-icon {
+      width: 50px; height: 50px;
+      background: var(--accent);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+    .section-header h2 { font-size: 1.7rem; color: var(--primary); }
+    .section-header p { color: var(--muted); font-size: 0.9rem; margin-top: 0.2rem; }
+
+    /* === CARDS === */
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .card h3 {
+      font-size: 1.1rem;
+      color: var(--primary);
+      margin-bottom: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .card h3 .icon { font-size: 1.2rem; }
+
+    /* === GRID === */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1.5rem; }
+    @media(max-width: 768px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+
+    /* === BADGES === */
+    .badge-pill {
+      display: inline-block;
+      padding: 0.2rem 0.7rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-success { background: #d4edda; color: var(--success); }
+    .badge-warn { background: #fff3cd; color: var(--warn); }
+    .badge-danger { background: #f8d7da; color: var(--danger); }
+    .badge-info { background: #d1ecf1; color: #0c5460; }
+    .badge-primary { background: #cce5ff; color: #004085; }
+
+    /* === EXAMPLE BOX === */
+    .example-box {
+      background: linear-gradient(135deg, #e8f4fd, #f0f9ff);
+      border-left: 4px solid var(--accent);
+      border-radius: 0 8px 8px 0;
+      padding: 1rem 1.2rem;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+    .example-box .label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--accent);
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+    }
+
+    /* === RULE TABLE === */
+    .rule-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .rule-table th {
+      background: var(--primary);
+      color: white;
+      padding: 0.7rem 1rem;
+      text-align: left;
+    }
+    .rule-table td { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); }
+    .rule-table tr:nth-child(even) td { background: var(--light); }
+
+    /* === FLOW DIAGRAM === */
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-wrap: wrap;
+      margin: 1rem 0;
+    }
+    .flow-step {
+      background: var(--primary);
+      color: white;
+      padding: 0.6rem 1rem;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-align: center;
+      min-width: 120px;
+      position: relative;
+    }
+    .flow-arrow {
+      color: var(--accent);
+      font-size: 1.4rem;
+      font-weight: 700;
+      margin: 0 0.3rem;
+    }
+
+    /* === STATUS INDICATORS === */
+    .status-conforme { color: var(--success); font-weight: 700; }
+    .status-vigilance { color: var(--warn); font-weight: 700; }
+    .status-refuse { color: var(--danger); font-weight: 700; }
+
+    /* === TECH STACK === */
+    .tech-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.2rem;
+      text-align: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .tech-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+    .tech-card .tech-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .tech-card h4 { font-size: 0.95rem; color: var(--primary); }
+    .tech-card p { font-size: 0.78rem; color: var(--muted); margin-top: 0.3rem; }
+
+    /* === DB SCHEMA === */
+    .db-table {
+      background: var(--card-bg);
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    .db-table-header {
+      background: var(--primary);
+      color: white;
+      padding: 0.7rem 1rem;
+      font-weight: 700;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .db-table-body { padding: 0.5rem 0; }
+    .db-field {
+      display: flex;
+      align-items: center;
+      padding: 0.4rem 1rem;
+      font-size: 0.82rem;
+      border-bottom: 1px solid var(--light);
+    }
+    .db-field:last-child { border-bottom: none; }
+    .db-field-name { font-weight: 600; width: 180px; flex-shrink: 0; }
+    .db-field-type { color: var(--accent); width: 100px; flex-shrink: 0; font-family: monospace; font-size: 0.78rem; }
+    .db-field-desc { color: var(--muted); font-size: 0.8rem; }
+    .db-pk { background: #fff9c4; }
+    .db-fk { background: #e8f4fd; }
+
+    /* === ACCORDION === */
+    .accordion-item { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 0.8rem; overflow: hidden; }
+    .accordion-toggle {
+      width: 100%;
+      background: var(--card-bg);
+      border: none;
+      padding: 1rem 1.2rem;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--primary);
+      transition: background 0.2s;
+    }
+    .accordion-toggle:hover { background: var(--light); }
+    .accordion-toggle .chevron { transition: transform 0.2s; font-size: 0.8rem; }
+    .accordion-toggle.open .chevron { transform: rotate(180deg); }
+    .accordion-content {
+      display: none;
+      padding: 1rem 1.2rem;
+      background: var(--light);
+      font-size: 0.88rem;
+      border-top: 1px solid var(--border);
+    }
+    .accordion-content.open { display: block; }
+
+    /* === SCORE BAR === */
+    .score-bar { background: var(--border); border-radius: 20px; height: 10px; margin: 0.4rem 0; }
+    .score-fill { border-radius: 20px; height: 10px; }
+
+    /* === HIGHLIGHT === */
+    .highlight { background: #fff9c4; padding: 0.1rem 0.3rem; border-radius: 3px; font-weight: 600; }
+    .code { font-family: monospace; background: #f0f0f0; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.82rem; }
+
+    /* === ALERT BOXES === */
+    .alert {
+      padding: 1rem 1.2rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+      font-size: 0.88rem;
+    }
+    .alert-info { background: #d1ecf1; border-left: 4px solid #17a2b8; }
+    .alert-warn { background: #fff3cd; border-left: 4px solid var(--warn); }
+    .alert-danger { background: #f8d7da; border-left: 4px solid var(--danger); }
+    .alert-success { background: #d4edda; border-left: 4px solid var(--success); }
+    .alert strong { display: block; margin-bottom: 0.3rem; }
+
+    /* === LIST === */
+    .check-list { list-style: none; }
+    .check-list li { padding: 0.3rem 0; padding-left: 1.5rem; position: relative; font-size: 0.88rem; }
+    .check-list li::before { content: '✓'; position: absolute; left: 0; color: var(--success); font-weight: 700; }
+    .cross-list li::before { content: '✗'; color: var(--danger); }
+    .warn-list li::before { content: '⚠'; color: var(--warn); }
+
+    /* === TIMELINE === */
+    .timeline { position: relative; padding-left: 2rem; }
+    .timeline::before { content: ''; position: absolute; left: 0.6rem; top: 0; bottom: 0; width: 2px; background: var(--border); }
+    .timeline-item { position: relative; margin-bottom: 1.5rem; }
+    .timeline-item::before {
+      content: '';
+      position: absolute; left: -1.7rem; top: 0.3rem;
+      width: 12px; height: 12px;
+      background: var(--accent); border-radius: 50%;
+    }
+    .timeline-item h4 { font-size: 0.92rem; color: var(--primary); margin-bottom: 0.3rem; }
+    .timeline-item p { font-size: 0.82rem; color: var(--muted); }
+
+    /* === FOOTER === */
+    footer {
+      background: var(--primary);
+      color: rgba(255,255,255,0.7);
+      text-align: center;
+      padding: 1.5rem;
+      margin-top: 3rem;
+      font-size: 0.82rem;
+    }
+
+    ul, ol { padding-left: 1.5rem; }
+    li { margin-bottom: 0.3rem; font-size: 0.88rem; }
+    p { font-size: 0.9rem; margin-bottom: 0.8rem; }
+    strong { color: var(--primary); }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media(max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* === Vertical rule tag === */
+    .rule-tag {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 0.8rem;
+      background: white;
+    }
+    .rule-tag-left {
+      background: var(--primary);
+      color: white;
+      width: 8px;
+      flex-shrink: 0;
+    }
+    .rule-tag-body { padding: 0.8rem 1rem; flex: 1; }
+    .rule-tag-body h4 { font-size: 0.9rem; color: var(--primary); margin-bottom: 0.2rem; }
+    .rule-tag-body p { font-size: 0.82rem; color: var(--muted); margin: 0; }
+    .rule-tag-value {
+      background: var(--light);
+      padding: 0.8rem 1rem;
+      font-weight: 700;
+      color: var(--accent);
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .rule-tag.warn .rule-tag-left { background: var(--warn); }
+    .rule-tag.success .rule-tag-left { background: var(--success); }
+    .rule-tag.danger .rule-tag-left { background: var(--danger); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="badge">Documentation technique & métier</div>
+  <h1>🚆 Point RH</h1>
+  <p>Présentation complète de l'application de gestion des imprévus ferroviaires</p>
+</header>
+
+<nav>
+  <ul id="main-nav">
+    <li><a href="#" onclick="showSection('s1')" id="nav-s1">1. Présentation</a></li>
+    <li><a href="#" onclick="showSection('s2')" id="nav-s2">2. Fonctionnement</a></li>
+    <li><a href="#" onclick="showSection('s3')" id="nav-s3">3. Moteur métier</a></li>
+    <li><a href="#" onclick="showSection('s4')" id="nav-s4">4. Déplacements & LPA</a></li>
+    <li><a href="#" onclick="showSection('s5')" id="nav-s5">5. Architecture</a></li>
+    <li><a href="#" onclick="showSection('s6')" id="nav-s6">6. Base de données</a></li>
+    <li><a href="#" onclick="showSection('s7')" id="nav-s7">7. Sécurité</a></li>
+    <li><a href="#" onclick="showSection('s8')" id="nav-s8">8. Points forts</a></li>
+    <li><a href="#" onclick="showSection('s9')" id="nav-s9">9. Améliorations</a></li>
+    <li><a href="#" onclick="showSection('s10')" id="nav-s10">10. Conclusion</a></li>
+  </ul>
+</nav>
+
+<div class="container">
+
+  <!-- ============================================================ -->
+  <!-- SECTION 1 : PRÉSENTATION GÉNÉRALE -->
+  <!-- ============================================================ -->
+  <div id="s1" class="section active">
+    <div class="section-header">
+      <div class="section-icon">🎯</div>
+      <div>
+        <h2>Présentation générale</h2>
+        <p>Ce qu'est l'application, à qui elle s'adresse et quel problème elle résout</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">💡</span> Qu'est-ce que Point RH ?</h3>
+      <p>
+        <strong>Point RH</strong> est une application informatique conçue pour aider les <strong>encadrants ferroviaires</strong> à gérer les situations d'imprévus dans la planification du personnel. Concrètement, quand un agent est absent ou qu'un service (appelé "JS") n'est pas couvert, l'encadrant doit trouver rapidement un remplaçant — en respectant des règles RH strictes (temps de repos, amplitude de service, habilitations, etc.).
+      </p>
+      <p>
+        L'application fait ce travail complexe automatiquement : elle analyse le planning de tous les agents, vérifie qui peut légalement travailler, et propose les meilleures options.
+      </p>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3><span class="icon">🔧</span> Problème résolu</h3>
+        <p>Avant cet outil, l'encadrant devait :</p>
+        <ul>
+          <li>Consulter les plannings papier ou tableur de chaque agent</li>
+          <li>Calculer manuellement les amplitudes, repos, heures cumulées</li>
+          <li>Mémoriser les règles RH (souvent des dizaines de règles)</li>
+          <li>Risquer des erreurs entraînant des infractions réglementaires</li>
+        </ul>
+        <br/>
+        <p>Point RH centralise tout ça et donne <strong>une réponse immédiate</strong>, classée par pertinence.</p>
+      </div>
+
+      <div class="card">
+        <h3><span class="icon">👥</span> Utilisateurs cibles</h3>
+        <ul>
+          <li><strong>Encadrant / Agent RH</strong> — utilise l'outil au quotidien pour gérer les imprévus</li>
+          <li><strong>Administrateur</strong> — configure les règles, gère les utilisateurs, importe les plannings</li>
+          <li><strong>Agents de circulation</strong> — leurs données sont dans la base (planning, habilitations, etc.) mais ils n'ont pas directement accès à l'outil</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">📋</span> Cas d'usage concret</h3>
+      <div class="example-box">
+        <div class="label">Exemple réel</div>
+        <p>
+          Il est <strong>6h00</strong>. L'agent <strong>Martin</strong> est malade et ne peut pas prendre son service JS-0042 (7h30–15h30, poste "Régulation Paris-Nord").
+          L'encadrant ouvre Point RH, saisit les informations du service manquant, et l'application analyse instantanément les 45 agents du planning :
+        </p>
+        <ul style="margin-top: 0.5rem;">
+          <li>🟢 <span class="status-conforme">8 agents conformes</span> — peuvent assurer le service sans aucun problème réglementaire</li>
+          <li>🟡 <span class="status-vigilance">5 agents en vigilance</span> — possibles, mais avec un point d'attention (repos à la limite, etc.)</li>
+          <li>🔴 <span class="status-refuse">32 agents refusés</span> — ne peuvent pas légalement assurer ce service</li>
+        </ul>
+        <p style="margin-top: 0.5rem;">L'encadrant choisit l'agent <strong>Dupont</strong> (1ᵉʳ dans la liste) et le mouvement est enregistré.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🗂️</span> Deux modes de simulation</h3>
+      <div class="grid-2">
+        <div style="background: var(--light); border-radius: 8px; padding: 1rem;">
+          <strong>Mode JS unique</strong>
+          <p style="margin-top: 0.3rem;">Pour un seul service imprévu : on cherche le meilleur remplaçant parmi tous les agents disponibles.</p>
+        </div>
+        <div style="background: var(--light); border-radius: 8px; padding: 1rem;">
+          <strong>Mode multi-JS</strong>
+          <p style="margin-top: 0.3rem;">Quand plusieurs services doivent être couverts simultanément (incidents importants) : l'outil optimise l'allocation globale.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 2 : FONCTIONNEMENT GLOBAL -->
+  <!-- ============================================================ -->
+  <div id="s2" class="section">
+    <div class="section-header">
+      <div class="section-icon">⚙️</div>
+      <div>
+        <h2>Fonctionnement global</h2>
+        <p>Parcours utilisateur, fonctionnalités principales, logique de l'application</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🗺️</span> Parcours utilisateur — de la connexion à la solution</h3>
+      <div class="timeline">
+        <div class="timeline-item">
+          <h4>1. Connexion sécurisée</h4>
+          <p>L'utilisateur se connecte avec son email et mot de passe. Un système de sécurité vérifie l'identité et limite les tentatives de connexion (10 maximum en 15 min par adresse IP).</p>
+        </div>
+        <div class="timeline-item">
+          <h4>2. Import du planning</h4>
+          <p>L'administrateur importe un fichier Excel ou TXT exporté depuis le logiciel de planification. L'application lit les données de tous les agents (horaires, types de service, congés, repos...).</p>
+        </div>
+        <div class="timeline-item">
+          <h4>3. Configuration des agents</h4>
+          <p>Chaque agent a un profil renseigné : habilitations (peut-il faire du travail de nuit ? peut-il être déplacé ?), son LPA (base de rattachement), son régime (B, C ou général)...</p>
+        </div>
+        <div class="timeline-item">
+          <h4>4. Simulation d'imprévu</h4>
+          <p>L'encadrant saisit les caractéristiques du service à couvrir : date, heure de début/fin, code JS, si c'est un service de nuit, si un déplacement est nécessaire...</p>
+        </div>
+        <div class="timeline-item">
+          <h4>5. Analyse automatique</h4>
+          <p>Le moteur analyse chaque agent : calcule l'amplitude, vérifie le repos, la GPT, les cumuls d'heures, les habilitations... puis attribue un statut et un score.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>6. Résultats classés</h4>
+          <p>L'application affiche les candidats classés du meilleur au moins bon, avec les raisons de chaque décision (ex: "repos journalier insuffisant : 10h30 au lieu de 12h minimum").</p>
+        </div>
+        <div class="timeline-item">
+          <h4>7. Historique</h4>
+          <p>Toutes les simulations sont sauvegardées et consultables ultérieurement dans l'onglet "Résultats".</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">📦</span> Toutes les fonctionnalités</h3>
+      <div class="grid-3">
+        <div style="background: var(--light); border-radius: 8px; padding: 0.8rem;">
+          <strong>📥 Import planning</strong>
+          <p style="margin-top: 0.3rem;">Charge un fichier Excel/TXT exporté depuis le logiciel RH existant.</p>
+        </div>
+        <div style="background: var(--light); border-radius: 8px; padding: 0.8rem;">
+          <strong>🔍 Simulation JS unique</strong>
+          <p style="margin-top: 0.3rem;">Trouve le meilleur agent disponible pour un service donné.</p>
+        </div>
+        <div style="background: var(--light); border-radius: 8px; padding: 0.8rem;">
+          <strong>🔀 Multi-JS</strong>
+          <p style="margin-top: 0.3rem;">Alloue plusieurs services simultanément de façon optimisée.</p>
+        </div>
+        <div style="background: var(--light); border-radius: 8px; padding: 0.8rem;">
+          <strong>👤 Gestion agents</strong>
+          <p style="margin-top: 0.3rem;">Profil détaillé de chaque agent : habilitations, LPA, régime RH.</p>
+        </div>
+        <div style="background: var(--light); border-radius: 8px; padding: 0.8rem;">
+          <strong>📍 Gestion LPA</strong>
+          <p style="margin-top: 0.3rem;">Configure les Lieux de Prise d'Attachement et les types de service associés.</p>
+        </div>
+        <div style="background: var(--light); border-radius: 8px; padding: 0.8rem;">
+          <strong>⚖️ Règles RH</strong>
+          <p style="margin-top: 0.3rem;">Paramétrage des seuils réglementaires (amplitude, repos, GPT...).</p>
+        </div>
+        <div style="background: var(--light); border-radius: 8px; padding: 0.8rem;">
+          <strong>📊 Historique résultats</strong>
+          <p style="margin-top: 0.3rem;">Consultation des simulations passées et de leurs résultats.</p>
+        </div>
+        <div style="background: var(--light); border-radius: 8px; padding: 0.8rem;">
+          <strong>👥 Gestion utilisateurs</strong>
+          <p style="margin-top: 0.3rem;">Création de comptes, approbation des inscriptions, rôles.</p>
+        </div>
+        <div style="background: var(--light); border-radius: 8px; padding: 0.8rem;">
+          <strong>📤 Export paramétrage</strong>
+          <p style="margin-top: 0.3rem;">Exporte/importe la configuration des règles RH au format Excel.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🔄</span> Logique générale — comment ça marche en coulisses</h3>
+      <div class="flow">
+        <div class="flow-step">Planning importé</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">Profils agents</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">Service imprévu saisi</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">Moteur de règles</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">Résultats classés</div>
+      </div>
+      <p style="margin-top: 1rem;">L'application fonctionne comme un "chef de quart virtuel" qui connaît par cœur toutes les règles et vérifie instantanément chaque agent.</p>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 3 : MOTEUR MÉTIER -->
+  <!-- ============================================================ -->
+  <div id="s3" class="section">
+    <div class="section-header">
+      <div class="section-icon">⚖️</div>
+      <div>
+        <h2>Moteur métier</h2>
+        <p>Les règles RH appliquées, la logique de calcul, chaque règle expliquée avec un exemple</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🏗️</span> Vue d'ensemble du moteur</h3>
+      <p>
+        Le cœur de l'application est un <strong>moteur de règles</strong> (fichier <span class="code">engine/rules.ts</span>). Quand on lui soumet un agent candidat pour un service, il vérifie <strong>9 règles dans l'ordre</strong> et produit :
+      </p>
+      <div class="grid-3" style="margin-top: 1rem;">
+        <div style="text-align: center; background: #d4edda; border-radius: 8px; padding: 1rem;">
+          <div style="font-size: 1.5rem; color: var(--success); font-weight: 700;">CONFORME</div>
+          <p>L'agent peut assurer le service sans problème</p>
+        </div>
+        <div style="text-align: center; background: #fff3cd; border-radius: 8px; padding: 1rem;">
+          <div style="font-size: 1.5rem; color: var(--warn); font-weight: 700;">VIGILANCE</div>
+          <p>L'agent peut assurer le service mais avec un point d'attention</p>
+        </div>
+        <div style="text-align: center; background: #f8d7da; border-radius: 8px; padding: 1rem;">
+          <div style="font-size: 1.5rem; color: var(--danger); font-weight: 700;">NON CONFORME</div>
+          <p>L'agent ne peut légalement pas assurer ce service</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RÈGLE 1 : AMPLITUDE -->
+    <div class="accordion-item">
+      <button class="accordion-toggle" onclick="toggleAccordion(this)">
+        <span>📏 Règle 1 — Amplitude de service (durée totale de présence)</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-content">
+        <div class="rule-tag">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body">
+            <h4>Amplitude générale</h4>
+            <p>Durée maximale entre le début et la fin d'un service (incluant les temps de trajet)</p>
+          </div>
+          <div class="rule-tag-value">11h max</div>
+        </div>
+        <div class="rule-tag warn">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body">
+            <h4>Avec déplacement (sans remplacement)</h4>
+            <p>L'agent part dans un autre établissement pour assurer le service</p>
+          </div>
+          <div class="rule-tag-value">12h max</div>
+        </div>
+        <div class="rule-tag success">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body">
+            <h4>Avec déplacement + remplacement</h4>
+            <p>L'agent est déplacé ET remplace quelqu'un</p>
+          </div>
+          <div class="rule-tag-value">13h max</div>
+        </div>
+        <div class="rule-tag danger">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body">
+            <h4>Service de nuit</h4>
+            <p>Service qualifié comme nocturne (réserve : 10h30 max)</p>
+          </div>
+          <div class="rule-tag-value">11h max</div>
+        </div>
+        <div class="example-box">
+          <div class="label">Exemple concret</div>
+          <p>
+            L'agent Dupont termine son service à <strong>06h00</strong>. On lui propose un service de <strong>07h00 à 18h30</strong>, soit <strong>11h30 d'amplitude</strong>.
+            Sans déplacement, la limite est 11h → <span class="status-refuse">NON CONFORME</span>.
+            Si le service implique un déplacement, la limite monte à 12h → <span class="status-conforme">CONFORME</span>.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RÈGLE 2 : TRAVAIL EFFECTIF -->
+    <div class="accordion-item">
+      <button class="accordion-toggle" onclick="toggleAccordion(this)">
+        <span>⏱️ Règle 2 — Travail Effectif (TE) — durée réelle de travail</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p>Le <strong>travail effectif</strong> (TE) correspond aux heures où l'agent est réellement en poste de travail, hors pauses. C'est différent de l'amplitude qui inclut tout.</p>
+        <div class="rule-tag">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>TE maximum standard</h4><p>Hors cas particuliers</p></div>
+          <div class="rule-tag-value">10h max</div>
+        </div>
+        <div class="rule-tag warn">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>TE nuit maximum</h4><p>Service qualifié nocturne</p></div>
+          <div class="rule-tag-value">8h30 max</div>
+        </div>
+        <div class="rule-tag success">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>TE cumulé sur une GPT</h4><p>Total sur toute la grande période de travail</p></div>
+          <div class="rule-tag-value">48h max</div>
+        </div>
+        <div class="rule-tag danger">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>TE minimum régimes B/C</h4><p>Pour les agents en régime spécifique B ou C</p></div>
+          <div class="rule-tag-value">5h30 min</div>
+        </div>
+        <div class="example-box">
+          <div class="label">Exemple concret</div>
+          <p>
+            L'agent Martin cumule déjà <strong>45h de travail effectif</strong> dans sa semaine (GPT en cours).
+            On lui propose un service de <strong>4h</strong>. 45 + 4 = 49h > 48h → <span class="status-refuse">NON CONFORME (cumul GPT dépassé)</span>.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RÈGLE 3 : REPOS JOURNALIER -->
+    <div class="accordion-item">
+      <button class="accordion-toggle" onclick="toggleAccordion(this)">
+        <span>🛌 Règle 3 — Repos Journalier (RJ) — temps entre deux services</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p>Le <strong>repos journalier</strong> est le temps minimal obligatoire entre la fin d'un service et le début du service suivant. C'est la règle la plus souvent vérifiée.</p>
+        <div class="rule-tag">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>Repos standard</h4><p>Cas général entre deux services</p></div>
+          <div class="rule-tag-value">12h min</div>
+        </div>
+        <div class="rule-tag warn">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>Repos réduit (agent réserve)</h4><p>Autorisé 1 seule fois par GPT</p></div>
+          <div class="rule-tag-value">10h min</div>
+        </div>
+        <div class="rule-tag danger">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>Après service de nuit</h4><p>Le repos est allongé après une nuit</p></div>
+          <div class="rule-tag-value">14h min</div>
+        </div>
+        <div class="rule-tag success">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>Majoration si TE > 6h sans pause</h4><p>Repos augmenté si travail long sans interruption</p></div>
+          <div class="rule-tag-value">+20 min</div>
+        </div>
+        <div class="example-box">
+          <div class="label">Exemple concret</div>
+          <p>
+            L'agent Dubois a fini son service hier à <strong>22h00</strong>. On lui propose de reprendre ce matin à <strong>08h30</strong>.
+            Écart = 10h30. Minimum requis = 12h.
+            → <span class="status-refuse">NON CONFORME</span> (il manque 1h30).
+          </p>
+          <p style="margin-top: 0.5rem;">
+            Par contre, si c'est un agent de réserve et que c'est la 1ère fois dans cette GPT, le seuil descend à 10h → <span class="status-vigilance">VIGILANCE</span>.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RÈGLE 4 : GPT -->
+    <div class="accordion-item">
+      <button class="accordion-toggle" onclick="toggleAccordion(this)">
+        <span>📅 Règle 4 — GPT (Grande Période de Travail)</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p>
+          La <strong>GPT</strong> est la "séquence de jours travaillés" entre deux repos périodiques (RP). Elle regroupe tous les jours de service consécutifs d'un agent, du premier service après son repos jusqu'au prochain repos.
+        </p>
+        <div class="alert alert-info">
+          <strong>Important à comprendre</strong>
+          Les congés, absences et repos universels (RU) <em>ne terminent pas</em> une GPT. Seul un vrai Repos Périodique (RP) remet le compteur à zéro.
+        </div>
+        <div class="rule-tag">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>GPT maximum</h4><p>Nombre maximum de jours dans une séquence de travail</p></div>
+          <div class="rule-tag-value">6 jours max</div>
+        </div>
+        <div class="rule-tag warn">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>GPT minimum avant RP</h4><p>Il faut au moins 3 jours travaillés avant d'avoir droit à un RP</p></div>
+          <div class="rule-tag-value">3 jours min</div>
+        </div>
+        <div class="rule-tag success">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>GPT max avant RP simple (RP1)</h4><p>Au-delà de 5 jours, un RP simple est recommandé</p></div>
+          <div class="rule-tag-value">5 jours</div>
+        </div>
+        <div class="example-box">
+          <div class="label">Exemple concret</div>
+          <p>
+            L'agent Leroy est en jour 6 de sa GPT (Lundi à Samedi). On lui propose un service Dimanche.
+            6 jours déjà + 1 = 7 jours > 6 jours max → <span class="status-refuse">NON CONFORME (GPT dépassée)</span>.
+          </p>
+          <p style="margin-top: 0.5rem;">
+            L'agent Petit est en jour 4 de sa GPT. Service proposé Vendredi. 4+1=5 jours → <span class="status-vigilance">VIGILANCE (proche de la limite)</span>.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RÈGLE 5 : REPOS PÉRIODIQUE -->
+    <div class="accordion-item">
+      <button class="accordion-toggle" onclick="toggleAccordion(this)">
+        <span>🔄 Règle 5 — Repos Périodique (RP) — le "reset" du cycle de travail</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p>Le <strong>Repos Périodique</strong> est une pause longue obligatoire qui permet à l'agent de "repartir de zéro" dans son cycle de travail. Différents niveaux existent selon la situation.</p>
+        <div class="rule-tag">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>RP1 — Repos simple</h4><p>Le plus courant, donne droit à une nouvelle GPT</p></div>
+          <div class="rule-tag-value">36h min</div>
+        </div>
+        <div class="rule-tag warn">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>RP2 — Repos double</h4><p>Requis après une GPT longue (>5 jours)</p></div>
+          <div class="rule-tag-value">60h min</div>
+        </div>
+        <div class="rule-tag danger">
+          <div class="rule-tag-left"></div>
+          <div class="rule-tag-body"><h4>RP3 — Repos triple</h4><p>Cas exceptionnel, très longue période de travail</p></div>
+          <div class="rule-tag-value">84h min</div>
+        </div>
+        <div class="example-box">
+          <div class="label">Exemple concret</div>
+          <p>
+            L'agent Bernard a travaillé 6 jours consécutifs (GPT de 6). Son repos doit être au minimum un <strong>RP2 (60h)</strong>.
+            Si son repos ne dure que 36h, la prochaine GPT serait illégale.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RÈGLE 6 : HABILITATIONS NUIT -->
+    <div class="accordion-item">
+      <button class="accordion-toggle" onclick="toggleAccordion(this)">
+        <span>🌙 Règle 6 — Habilitation travail de nuit</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p>
+          La <strong>période nocturne</strong> est définie de <strong>21h30 à 06h30</strong>. Un service est considéré "de nuit" s'il chevauche cette période pendant au moins <strong>2h30</strong>.
+        </p>
+        <p>
+          Pour affecter un agent à un service de nuit, il faut que son profil mentionne explicitement <span class="code">peutFaireNuit = true</span>. Sinon, la simulation retourne NON CONFORME automatiquement.
+        </p>
+        <div class="example-box">
+          <div class="label">Exemple concret</div>
+          <p>
+            Service proposé : 22h00–06h00. Chevauchement nuit = 6h (de 22h à 06h30).
+            L'agent Simon n'a pas l'habilitation nuit → <span class="status-refuse">NON CONFORME (non habilité nuit)</span>.
+            L'agent Morin a l'habilitation → vérification des autres règles.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RÈGLE 7 : HABILITATION DÉPLACEMENT -->
+    <div class="accordion-item">
+      <button class="accordion-toggle" onclick="toggleAccordion(this)">
+        <span>🚌 Règle 7 — Habilitation déplacement</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p>
+          Si le service nécessite un déplacement (l'agent doit aller travailler dans un autre établissement que son LPA), il faut que son profil autorise le déplacement (<span class="code">peutEtreDeplace = true</span>).
+        </p>
+        <div class="example-box">
+          <div class="label">Exemple concret</div>
+          <p>
+            Le service JS-105 est à Lyon alors que l'agent Garnier est basé à Paris.
+            Garnier n'a pas l'autorisation déplacement → <span class="status-refuse">NON CONFORME</span>.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RÈGLE 8 : TRAJETS MANQUANTS -->
+    <div class="accordion-item">
+      <button class="accordion-toggle" onclick="toggleAccordion(this)">
+        <span>⏳ Règle 8 — Temps de trajet non renseigné</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p>
+          Si un déplacement est nécessaire mais que les <strong>temps de trajet</strong> (aller et retour) ne sont pas configurés pour cet agent et ce type de service, le moteur génère une alerte <strong>VIGILANCE</strong> car il est impossible de calculer l'amplitude réelle.
+        </p>
+        <div class="example-box">
+          <div class="label">Exemple concret</div>
+          <p>
+            Agent Roux peut être déplacé, mais sa fiche ne renseigne pas le trajet vers le poste "Régulation Bordeaux".
+            → <span class="status-vigilance">VIGILANCE (temps de trajet absent)</span> — l'encadrant doit vérifier manuellement.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RÈGLE 9 : NUITS CONSÉCUTIVES -->
+    <div class="accordion-item">
+      <button class="accordion-toggle" onclick="toggleAccordion(this)">
+        <span>🌑 Règle 9 — GPTs de nuit consécutives</span>
+        <span class="chevron">▼</span>
+      </button>
+      <div class="accordion-content">
+        <p>
+          Une GPT est qualifiée "de nuit" si plus de 50% de ses services contiennent la tranche 00h00–04h00. Le moteur interdit deux GPTs consécutives de nuit pour préserver la santé de l'agent.
+        </p>
+        <div class="example-box">
+          <div class="label">Exemple concret</div>
+          <p>
+            L'agent Thomas vient de terminer une GPT entièrement nocturne (5 nuits de travail). On lui propose de commencer une nouvelle GPT avec un service de nuit.
+            → <span class="status-refuse">NON CONFORME (2 GPTs nuit consécutives interdites)</span>.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 1.5rem;">
+      <h3><span class="icon">🎯</span> Score de pertinence (0–100)</h3>
+      <p>Chaque agent conforme reçoit un score pour les classer du plus au moins pertinent :</p>
+      <div style="margin: 1rem 0;">
+        <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 0.3rem;">
+          <span>Agent parfait (toutes marges larges)</span>
+          <strong>100</strong>
+        </div>
+        <div class="score-bar"><div class="score-fill" style="width:100%; background: var(--success);"></div></div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-top: 0.8rem; margin-bottom: 0.3rem;">
+          <span>Agent conforme avec quelques marges réduites</span>
+          <strong>~70</strong>
+        </div>
+        <div class="score-bar"><div class="score-fill" style="width:70%; background: var(--accent);"></div></div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.82rem; margin-top: 0.8rem; margin-bottom: 0.3rem;">
+          <span>Agent en vigilance (proche des limites)</span>
+          <strong>~40</strong>
+        </div>
+        <div class="score-bar"><div class="score-fill" style="width:40%; background: var(--warn);"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 4 : DÉPLACEMENTS & LPA -->
+  <!-- ============================================================ -->
+  <div id="s4" class="section">
+    <div class="section-header">
+      <div class="section-icon">📍</div>
+      <div>
+        <h2>Gestion des déplacements et LPA</h2>
+        <p>Lieu de Prise d'Attachement, logique de déplacement, règles spécifiques</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🏠</span> Qu'est-ce qu'un LPA ?</h3>
+      <p>
+        Le <strong>LPA (Lieu de Prise d'Attachement)</strong> est, en termes simples, la <strong>"base" de l'agent</strong> — l'établissement où il est normalement affecté et d'où il prend son service.
+      </p>
+      <div class="example-box">
+        <div class="label">Exemple concret</div>
+        <p>
+          L'agent Dupont est basé à <strong>Paris-Nord</strong> (LPA = PNO). Ses services habituels (JS-001, JS-042, JS-078) sont tous associés au LPA "Paris-Nord" → il travaille à domicile, pas de déplacement.
+        </p>
+        <p style="margin-top: 0.5rem;">
+          Si on lui propose JS-205 qui est associé au LPA "Lyon-Part-Dieu" → il est <strong>en déplacement</strong> (hors LPA).
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🔗</span> Comment l'application détermine si c'est un déplacement</h3>
+      <div class="timeline">
+        <div class="timeline-item">
+          <h4>Étape 1 — Identifier le type de service (JsType)</h4>
+          <p>L'application cherche le code du service dans la table des types de service (JsType). Ex: "JS-2xx" → type "JS régulation longue distance".</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Étape 2 — Vérifier l'association LPA ↔ JsType</h4>
+          <p>Est-ce que ce type de service est associé au LPA de l'agent dans la table LpaJsType ? Si oui → dans le LPA, pas de déplacement.</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Étape 3 — Appliquer les règles spécifiques de l'agent</h4>
+          <p>L'agent peut avoir des règles personnalisées (AgentJsDeplacementRule) qui surchargent la détection automatique. Ex: pour cet agent spécifiquement, ce service est "toujours hors LPA".</p>
+        </div>
+        <div class="timeline-item">
+          <h4>Étape 4 — Calculer l'amplitude effective</h4>
+          <p>Si c'est un déplacement, on ajoute le temps de trajet aller et retour à l'amplitude du service.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">⏱️</span> Impact des déplacements sur le calcul d'amplitude</h3>
+      <div class="example-box">
+        <div class="label">Exemple concret de calcul</div>
+        <p><strong>Service proposé :</strong> 09h00–17h00 (8h de service)</p>
+        <p><strong>Temps trajet aller :</strong> 45 min</p>
+        <p><strong>Temps trajet retour :</strong> 45 min</p>
+        <p><strong>Amplitude effective :</strong> début = 08h15, fin = 17h45 → <strong>9h30 d'amplitude</strong></p>
+        <p style="margin-top: 0.5rem;">
+          C'est cette amplitude effective (avec trajet) qui est comparée aux seuils réglementaires (12h ou 13h selon le contexte).
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">⚠️</span> Cas indéterminables</h3>
+      <p>Dans certains cas, l'application ne peut pas automatiquement déterminer si c'est un déplacement :</p>
+      <ul class="check-list warn-list">
+        <li>L'agent n'a pas de LPA configuré dans son profil</li>
+        <li>Le type de service (JsType) n'est pas reconnu dans la base</li>
+        <li>Aucune règle de correspondance ne permet de décider</li>
+      </ul>
+      <p style="margin-top: 0.8rem;">
+        Dans ce cas, l'application revient à l'ancienne méthode : elle utilise le <strong>flag manuel</strong> "est en déplacement" fourni lors de la saisie de la simulation. Une alerte <strong>VIGILANCE</strong> est alors affichée pour indiquer que la détection automatique n'a pas pu fonctionner.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">📐</span> Configuration — Comment paramétrer les LPA</h3>
+      <div class="grid-2">
+        <div>
+          <strong>Dans l'interface LPA :</strong>
+          <ol style="margin-top: 0.5rem;">
+            <li>Créer le LPA (ex: code "PNO", libellé "Paris-Nord")</li>
+            <li>Associer les types de service qui appartiennent à ce LPA</li>
+            <li>Renseigner les horaires standard de chaque type</li>
+          </ol>
+        </div>
+        <div>
+          <strong>Dans la fiche agent :</strong>
+          <ol style="margin-top: 0.5rem;">
+            <li>Indiquer le LPA de base de l'agent</li>
+            <li>Configurer les règles de déplacement individuelles si nécessaire</li>
+            <li>Renseigner les temps de trajet vers les établissements fréquents</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 5 : ARCHITECTURE TECHNIQUE -->
+  <!-- ============================================================ -->
+  <div id="s5" class="section">
+    <div class="section-header">
+      <div class="section-icon">🏗️</div>
+      <div>
+        <h2>Architecture technique</h2>
+        <p>Technologies utilisées, rôle de chacune, pourquoi ces choix</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🧰</span> La pile technologique</h3>
+      <div class="grid-3">
+        <div class="tech-card">
+          <div class="tech-icon">⚛️</div>
+          <h4>Next.js 16</h4>
+          <p>Le framework principal. Gère à la fois les pages web (interface) et les API (données).</p>
+          <span class="badge-pill badge-primary" style="margin-top: 0.5rem;">Framework</span>
+        </div>
+        <div class="tech-card">
+          <div class="tech-icon">🗄️</div>
+          <h4>SQLite / Prisma</h4>
+          <p>Base de données intégrée au serveur + outil qui simplifie son utilisation depuis le code.</p>
+          <span class="badge-pill badge-info" style="margin-top: 0.5rem;">Données</span>
+        </div>
+        <div class="tech-card">
+          <div class="tech-icon">🔷</div>
+          <h4>TypeScript</h4>
+          <p>Version améliorée de JavaScript qui détecte les erreurs avant l'exécution.</p>
+          <span class="badge-pill badge-primary" style="margin-top: 0.5rem;">Langage</span>
+        </div>
+        <div class="tech-card">
+          <div class="tech-icon">🎨</div>
+          <h4>Tailwind CSS 4</h4>
+          <p>Framework CSS pour créer des interfaces visuelles rapidement.</p>
+          <span class="badge-pill badge-info" style="margin-top: 0.5rem;">Style</span>
+        </div>
+        <div class="tech-card">
+          <div class="tech-icon">🔐</div>
+          <h4>JWT + bcryptjs</h4>
+          <p>Gestion sécurisée des sessions utilisateurs et chiffrement des mots de passe.</p>
+          <span class="badge-pill badge-success" style="margin-top: 0.5rem;">Sécurité</span>
+        </div>
+        <div class="tech-card">
+          <div class="tech-icon">📊</div>
+          <h4>XLSX / Multer</h4>
+          <p>Lecture/écriture de fichiers Excel pour l'import du planning et l'export des paramètres.</p>
+          <span class="badge-pill badge-warn" style="margin-top: 0.5rem;">Import/Export</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🧱</span> Architecture en couches — simplifié</h3>
+      <p>L'application est organisée en couches, chacune avec un rôle précis :</p>
+      <div style="margin: 1rem 0;">
+        <div style="background: #e8f4fd; border: 2px solid var(--accent); border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem;">
+          <strong>Couche 1 — Interface (Frontend)</strong>
+          <p>Ce que l'utilisateur voit et clique. Pages web, formulaires, tableaux de résultats.</p>
+          <span class="badge-pill badge-info">React + Tailwind CSS</span>
+        </div>
+        <div style="text-align: center; font-size: 1.5rem; color: var(--muted);">↕</div>
+        <div style="background: #d4edda; border: 2px solid var(--success); border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem;">
+          <strong>Couche 2 — API (Pont entre interface et données)</strong>
+          <p>Reçoit les demandes de l'interface, applique la sécurité, appelle le moteur métier.</p>
+          <span class="badge-pill badge-success">Next.js API Routes</span>
+        </div>
+        <div style="text-align: center; font-size: 1.5rem; color: var(--muted);">↕</div>
+        <div style="background: #fff3cd; border: 2px solid var(--warn); border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem;">
+          <strong>Couche 3 — Moteur métier</strong>
+          <p>Le cerveau : applique les règles RH, calcule les amplitudes, produit les résultats.</p>
+          <span class="badge-pill badge-warn">Engine / Lib TypeScript</span>
+        </div>
+        <div style="text-align: center; font-size: 1.5rem; color: var(--muted);">↕</div>
+        <div style="background: #f8d7da; border: 2px solid var(--danger); border-radius: 8px; padding: 1rem;">
+          <strong>Couche 4 — Base de données</strong>
+          <p>Stocke toutes les données : agents, plannings, simulations, utilisateurs, règles.</p>
+          <span class="badge-pill badge-danger">SQLite + Prisma</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">❓</span> Pourquoi ces choix technologiques ?</h3>
+      <table class="rule-table">
+        <thead>
+          <tr><th>Technologie</th><th>Raison du choix</th><th>Alternative possible</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Next.js</strong></td>
+            <td>Framework tout-en-un : pages + API dans un seul projet, déploiement simple</td>
+            <td>Express.js + React séparés</td>
+          </tr>
+          <tr>
+            <td><strong>SQLite</strong></td>
+            <td>Pas besoin d'un serveur de base de données séparé. Tout dans un fichier <span class="code">dev.db</span></td>
+            <td>PostgreSQL (pour multiserveur)</td>
+          </tr>
+          <tr>
+            <td><strong>Prisma</strong></td>
+            <td>Simplifie les requêtes SQL, génère du code TypeScript automatiquement</td>
+            <td>Requêtes SQL directes</td>
+          </tr>
+          <tr>
+            <td><strong>JWT custom</strong></td>
+            <td>Contrôle total sur la durée de session (8h), pas de dépendance externe</td>
+            <td>NextAuth.js (plus complexe)</td>
+          </tr>
+          <tr>
+            <td><strong>TypeScript</strong></td>
+            <td>Réduit les bugs avec la vérification de types sur les règles complexes</td>
+            <td>JavaScript pur</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">📁</span> Organisation du code — les dossiers clés</h3>
+      <div class="grid-2">
+        <div>
+          <p><strong><span class="code">src/engine/</span></strong><br/>Le moteur de règles RH. Fichier principal : <span class="code">rules.ts</span></p>
+          <p><strong><span class="code">src/lib/</span></strong><br/>Bibliothèques partagées : authentification, audit, calcul déplacement, GPT...</p>
+          <p><strong><span class="code">src/lib/simulation/</span></strong><br/>Orchestrateur de simulation : cherche les candidats, construit les scénarios, les score.</p>
+        </div>
+        <div>
+          <p><strong><span class="code">src/app/api/</span></strong><br/>Tous les endpoints API de l'application (login, simulation, import, agents...)</p>
+          <p><strong><span class="code">src/app/</span></strong> (hors api/)<br/>Les pages web visibles par l'utilisateur</p>
+          <p><strong><span class="code">prisma/</span></strong><br/>Schéma de la base de données et script d'initialisation</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 6 : BASE DE DONNÉES -->
+  <!-- ============================================================ -->
+  <div id="s6" class="section">
+    <div class="section-header">
+      <div class="section-icon">🗄️</div>
+      <div>
+        <h2>Base de données</h2>
+        <p>Structure, principales tables, relations et exemples concrets</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">💡</span> Qu'est-ce qu'une base de données ?</h3>
+      <p>
+        Imaginez une base de données comme un <strong>classeur Excel géant avec plusieurs onglets liés entre eux</strong>. Chaque "onglet" (appelé table) contient un type d'information. Point RH utilise <strong>SQLite</strong>, une base stockée dans un seul fichier sur le serveur.
+      </p>
+    </div>
+
+    <div class="db-table">
+      <div class="db-table-header">👤 Table : User (Utilisateurs de l'application)</div>
+      <div class="db-table-body">
+        <div class="db-field db-pk"><span class="db-field-name">id</span><span class="db-field-type">TEXT (PK)</span><span class="db-field-desc">Identifiant unique auto-généré</span></div>
+        <div class="db-field"><span class="db-field-name">email</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Email de connexion (unique)</span></div>
+        <div class="db-field"><span class="db-field-name">name</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Nom affiché</span></div>
+        <div class="db-field"><span class="db-field-name">password</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Mot de passe chiffré (jamais en clair)</span></div>
+        <div class="db-field"><span class="db-field-name">role</span><span class="db-field-type">TEXT</span><span class="db-field-desc">ADMIN ou USER</span></div>
+        <div class="db-field"><span class="db-field-name">isActive</span><span class="db-field-type">BOOLEAN</span><span class="db-field-desc">Compte actif ou désactivé</span></div>
+        <div class="db-field"><span class="db-field-name">registrationStatus</span><span class="db-field-type">TEXT</span><span class="db-field-desc">PENDING / APPROVED / REJECTED</span></div>
+      </div>
+    </div>
+
+    <div class="db-table">
+      <div class="db-table-header">🧑‍✈️ Table : Agent (Personnel ferroviaire)</div>
+      <div class="db-table-body">
+        <div class="db-field db-pk"><span class="db-field-name">id</span><span class="db-field-type">TEXT (PK)</span><span class="db-field-desc">Identifiant unique</span></div>
+        <div class="db-field"><span class="db-field-name">matricule</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Numéro d'agent SNCF (unique)</span></div>
+        <div class="db-field"><span class="db-field-name">nom / prenom</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Identité de l'agent</span></div>
+        <div class="db-field"><span class="db-field-name">uch / codeUch</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Unité de circulation et son code</span></div>
+        <div class="db-field"><span class="db-field-name">agentReserve</span><span class="db-field-type">BOOLEAN</span><span class="db-field-desc">Est-il en réserve d'utilisation ?</span></div>
+        <div class="db-field"><span class="db-field-name">peutFaireNuit</span><span class="db-field-type">BOOLEAN</span><span class="db-field-desc">Habilitation travail nocturne</span></div>
+        <div class="db-field"><span class="db-field-name">peutEtreDeplace</span><span class="db-field-type">BOOLEAN</span><span class="db-field-desc">Peut travailler hors LPA</span></div>
+        <div class="db-field"><span class="db-field-name">regimeB / regimeC</span><span class="db-field-type">BOOLEAN</span><span class="db-field-desc">Régime RH spécifique (règles différentes)</span></div>
+        <div class="db-field"><span class="db-field-name">habilitations</span><span class="db-field-type">JSON</span><span class="db-field-desc">Liste des types de JS autorisés (ex: ["JS1","JS2","REG"])</span></div>
+        <div class="db-field db-fk"><span class="db-field-name">lpaBaseId</span><span class="db-field-type">FK → Lpa</span><span class="db-field-desc">LPA de rattachement de l'agent</span></div>
+        <div class="db-field"><span class="db-field-name">deletedAt</span><span class="db-field-type">DATETIME</span><span class="db-field-desc">Date de suppression (soft delete — l'agent reste en base)</span></div>
+      </div>
+    </div>
+
+    <div class="db-table">
+      <div class="db-table-header">📅 Table : PlanningLigne (Lignes du planning importé)</div>
+      <div class="db-table-body">
+        <div class="db-field db-pk"><span class="db-field-name">id</span><span class="db-field-type">INT (PK)</span><span class="db-field-desc">Identifiant</span></div>
+        <div class="db-field db-fk"><span class="db-field-name">agentId</span><span class="db-field-type">FK → Agent</span><span class="db-field-desc">Agent concerné</span></div>
+        <div class="db-field db-fk"><span class="db-field-name">importId</span><span class="db-field-type">FK → Import</span><span class="db-field-desc">Import d'origine</span></div>
+        <div class="db-field"><span class="db-field-name">dateDebutPop</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Date de début du service (ex: "2025-03-15")</span></div>
+        <div class="db-field"><span class="db-field-name">heureDebutPop</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Heure de début (ex: "07:30")</span></div>
+        <div class="db-field"><span class="db-field-name">heureFinPop</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Heure de fin (ex: "15:30")</span></div>
+        <div class="db-field"><span class="db-field-name">amplitudeCentesimal</span><span class="db-field-type">FLOAT</span><span class="db-field-desc">Amplitude en centésimal (ex: 8.00 = 8h00)</span></div>
+        <div class="db-field"><span class="db-field-name">dureeEffectiveCent</span><span class="db-field-type">FLOAT</span><span class="db-field-desc">Durée de travail effectif en centésimal</span></div>
+        <div class="db-field"><span class="db-field-name">codeJs</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Code du service (ex: "JS-042")</span></div>
+        <div class="db-field"><span class="db-field-name">typeJs</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Type de service (ex: "REG", "RES")</span></div>
+        <div class="db-field"><span class="db-field-name">jsNpo</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Nature de la population (JS, NPO, C, RU, RP...)</span></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="db-table">
+        <div class="db-table-header">📍 Table : Lpa</div>
+        <div class="db-table-body">
+          <div class="db-field db-pk"><span class="db-field-name">id</span><span class="db-field-type">TEXT (PK)</span><span class="db-field-desc">Identifiant</span></div>
+          <div class="db-field"><span class="db-field-name">code</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Code court (ex: "PNO")</span></div>
+          <div class="db-field"><span class="db-field-name">libelle</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Nom complet</span></div>
+          <div class="db-field"><span class="db-field-name">actif</span><span class="db-field-type">BOOLEAN</span><span class="db-field-desc">LPA actif ou archivé</span></div>
+        </div>
+      </div>
+
+      <div class="db-table">
+        <div class="db-table-header">🏷️ Table : JsType (Types de services)</div>
+        <div class="db-table-body">
+          <div class="db-field db-pk"><span class="db-field-name">id</span><span class="db-field-type">TEXT (PK)</span><span class="db-field-desc">Identifiant</span></div>
+          <div class="db-field"><span class="db-field-name">code</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Code (ex: "REG-LD")</span></div>
+          <div class="db-field"><span class="db-field-name">estNuit</span><span class="db-field-type">BOOLEAN</span><span class="db-field-desc">Service de nuit par défaut</span></div>
+          <div class="db-field"><span class="db-field-name">dureeStandard</span><span class="db-field-type">INT</span><span class="db-field-desc">Durée standard en minutes</span></div>
+          <div class="db-field"><span class="db-field-name">regime</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Régime applicable (B, C ou null)</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="db-table">
+      <div class="db-table-header">⚖️ Table : WorkRule (Règles RH configurables)</div>
+      <div class="db-table-body">
+        <div class="db-field db-pk"><span class="db-field-name">id</span><span class="db-field-type">INT (PK)</span><span class="db-field-desc">Identifiant</span></div>
+        <div class="db-field"><span class="db-field-name">key</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Clé de règle (ex: "amplitude.general", "reposJournalier.standard")</span></div>
+        <div class="db-field"><span class="db-field-name">value</span><span class="db-field-type">FLOAT</span><span class="db-field-desc">Valeur numérique (ex: 11 pour 11 heures)</span></div>
+        <div class="db-field"><span class="db-field-name">category</span><span class="db-field-type">TEXT</span><span class="db-field-desc">Catégorie de règle (amplitude, repos, gpt...)</span></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🔗</span> Relations entre les tables</h3>
+      <div class="example-box">
+        <div class="label">Comment les tables se parlent</div>
+        <p>
+          Un <strong>Agent</strong> → appartient à un <strong>Lpa</strong><br/>
+          Un <strong>Lpa</strong> → est associé à plusieurs <strong>JsType</strong> (via LpaJsType)<br/>
+          Un <strong>Agent</strong> → peut avoir des règles déplacement spéciales (<strong>AgentJsDeplacementRule</strong>)<br/>
+          Un <strong>PlanningImport</strong> → contient plusieurs <strong>PlanningLigne</strong><br/>
+          Chaque <strong>PlanningLigne</strong> → est liée à un <strong>Agent</strong><br/>
+          Une <strong>Simulation</strong> → produit plusieurs <strong>ResultatAgent</strong>
+        </p>
+      </div>
+      <div class="alert alert-info">
+        <strong>Soft Delete (suppression douce)</strong>
+        Quand on "supprime" un agent, il n'est pas vraiment effacé. Le champ <span class="code">deletedAt</span> est renseigné avec la date. L'agent disparaît de l'interface mais reste en base pour conserver l'historique des simulations.
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 7 : SÉCURITÉ -->
+  <!-- ============================================================ -->
+  <div id="s7" class="section">
+    <div class="section-header">
+      <div class="section-icon">🔐</div>
+      <div>
+        <h2>Sécurité & cybersécurité</h2>
+        <p>Gestion des accès, protection des données, risques et bonnes pratiques</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3><span class="icon">🔑</span> Authentification</h3>
+        <ul class="check-list">
+          <li>Email + mot de passe pour se connecter</li>
+          <li>Mots de passe chiffrés (bcrypt) — jamais stockés en clair</li>
+          <li>Session via <strong>JWT</strong> (jeton numérique) valable <strong>8 heures</strong></li>
+          <li>Jeton stocké dans un cookie <strong>httpOnly</strong> (inaccessible au JavaScript malveillant)</li>
+          <li>Déconnexion efface le cookie</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3><span class="icon">🛡️</span> Protection contre les attaques</h3>
+        <ul class="check-list">
+          <li><strong>Anti-brute force :</strong> 10 tentatives max par IP en 15 minutes</li>
+          <li><strong>Anti-clickjacking :</strong> l'application ne peut pas être intégrée dans une autre page</li>
+          <li><strong>CSP :</strong> politique de contenu stricte (limite les scripts externes)</li>
+          <li><strong>HSTS :</strong> connexion HTTPS forcée (1 an)</li>
+          <li><strong>Anti-sniffing :</strong> les fichiers ne peuvent pas être mal interprétés</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">👥</span> Gestion des rôles</h3>
+      <div class="grid-2">
+        <div style="background: #d4edda; border-radius: 8px; padding: 1rem;">
+          <strong>ADMIN</strong>
+          <ul style="margin-top: 0.5rem;" class="check-list">
+            <li>Tout ce que USER peut faire</li>
+            <li>Gérer les utilisateurs</li>
+            <li>Approuver les inscriptions</li>
+            <li>Configurer les règles RH</li>
+            <li>Accès au paramétrage LPA/JsType</li>
+          </ul>
+        </div>
+        <div style="background: #cce5ff; border-radius: 8px; padding: 1rem;">
+          <strong>USER</strong>
+          <ul style="margin-top: 0.5rem;" class="check-list">
+            <li>Importer un planning</li>
+            <li>Lancer des simulations</li>
+            <li>Consulter les résultats</li>
+            <li>Voir les fiches agents</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">📋</span> Audit Log — traçabilité</h3>
+      <p>
+        Toutes les actions sensibles sont enregistrées dans une table <strong>AuditLog</strong> avec : qui a fait quoi, quand, sur quelle donnée.
+      </p>
+      <div class="example-box">
+        <div class="label">Exemples d'actions tracées</div>
+        <ul>
+          <li>Connexion réussie / échouée</li>
+          <li>Suppression d'un agent</li>
+          <li>Modification des règles RH</li>
+          <li>Import d'un planning</li>
+          <li>Approbation/rejet d'une inscription</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">⚠️</span> Risques identifiés et limites</h3>
+
+      <div class="alert alert-danger">
+        <strong>Risque critique — JWT Secret en production</strong>
+        Le fichier <span class="code">.env</span> contient un JWT_SECRET par défaut ("point-rh-secret-jwt-2024-changez-moi-en-production"). S'il n'est pas changé en production, n'importe qui connaissant ce secret peut forger un token d'authentification valide.
+      </div>
+
+      <div class="alert alert-warn">
+        <strong>Limitation — Rate limiting en mémoire</strong>
+        Le système anti-brute force est stocké en mémoire RAM. En cas de redémarrage du serveur, les compteurs sont remis à zéro. Un attaquant patient pourrait contourner cette protection.
+      </div>
+
+      <div class="alert alert-warn">
+        <strong>Limitation — SQLite en production</strong>
+        SQLite convient parfaitement pour un usage interne à faible charge. Si l'application devait être utilisée par plusieurs serveurs simultanément ou avec des milliers d'utilisateurs, une base PostgreSQL serait plus adaptée.
+      </div>
+
+      <div class="alert alert-info">
+        <strong>Point positif — Données sensibles</strong>
+        Les mots de passe sont correctement chiffrés avec bcrypt. Les tokens JWT sont stockés en cookies httpOnly. Les entrées utilisateur sont typées (TypeScript) ce qui réduit les injections.
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 8 : POINTS FORTS -->
+  <!-- ============================================================ -->
+  <div id="s8" class="section">
+    <div class="section-header">
+      <div class="section-icon">✨</div>
+      <div>
+        <h2>Points forts de l'application</h2>
+        <p>Ce qui est bien conçu, pertinent métier, et remarquable techniquement</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🎯</span> Pertinence métier remarquable</h3>
+      <div class="accordion-item">
+        <button class="accordion-toggle" onclick="toggleAccordion(this)">
+          <span>✅ Moteur de règles complet et fidèle à la réglementation</span>
+          <span class="chevron">▼</span>
+        </button>
+        <div class="accordion-content">
+          <p>L'application implémente <strong>9 règles RH distinctes</strong>, couvrant l'ensemble des contraintes réglementaires ferroviaires : amplitude, travail effectif, repos journalier, GPT, repos périodique, habilitations nuit et déplacement, trajets, nuits consécutives, régimes B/C.</p>
+          <p style="margin-top: 0.5rem;">Chaque règle est paramétrable via l'interface d'administration, avec des valeurs par défaut sensées et une gestion des cas spéciaux (agents réserve, régimes particuliers).</p>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-toggle" onclick="toggleAccordion(this)">
+          <span>✅ Système LPA sophistiqué pour les déplacements</span>
+          <span class="chevron">▼</span>
+        </button>
+        <div class="accordion-content">
+          <p>La logique LPA est bien pensée : elle permet de déterminer automatiquement si un service implique un déplacement, en se basant sur des associations configurables (LPA ↔ JsType). Les agents peuvent avoir des règles personnalisées avec des temps de trajet spécifiques.</p>
+          <p style="margin-top: 0.5rem;">Cette architecture est évolutive : on peut enrichir les données sans modifier le code.</p>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-toggle" onclick="toggleAccordion(this)">
+          <span>✅ Calcul GPT correct avec gestion des congés</span>
+          <span class="chevron">▼</span>
+        </button>
+        <div class="accordion-content">
+          <p>La distinction entre ce qui "remet le compteur GPT à zéro" (uniquement les vrais RP) et ce qui ne le remet pas (congés, absences, RU) est une règle subtile correctement implémentée. Les jours "C" (repos planifié) comptent bien comme jours travaillés dans la GPT.</p>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-toggle" onclick="toggleAccordion(this)">
+          <span>✅ Détection des conflits induits</span>
+          <span class="chevron">▼</span>
+        </button>
+        <div class="accordion-content">
+          <p>Quand on affecte un agent à un service, l'application vérifie si cette décision crée des problèmes en cascade pour d'autres agents (ex: modifier le planning d'un agent pourrait impacter le repos d'un autre). C'est une fonctionnalité avancée qui dépasse la simple vérification individuelle.</p>
+        </div>
+      </div>
+      <div class="accordion-item">
+        <button class="accordion-toggle" onclick="toggleAccordion(this)">
+          <span>✅ Mode multi-JS pour les incidents majeurs</span>
+          <span class="chevron">▼</span>
+        </button>
+        <div class="accordion-content">
+          <p>La gestion simultanée de plusieurs services imprévus est une fonctionnalité rare et précieuse. L'algorithme d'allocation multi-JS optimise les affectations de façon globale, évitant les conflits inter-agents.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🏗️</span> Qualité technique</h3>
+      <ul class="check-list">
+        <li><strong>Architecture en couches propre</strong> — séparation claire entre interface, API, moteur métier et données</li>
+        <li><strong>TypeScript partout</strong> — détection des erreurs à la compilation, pas à l'exécution</li>
+        <li><strong>Règles paramétrables</strong> — les seuils RH ne sont pas codés "en dur" mais stockés en base et modifiables par un administrateur</li>
+        <li><strong>Soft delete</strong> — les suppressions d'agents sont réversibles, l'historique est préservé</li>
+        <li><strong>Audit trail complet</strong> — toutes les actions sensibles sont tracées</li>
+        <li><strong>Import flexible</strong> — accepte Excel (.xlsx, .xls) et TXT (séparé par tabulation ou virgule)</li>
+        <li><strong>Configuration exportable</strong> — le paramétrage RH peut être sauvegardé et restauré</li>
+        <li><strong>Headers de sécurité</strong> — CSP, HSTS, X-Frame-Options configurés dans next.config.ts</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🎓</span> Pédagogie dans les résultats</h3>
+      <p>
+        L'application ne se contente pas de dire "oui" ou "non". Elle explique <strong>pourquoi</strong> un agent est refusé, avec le détail de chaque règle vérifiée et les valeurs mesurées vs les seuils. C'est précieux pour l'encadrant qui peut comprendre et justifier chaque décision.
+      </p>
+      <div class="example-box">
+        <div class="label">Exemple de détail retourné</div>
+        <p>
+          "Agent DUPONT - REFUSÉ<br/>
+          • Repos journalier : 10h30 (minimum requis : 12h) — <strong>VIOLATION</strong><br/>
+          • Amplitude : 11h00 (maximum autorisé : 11h) — OK<br/>
+          • GPT : 4 jours (maximum : 6) — OK"
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 9 : AXES D'AMÉLIORATION -->
+  <!-- ============================================================ -->
+  <div id="s9" class="section">
+    <div class="section-header">
+      <div class="section-icon">🔧</div>
+      <div>
+        <h2>Axes d'amélioration</h2>
+        <p>Limites détectées, incohérences, améliorations possibles</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🔴</span> Points critiques à traiter en priorité</h3>
+
+      <div class="alert alert-danger">
+        <strong>JWT Secret par défaut non sécurisé</strong>
+        Le secret JWT en production doit absolument être changé. C'est une faille de sécurité majeure si déployé en l'état. Recommandation : utiliser une chaîne aléatoire de 64 caractères minimum, stockée dans les variables d'environnement serveur.
+      </div>
+
+      <div class="alert alert-danger">
+        <strong>Chemin absolu Windows dans DATABASE_URL</strong>
+        Le fichier <span class="code">.env</span> contient <span class="code">file:C:/Users/PC/Desktop/Point RH/point-rh/dev.db</span>. Ce chemin est propre à la machine de développement. En production ou sur un autre poste, cette configuration doit être adaptée.
+      </div>
+
+      <div class="alert alert-warn">
+        <strong>Rate limiting en mémoire (non persistant)</strong>
+        Le limiteur de tentatives de connexion est remis à zéro à chaque redémarrage du serveur. Passer à Redis ou une solution persistante pour des environnements professionnels.
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🟡</span> Limites techniques et fonctionnelles</h3>
+
+      <div class="accordion-item">
+        <button class="accordion-toggle" onclick="toggleAccordion(this)">
+          <span>⚠️ SQLite — scalabilité limitée</span>
+          <span class="chevron">▼</span>
+        </button>
+        <div class="accordion-content">
+          <p>SQLite est parfait pour un usage mono-poste ou une petite équipe. Mais il ne permet pas :</p>
+          <ul>
+            <li>L'accès concurrent de plusieurs serveurs</li>
+            <li>Les grosses montées en charge (milliers d'utilisateurs)</li>
+            <li>La réplication ou les backups automatiques</li>
+          </ul>
+          <p style="margin-top: 0.5rem;"><strong>Recommandation :</strong> Migrer vers PostgreSQL si le déploiement dépasse un usage interne limité.</p>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <button class="accordion-toggle" onclick="toggleAccordion(this)">
+          <span>⚠️ Absence de tests automatisés étendus</span>
+          <span class="chevron">▼</span>
+        </button>
+        <div class="accordion-content">
+          <p>Le projet dispose d'une infrastructure de tests (Jest, dossier <span class="code">__tests__/</span>), mais la couverture des règles métier complexes n'est pas documentée. Pour un moteur de règles RH réglementaires, des tests exhaustifs sur chaque règle et chaque cas limite sont essentiels.</p>
+          <p style="margin-top: 0.5rem;"><strong>Recommandation :</strong> Créer des tests unitaires pour chaque règle du moteur avec des cas nominaux, des cas limites et des cas d'erreur.</p>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <button class="accordion-toggle" onclick="toggleAccordion(this)">
+          <span>⚠️ Cas indéterminables LPA — dégradation silencieuse</span>
+          <span class="chevron">▼</span>
+        </button>
+        <div class="accordion-content">
+          <p>Quand le LPA d'un agent n'est pas configuré, l'application revient au flag manuel de déplacement. Ce comportement de "fallback" est une bonne idée mais le message d'avertissement doit être suffisamment visible pour que l'encadrant ne rate pas ce point d'attention.</p>
+          <p style="margin-top: 0.5rem;"><strong>Recommandation :</strong> Afficher un panneau d'avertissement distinct et coloré pour les agents avec des données LPA incomplètes.</p>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <button class="accordion-toggle" onclick="toggleAccordion(this)">
+          <span>⚠️ Un seul import actif à la fois</span>
+          <span class="chevron">▼</span>
+        </button>
+        <div class="accordion-content">
+          <p>L'application ne conserve qu'un seul import de planning actif à la fois (le précédent est marqué inactif). Cela signifie qu'on ne peut pas comparer deux périodes de planning ou revenir en arrière facilement.</p>
+          <p style="margin-top: 0.5rem;"><strong>Recommandation :</strong> Permettre la gestion de plusieurs imports historisés avec sélection de la période de référence.</p>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <button class="accordion-toggle" onclick="toggleAccordion(this)">
+          <span>⚠️ Pas de notifications ou d'alertes actives</span>
+          <span class="chevron">▼</span>
+        </button>
+        <div class="accordion-content">
+          <p>L'application est entièrement "pull" (l'encadrant doit venir consulter). Il n'y a pas de système d'alerte proactive (email, notification push) pour signaler des situations critiques détectées dans le planning.</p>
+          <p style="margin-top: 0.5rem;"><strong>Recommandation :</strong> Ajouter un module d'analyse préventive du planning qui détecte les GPT trop longues, les repos insuffisants programmés, etc.</p>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <button class="accordion-toggle" onclick="toggleAccordion(this)">
+          <span>⚠️ Pas d'historique de modifications des règles RH</span>
+          <span class="chevron">▼</span>
+        </button>
+        <div class="accordion-content">
+          <p>Un administrateur peut modifier les seuils RH à tout moment. Il n'y a pas d'historique de ces changements (qui a changé quoi, quand, quelle valeur avant/après). Dans un contexte réglementaire, cela peut poser problème en cas de contrôle.</p>
+          <p style="margin-top: 0.5rem;"><strong>Recommandation :</strong> Versionnner les modifications de WorkRule dans l'AuditLog avec les anciennes et nouvelles valeurs.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🟢</span> Améliorations fonctionnelles souhaitables</h3>
+      <ul>
+        <li><strong>Tableau de bord analytique</strong> — visualiser les tendances d'imprévus, les agents les plus sollicités, les jours critiques.</li>
+        <li><strong>Export des résultats de simulation</strong> — pouvoir exporter le compte-rendu d'une simulation en PDF ou Excel.</li>
+        <li><strong>Intégration directe avec le logiciel de planification</strong> — au lieu d'importer manuellement, connecter l'API du logiciel source.</li>
+        <li><strong>Mobile-friendly</strong> — l'interface web devrait être optimisée pour les tablettes/smartphones utilisés sur le terrain.</li>
+        <li><strong>Mode hors-ligne partiel</strong> — permettre la consultation du planning sans connexion (PWA).</li>
+        <li><strong>Documentation des règles in-app</strong> — afficher l'explication de chaque règle directement dans l'interface de paramétrage.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- SECTION 10 : CONCLUSION -->
+  <!-- ============================================================ -->
+  <div id="s10" class="section">
+    <div class="section-header">
+      <div class="section-icon">🏁</div>
+      <div>
+        <h2>Conclusion</h2>
+        <p>Résumé, vision globale, mot de la fin</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">📌</span> En résumé — ce qu'est Point RH</h3>
+      <p>
+        <strong>Point RH</strong> est un outil métier robuste, conçu pour répondre à un besoin très concret et complexe : <strong>aider les encadrants ferroviaires à gérer les imprévus de planning en respectant automatiquement la réglementation RH</strong>.
+      </p>
+      <p>
+        En quelques secondes, là où un humain mettrait 10 à 20 minutes de recherche manuelle avec des risques d'erreurs, l'application analyse l'intégralité du planning, applique 9 règles réglementaires, calcule les amplitudes et repos, et présente une liste d'agents classés par pertinence.
+      </p>
+    </div>
+
+    <div class="grid-3">
+      <div class="card" style="text-align: center;">
+        <div style="font-size: 2.5rem;">⚖️</div>
+        <h3 style="text-align:center;">Conformité réglementaire</h3>
+        <p>9 règles RH vérifiées automatiquement pour chaque agent</p>
+      </div>
+      <div class="card" style="text-align: center;">
+        <div style="font-size: 2.5rem;">⚡</div>
+        <h3 style="text-align:center;">Gain de temps</h3>
+        <p>Analyse instantanée de tous les agents, résultats en quelques secondes</p>
+      </div>
+      <div class="card" style="text-align: center;">
+        <div style="font-size: 2.5rem;">🎯</div>
+        <h3 style="text-align:center;">Aide à la décision</h3>
+        <p>Classement intelligent, explication de chaque décision, scénarios alternatifs</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">🔭</span> Vision et potentiel</h3>
+      <p>
+        L'application est aujourd'hui fonctionnelle et couvre les besoins essentiels. Elle dispose d'une <strong>base technique solide</strong> (Next.js, Prisma, TypeScript) qui peut évoluer.
+      </p>
+      <p>
+        Les prochaines étapes naturelles seraient :
+      </p>
+      <ol>
+        <li>Sécuriser le déploiement (JWT secret, base de données adaptée)</li>
+        <li>Élargir la couverture de tests automatisés sur le moteur de règles</li>
+        <li>Ajouter de l'analyse préventive (détecter les problèmes avant l'imprévu)</li>
+        <li>Envisager une connexion directe au logiciel de planification existant</li>
+      </ol>
+    </div>
+
+    <div class="card" style="background: linear-gradient(135deg, var(--primary) 0%, #2c5f8a 100%); color: white; border: none;">
+      <h3 style="color: white;"><span class="icon">💬</span> Mot de la fin — pour l'agent de circulation</h3>
+      <p style="color: rgba(255,255,255,0.9);">
+        Si vous êtes agent de circulation et que vous lisez ce document : imaginez un collègue qui a mémorisé l'intégralité de la réglementation RH et connaît par cœur le planning de chacun. À 6h du matin, quand un collègue est absent, ce collègue virtuel vous dit en 3 secondes : "Appelez Dupont, il peut légalement assurer le service avec 45 minutes de marge sur son repos. Sinon, Morin est aussi disponible mais c'est son 5ème jour de GPT, soyez prudents."
+      </p>
+      <p style="color: rgba(255,255,255,0.9); margin-top: 0.8rem;">
+        C'est exactement ça, Point RH.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3><span class="icon">📊</span> Chiffres clés de l'application</h3>
+      <table class="rule-table">
+        <thead><tr><th>Indicateur</th><th>Valeur</th></tr></thead>
+        <tbody>
+          <tr><td>Technologies principales</td><td>Next.js 16, SQLite/Prisma, TypeScript, Tailwind CSS 4</td></tr>
+          <tr><td>Règles RH vérifiées</td><td>9 règles (amplitude, TE, repos, GPT, RP, habilitations...)</td></tr>
+          <tr><td>Tables en base de données</td><td>11 tables principales (Agent, PlanningLigne, Simulation, WorkRule, Lpa, JsType...)</td></tr>
+          <tr><td>Endpoints API</td><td>35+ routes API (agents, simulations, LPA, import, admin...)</td></tr>
+          <tr><td>Modes de simulation</td><td>2 modes (JS unique + multi-JS)</td></tr>
+          <tr><td>Formats d'import supportés</td><td>Excel (.xlsx, .xls) + TXT (tabulations ou virgules)</td></tr>
+          <tr><td>Durée de session</td><td>8 heures (token JWT httpOnly)</td></tr>
+          <tr><td>Rôles utilisateurs</td><td>2 rôles (ADMIN, USER) + workflow d'inscription</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <p>Point RH — Présentation générée depuis le code source de l'application | Mars 2026</p>
+</footer>
+
+<script>
+  function showSection(id) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('nav a').forEach(a => a.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.getElementById('nav-' + id).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    return false;
+  }
+
+  function toggleAccordion(btn) {
+    const content = btn.nextElementSibling;
+    const isOpen = content.classList.contains('open');
+    // close all in same parent
+    const parent = btn.closest('.card') || btn.closest('.section');
+    parent.querySelectorAll('.accordion-toggle').forEach(b => {
+      b.classList.remove('open');
+      b.nextElementSibling.classList.remove('open');
+    });
+    if (!isOpen) {
+      btn.classList.add('open');
+      content.classList.add('open');
+    }
+  }
+
+  // Activate first nav item
+  document.getElementById('nav-s1').classList.add('active');
+</script>
+
+</body>
+</html>

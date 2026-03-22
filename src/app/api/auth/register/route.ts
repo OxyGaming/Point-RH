@@ -17,6 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { rateLimit } from "@/lib/rateLimit";
+import { notifyAdminsNewPendingRegistration } from "@/lib/emailNotifications";
 
 const REGISTER_RATE_LIMIT = { max: 5, windowMs: 60 * 60 * 1000 };
 
@@ -123,6 +124,15 @@ export async function POST(req: NextRequest) {
       entityId: user.id,
       details: { email: user.email, name: user.name },
     });
+
+    // ── Notification email aux administrateurs ───────────────────────────────
+    // Fire-and-forget : l'envoi ne bloque pas la réponse HTTP.
+    // En cas d'erreur SMTP, le log est enregistré mais l'inscription n'échoue pas.
+    // Pour une version fiabilisée avec retry, remplacer par :
+    //   await enqueueRegistrationNotification(user);
+    notifyAdminsNewPendingRegistration(user).catch((err) =>
+      console.error("[register] Échec notification email admins:", err)
+    );
 
     return NextResponse.json(
       { message: "Votre demande d'inscription a bien été enregistrée. Elle sera examinée par un administrateur." },

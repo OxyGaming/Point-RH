@@ -253,52 +253,6 @@ model NpoExclusionCode {
   createdAt DateTime @default(now())
 }
 
-// ─── Notifications email ──────────────────────────────────────────────────────
-
-/// Journal des notifications email envoyées.
-/// Sert à éviter les doublons (anti-spam) et à tracer tous les envois.
-model EmailNotificationLog {
-  id        String   @id @default(cuid())
-  /// Type de notification : "PENDING_REGISTRATION" | "REMIND_PENDING"
-  type      String
-  /// ID de l'entité concernée (ex : userId pour une inscription)
-  targetId  String
-  /// Email du destinataire
-  sentTo    String
-  /// "SENT" | "FAILED"
-  status    String
-  /// Message d'erreur si status = "FAILED"
-  error     String?
-  createdAt DateTime @default(now())
-
-  @@index([type, targetId])
-  @@index([createdAt])
-}
-
-/// File d'attente d'emails (version fiabilisée avec queue).
-/// Les jobs sont créés après chaque événement et traités par le cron /api/cron/process-email-queue.
-model EmailJob {
-  id          String    @id @default(cuid())
-  /// Type de job : "PENDING_REGISTRATION" | "REMIND_PENDING"
-  type        String
-  /// Données sérialisées en JSON pour construire l'email
-  payload     String    @default("{}")
-  /// "PENDING" | "PROCESSING" | "SENT" | "FAILED"
-  status      String    @default("PENDING")
-  /// Nombre de tentatives effectuées
-  attempts    Int       @default(0)
-  /// Dernière erreur rencontrée
-  lastError   String?
-  /// Date à partir de laquelle le job peut être traité
-  scheduledAt DateTime  @default(now())
-  processedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  @@index([status, scheduledAt])
-  @@index([type])
-}
-
 // ─── Règles de déplacement agent ──────────────────────────────────────────────
 
 /// Règles spécifiques de déplacement par agent.

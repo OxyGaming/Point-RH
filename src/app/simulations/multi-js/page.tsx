@@ -130,6 +130,8 @@ export default function MultiJsPage() {
         date: js.date,
         heureDebut: js.heureDebut,
         heureFin: js.heureFin,
+        heureDebutJsType: js.heureDebutJsType,
+        heureFinJsType: js.heureFinJsType,
         amplitudeMin: js.amplitudeMin,
         codeJs: js.codeJs,
         typeJs: js.typeJs,

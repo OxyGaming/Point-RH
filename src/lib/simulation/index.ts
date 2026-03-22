@@ -12,6 +12,7 @@ import { detecterConflitsInduits } from "./conflictDetector";
 import { construireScenarios } from "./scenarioBuilder";
 import { scorerCandidat } from "./scenarioScorer";
 import { isZeroLoadJs } from "./jsUtils";
+import { loadNpoExclusionCodes } from "./npoExclusionLoader";
 import { loadLpaContext } from "@/lib/deplacement/loadLpaContext";
 import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
@@ -30,6 +31,9 @@ export async function executerSimulationJS(
 
   // Charger les règles dynamiques (fallback sur défauts si base vide)
   const rules = await loadWorkRules();
+
+  // ─── Chargement des codes NPO exclus des simulations ─────────────────────────
+  const npoExclusionCodes = await loadNpoExclusionCodes();
 
   // ─── Chargement du contexte LPA ──────────────────────────────────────────────
   const agentIds = agents.map((a) => a.context.id);
@@ -59,7 +63,7 @@ export async function executerSimulationJS(
   // ─── Étape 1 : pré-filtre ────────────────────────────────────────────────────
   const agentInitialId = jsCible.agentId;
   const { eligible, exclus } = preFilterCandidats(
-    agents, jsCible, imprevu, agentInitialId, effectiveServiceMap
+    agents, jsCible, imprevu, agentInitialId, effectiveServiceMap, npoExclusionCodes
   );
 
   // ─── Étape 2 : simulation pour chaque candidat ───────────────────────────────
@@ -86,11 +90,12 @@ export async function executerSimulationJS(
     // ─── Service effectif pour cet agent ───────────────────────────────────────
     const effectiveService = effectiveServiceMap.get(context.id) ?? null;
 
-    // Utiliser les horaires effectifs si déplacement calculé
-    const heureDebutSim = effectiveService && !effectiveService.indeterminable
+    // Utiliser toujours heureDebutEffective quand disponible : même quand indeterminable=true,
+    // cette valeur est basée sur les horaires standard du JsType (pas sur le trajet de l'agent initial).
+    const heureDebutSim = effectiveService
       ? effectiveService.heureDebutEffective
       : imprevu.heureDebutReel;
-    const heureFinSim = effectiveService && !effectiveService.indeterminable
+    const heureFinSim = effectiveService
       ? effectiveService.heureFinEffective
       : imprevu.heureFinEstimee;
 
@@ -172,10 +177,10 @@ export async function executerSimulationJS(
   // Ajouter les exclus comme refusés
   for (const { agent, raison } of exclus) {
     const effectiveService = effectiveServiceMap.get(agent.context.id) ?? null;
-    const heureDebutSim = effectiveService && !effectiveService.indeterminable
+    const heureDebutSim = effectiveService
       ? effectiveService.heureDebutEffective
       : imprevu.heureDebutReel;
-    const heureFinSim = effectiveService && !effectiveService.indeterminable
+    const heureFinSim = effectiveService
       ? effectiveService.heureFinEffective
       : imprevu.heureFinEstimee;
 

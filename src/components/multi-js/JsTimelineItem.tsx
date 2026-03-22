@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import type { JsTimeline } from "@/types/multi-js-simulation";
+import AgentLink from "@/components/ui/AgentLink";
 
 interface Props {
   js: JsTimeline;
@@ -96,9 +97,12 @@ export default function JsTimelineItem({ js, selected, onToggle }: Props) {
 
       {/* ─── Agent prévu ─────────────────────────────────────────────── */}
       <div className="flex flex-col justify-center flex-1 min-w-0">
-        <span className="text-xs font-medium text-slate-700 truncate">
-          {js.agentPrenom} {js.agentNom}
-        </span>
+        <AgentLink
+          agentId={js.agentId}
+          nom={js.agentNom}
+          prenom={js.agentPrenom}
+          className="text-xs font-medium text-slate-700 truncate"
+        />
         <span className="text-[10px] text-slate-500 font-mono">
           {js.agentMatricule}
         </span>

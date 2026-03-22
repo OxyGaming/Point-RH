@@ -8,6 +8,7 @@ import { combineDateTime, diffMinutes, minutesToTime, isJsDeNuit } from "@/lib/u
 import { evaluerMobilisabilite } from "@/engine/rules";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { ImpreuvuConfig, ImpactCascade, ModificationPlanning, ConflitInduit } from "@/types/js-simulation";
+import { isAbsenceInaptitude } from "./jsUtils";
 
 const CASCADE_MAX_DEPTH = 2;
 
@@ -26,7 +27,8 @@ export function tenterResolutionCascade(
   conflit: ConflitInduit,
   conflictingEvent: PlanningEvent | null,
   autresAgents: { context: AgentContext; events: PlanningEvent[] }[],
-  depth: number = 1
+  depth: number = 1,
+  npoExclusionCodes: string[] = []
 ): ResolutionResultat {
   if (depth > CASCADE_MAX_DEPTH || !conflictingEvent) {
     return { resolu: false, agentRemplagant: null, modification: null, impactsCascade: [] };
@@ -42,6 +44,12 @@ export function tenterResolutionCascade(
       (e) => e.jsNpo === "JS" && e.dateDebut < jsFin && e.dateFin > jsDebut
     );
     if (dejaPris) continue;
+
+    // Vérifier absence pour inaptitude (codes configurés par l'admin)
+    const enInaptitude = autre.events.some(
+      (e) => isAbsenceInaptitude(e, npoExclusionCodes) && e.dateDebut < jsFin && e.dateFin > jsDebut
+    );
+    if (enInaptitude) continue;
 
     // Simuler en injectant la JS conflictuelle dans son planning
     const impreuvuSimule: ImpreuvuConfig = {
@@ -107,7 +115,8 @@ export function tenterResolutionCascade(
 export function resoudreTousConflits(
   conflitsResolvables: ConflitInduit[],
   eventsApresJs: PlanningEvent[],
-  autresAgents: { context: AgentContext; events: PlanningEvent[] }[]
+  autresAgents: { context: AgentContext; events: PlanningEvent[] }[],
+  npoExclusionCodes: string[] = []
 ): { modifications: ModificationPlanning[]; impactsCascade: ImpactCascade[]; nbResolu: number } {
   const modifications: ModificationPlanning[] = [];
   const impactsCascade: ImpactCascade[] = [];
@@ -123,7 +132,7 @@ export function resoudreTousConflits(
         (conflit.heureDebut ? e.heureDebut === conflit.heureDebut : true);
     }) ?? null;
 
-    const res = tenterResolutionCascade(conflit, evConflictuel, autresAgents, 1);
+    const res = tenterResolutionCascade(conflit, evConflictuel, autresAgents, 1, npoExclusionCodes);
 
     if (res.resolu && res.modification) {
       modifications.push(res.modification);

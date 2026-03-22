@@ -7,7 +7,10 @@ import type {
   MultiJsScenario,
   AffectationJs,
   AffectationsParAgent,
+  JsOriginaleAgent,
 } from "@/types/multi-js-simulation";
+import type { ModificationPlanning, ImpactCascade } from "@/types/js-simulation";
+import AgentLink from "@/components/ui/AgentLink";
 
 interface Props {
   resultat: MultiJsSimulationResultat;
@@ -93,6 +96,78 @@ function ScopeBadge({ scope }: { scope: string }) {
   );
 }
 
+// ─── Situation initiale de l'agent ────────────────────────────────────────────
+
+function JsOriginaleBadge({ jsOrigine }: { jsOrigine: JsOriginaleAgent }) {
+  const config: Record<string, { icon: string; color: string }> = {
+    LIBRE:   { icon: "○", color: "text-slate-400" },
+    RESERVE: { icon: "🛡", color: "text-violet-600" },
+    JS_Z:    { icon: "Z", color: "text-sky-600"    },
+    JS:      { icon: "📋", color: "text-orange-600" },
+  };
+  const { icon, color } = config[jsOrigine.type] ?? { icon: "?", color: "text-slate-400" };
+
+  return (
+    <span className={cn("inline-flex items-center gap-1 text-[10px]", color)}>
+      <span className="font-bold">{icon}</span>
+      <span>{jsOrigine.description}</span>
+    </span>
+  );
+}
+
+// ─── Chaîne de cascade ────────────────────────────────────────────────────────
+
+function CascadeChain({
+  modifications,
+  impacts,
+}: {
+  modifications: ModificationPlanning[];
+  impacts: ImpactCascade[];
+}) {
+  if (modifications.length === 0 && impacts.length === 0) return null;
+
+  return (
+    <div className="mt-2 rounded-md border border-teal-200 bg-teal-50 px-2.5 py-2 space-y-1">
+      {/* En-tête */}
+      <p className="text-[10px] font-semibold text-teal-700 flex items-center gap-1">
+        <span>🔗</span>
+        <span>
+          Cascade résolue — {modifications.length} agent{modifications.length > 1 ? "s" : ""} mobilisé{modifications.length > 1 ? "s" : ""}
+        </span>
+      </p>
+
+      {/* Étapes de la chaîne */}
+      {modifications.map((m, i) => (
+        <p key={i} className="text-[10px] text-teal-800 flex items-start gap-1 pl-2">
+          <span className="shrink-0 text-teal-400">{"→".repeat(i + 1)}</span>
+          <span>
+            <AgentLink agentId={m.agentId} nom={m.agentNom} prenom={m.agentPrenom} className="font-semibold" />{" "}
+            {m.description}
+            {!m.conforme && (
+              <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 rounded">vigilance</span>
+            )}
+          </span>
+        </p>
+      ))}
+
+      {/* Impacts résiduels */}
+      {impacts.length > 0 && (
+        <div className="pt-1 border-t border-teal-200 space-y-0.5">
+          {impacts.map((imp, i) => (
+            <p key={i} className="text-[10px] text-amber-700 flex items-start gap-1 pl-2">
+              <span className="shrink-0">⚠</span>
+              <span>
+                <AgentLink agentId={imp.agentId} nom={imp.agentNom} prenom={imp.agentPrenom} className="font-semibold" />{" "}
+                {imp.description}
+              </span>
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Résumé d'un scénario ─────────────────────────────────────────────────────
 
 function ScenarioResume({ scenario }: { scenario: MultiJsScenario }) {
@@ -148,6 +223,30 @@ function ScenarioResume({ scenario }: { scenario: MultiJsScenario }) {
           </div>
         ))}
       </div>
+
+      {/* Cascade — affiché uniquement si au moins un conflit a été tenté */}
+      {(scenario.nbCascadesResolues > 0 || scenario.nbCascadesNonResolues > 0) && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-teal-50 border border-teal-200 rounded-lg p-2.5 text-center">
+            <p className="text-xl font-bold text-teal-700">{scenario.nbCascadesResolues}</p>
+            <p className="text-[10px] text-teal-600 mt-0.5">🔗 Conflits résolus en cascade</p>
+          </div>
+          <div className={cn(
+            "rounded-lg border p-2.5 text-center",
+            scenario.nbCascadesNonResolues > 0
+              ? "bg-amber-50 border-amber-200"
+              : "bg-slate-50 border-slate-100"
+          )}>
+            <p className={cn(
+              "text-xl font-bold",
+              scenario.nbCascadesNonResolues > 0 ? "text-amber-700" : "text-slate-400"
+            )}>
+              {scenario.nbCascadesNonResolues}
+            </p>
+            <p className="text-[10px] text-slate-500 mt-0.5">⚠ Conflits non résolus</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -176,13 +275,13 @@ function AffectationsTable({ affectations }: { affectations: AffectationJs[] }) 
                 {new Date(aff.jsCible.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
               </span>
               <span className="font-mono text-xs text-slate-600">
-                {aff.jsCible.heureDebut}–{aff.jsCible.heureFin}
+                {aff.jsCible.heureDebutJsType ?? aff.jsCible.heureDebut}–{aff.jsCible.heureFinJsType ?? aff.jsCible.heureFin}
               </span>
               <span className="font-mono font-bold text-xs text-slate-800 min-w-[70px]">
                 {aff.jsCible.codeJs ?? "—"}
               </span>
               <span className="flex-1 text-xs font-medium text-slate-700">
-                {aff.agentPrenom} {aff.agentNom}
+                <AgentLink agentId={aff.agentId} nom={aff.agentNom} prenom={aff.agentPrenom} />
                 {aff.agentReserve && (
                   <span className="ml-1 text-[9px] bg-violet-100 text-violet-600 px-1 py-0.5 rounded font-semibold">
                     RES
@@ -204,6 +303,11 @@ function AffectationsTable({ affectations }: { affectations: AffectationJs[] }) 
               </div>
             </div>
 
+            {/* Situation initiale de l'agent */}
+            <div className="mt-1 pl-1">
+              <JsOriginaleBadge jsOrigine={aff.jsOriginaleAgent} />
+            </div>
+
             {/* Motif vigilance */}
             {aff.statut === "VIGILANCE" && aff.justification && (
               <p className="mt-1.5 text-[10px] text-amber-700 flex items-start gap-1">
@@ -223,6 +327,12 @@ function AffectationsTable({ affectations }: { affectations: AffectationJs[] }) 
                 ))}
               </div>
             )}
+
+            {/* Résolution en cascade */}
+            <CascadeChain
+              modifications={aff.cascadeModifications}
+              impacts={aff.cascadeImpacts}
+            />
           </div>
         );
       })}
@@ -249,7 +359,7 @@ function AgentCard({ agent }: { agent: AffectationsParAgent }) {
           </div>
           <div>
             <p className="text-sm font-semibold text-slate-800">
-              {agent.agentPrenom} {agent.agentNom}
+              <AgentLink agentId={agent.agentId} nom={agent.agentNom} prenom={agent.agentPrenom} />
               {agent.agentReserve && (
                 <span className="ml-2 text-[9px] bg-violet-100 text-violet-600 px-1 py-0.5 rounded font-semibold">
                   RÉSERVE
@@ -284,9 +394,14 @@ function AgentCard({ agent }: { agent: AffectationsParAgent }) {
                   <span className="font-mono text-slate-600 min-w-[70px]">
                     {new Date(aff.jsCible.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
                   </span>
-                  <span className="font-mono text-slate-500">{aff.jsCible.heureDebut}–{aff.jsCible.heureFin}</span>
+                  <span className="font-mono text-slate-500">{aff.jsCible.heureDebutJsType ?? aff.jsCible.heureDebut}–{aff.jsCible.heureFinJsType ?? aff.jsCible.heureFin}</span>
                   <span className="font-bold font-mono text-slate-800">{aff.jsCible.codeJs ?? "—"}</span>
                   <StatutBadge statut={aff.statut} />
+                </div>
+
+                {/* Situation initiale de l'agent */}
+                <div className="mt-1 pl-1">
+                  <JsOriginaleBadge jsOrigine={aff.jsOriginaleAgent} />
                 </div>
 
                 {/* Motif vigilance RH */}
@@ -308,6 +423,12 @@ function AgentCard({ agent }: { agent: AffectationsParAgent }) {
                     ))}
                   </div>
                 )}
+
+                {/* Résolution en cascade */}
+                <CascadeChain
+                  modifications={aff.cascadeModifications}
+                  impacts={aff.cascadeImpacts}
+                />
               </div>
             );
           })}
@@ -478,7 +599,7 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
                           · {js.heureDebut}–{js.heureFin}
                         </p>
                         <p className="text-[10px] text-slate-400">
-                          Agent prévu : {js.agentPrenom} {js.agentNom}
+                          Agent prévu : <AgentLink agentId={js.agentId} nom={js.agentNom} prenom={js.agentPrenom} />
                         </p>
                       </div>
                     </div>

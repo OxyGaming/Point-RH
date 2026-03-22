@@ -11,6 +11,7 @@
  */
 
 import { loadWorkRules } from "@/lib/rules/workRulesLoader";
+import { loadNpoExclusionCodes } from "@/lib/simulation/npoExclusionLoader";
 import type { JsCible } from "@/types/js-simulation";
 import type { MultiJsSimulationResultat, CandidateScope } from "@/types/multi-js-simulation";
 import { trouverCandidatsPourJs } from "./multiJsCandidateFinder";
@@ -30,6 +31,7 @@ export async function executerSimulationMultiJs(
   deplacement = false
 ): Promise<MultiJsSimulationResultat> {
   const rules = await loadWorkRules();
+  const npoExclusionCodes = await loadNpoExclusionCodes();
 
   const agentsMap = new Map(agents.map((a) => [a.context.id, a]));
 
@@ -65,7 +67,7 @@ export async function executerSimulationMultiJs(
     const candidatesPerJs = new Map(
       jsSelectionnees.map((js) => [
         js.planningLigneId,
-        trouverCandidatsPourJs(js, agents, scope, rules, remplacement, deplacement, effectiveServiceMap),
+        trouverCandidatsPourJs(js, agents, scope, rules, remplacement, deplacement, effectiveServiceMap, npoExclusionCodes),
       ])
     );
 
@@ -79,7 +81,8 @@ export async function executerSimulationMultiJs(
       description,
       remplacement,
       deplacement,
-      effectiveServiceMap
+      effectiveServiceMap,
+      npoExclusionCodes
     );
   }
 

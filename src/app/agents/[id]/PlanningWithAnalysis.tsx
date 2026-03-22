@@ -10,6 +10,9 @@ interface PlanningLigne {
   dateDebutPop: string;
   heureDebutPop: string;
   heureFinPop: string;
+  /** Horaires standard du JsType (indépendants du trajet de l'agent) */
+  heureDebutJsType?: string;
+  heureFinJsType?: string;
   jsNpo: string;
   codeJs: string | null;
   amplitudeHHMM: string | null;

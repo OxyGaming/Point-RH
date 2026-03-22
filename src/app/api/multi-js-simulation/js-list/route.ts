@@ -24,14 +24,39 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const lignes = await prisma.planningLigne.findMany({
-      where: {
-        importId,
-        jsNpo: "JS",
-      },
-      include: { agent: true },
-      orderBy: [{ dateDebutPop: "asc" }, { heureDebutPop: "asc" }],
-    });
+    const [lignes, jsTypes] = await Promise.all([
+      prisma.planningLigne.findMany({
+        where: {
+          importId,
+          jsNpo: "JS",
+        },
+        include: { agent: true },
+        orderBy: [{ dateDebutPop: "asc" }, { heureDebutPop: "asc" }],
+      }),
+      // Charger tous les JsTypes actifs pour résoudre les horaires standard
+      prisma.jsType.findMany({ where: { actif: true } }),
+    ]);
+
+    /**
+     * Résout le JsType correspondant à une ligne de planning.
+     * On cherche d'abord par `typeJs` exact, puis par préfixe du `codeJs`.
+     */
+    function resolveJsType(codeJs: string | null, typeJs: string | null) {
+      if (typeJs) {
+        const exact = jsTypes.find((jt) => jt.code === typeJs);
+        if (exact) return exact;
+      }
+      if (codeJs) {
+        const prefixe = codeJs.trim().split(" ")[0] ?? "";
+        const byPrefix = jsTypes.find(
+          (jt) =>
+            prefixe.toUpperCase().startsWith(jt.code.toUpperCase()) ||
+            jt.code.toUpperCase() === prefixe.toUpperCase()
+        );
+        if (byPrefix) return byPrefix;
+      }
+      return null;
+    }
 
     const result: JsTimeline[] = lignes.map((ligne) => {
       const date = ligne.dateDebutPop.toISOString().slice(0, 10);
@@ -48,12 +73,19 @@ export async function GET(req: NextRequest) {
         ? ligne.codeJs.trim().split(" ")[0] ?? null
         : null;
 
+      // Horaires standard du JsType (indépendants du trajet de l'agent initial)
+      const jsType = resolveJsType(ligne.codeJs, ligne.typeJs);
+      const heureDebutJsType = jsType?.heureDebutStandard ?? undefined;
+      const heureFinJsType = jsType?.heureFinStandard ?? undefined;
+
       return {
         planningLigneId: ligne.id,
         importId: ligne.importId,
         date,
         heureDebut,
         heureFin,
+        heureDebutJsType,
+        heureFinJsType,
         amplitudeMin,
         codeJs: ligne.codeJs,
         typeJs: ligne.typeJs,

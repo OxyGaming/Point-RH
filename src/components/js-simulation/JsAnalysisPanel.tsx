@@ -4,6 +4,7 @@ import { useState } from "react";
 import { minutesToTime } from "@/lib/utils";
 import type { JsCible, ImpreuvuConfig, JsSimulationResultat } from "@/types/js-simulation";
 import JsResultatsTabs from "./JsResultatsTabs";
+import AgentLink from "@/components/ui/AgentLink";
 
 interface JsAnalysisPanelProps {
   jsCible: JsCible;
@@ -16,8 +17,9 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
   const [error, setError] = useState<string | null>(null);
   const [imprevu, setImprevu] = useState<ImpreuvuConfig>({
     partiel: false,
-    heureDebutReel: jsCible.heureDebut,
-    heureFinEstimee: jsCible.heureFin,
+    // Priorité aux horaires standard du JsType : ils ne contiennent pas le trajet de l'agent initial.
+    heureDebutReel: jsCible.heureDebutJsType ?? jsCible.heureDebut,
+    heureFinEstimee: jsCible.heureFinJsType ?? jsCible.heureFin,
     // deplacement est maintenant calculé automatiquement côté serveur (LPA-based)
     // on conserve le champ pour rétrocompatibilité mais il n'est plus affiché
     deplacement: false,
@@ -77,7 +79,17 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
           </p>
           <div className="grid grid-cols-2 gap-3 text-sm">
             {[
-              { label: "Agent initial", value: `${jsCible.agentNom} ${jsCible.agentPrenom}` },
+              {
+                label: "Agent initial",
+                value: (
+                  <AgentLink
+                    agentId={jsCible.agentId}
+                    nom={jsCible.agentNom}
+                    prenom={jsCible.agentPrenom}
+                    className="font-medium text-gray-800 text-xs"
+                  />
+                ),
+              },
               { label: "Matricule", value: jsCible.agentMatricule },
               { label: "Code JS", value: jsCible.codeJs ?? "—" },
               { label: "Amplitude", value: minutesToTime(jsCible.amplitudeMin) },

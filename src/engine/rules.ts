@@ -128,6 +128,16 @@ export function evaluerMobilisabilite(
   const isNuitImprevu = isJsDeNuit(heureDebutEffective, heureFinEffective, nightOpts);
 
   // ─ Amplitude maximale autorisée ─────────────────────────────────────────────
+  // Si le déplacement est calculé automatiquement par le système LPA
+  // (effectiveService.estEnDeplacement non-null), les limites déplacement
+  // s'appliquent d'office — peutEtreDeplace ne conditionne pas l'amplitude LPA.
+  // Pour le fallback manuel (simulation.deplacement sans effectiveService),
+  // peutEtreDeplace reste requis.
+  const deplacementLpaCompute =
+    effectiveService !== null &&
+    effectiveService !== undefined &&
+    effectiveService.estEnDeplacement !== null;
+
   let amplitudeMax = rules.amplitude.general;
   let amplitudeRaison = "cas général";
 
@@ -137,12 +147,12 @@ export function evaluerMobilisabilite(
   } else if (agent.agentReserve) {
     amplitudeMax = rules.amplitude.general;
     amplitudeRaison = "agent de réserve";
-  } else if (deplacement && simulation.remplacement && agent.peutEtreDeplace) {
+  } else if (deplacement && simulation.remplacement && (deplacementLpaCompute || agent.peutEtreDeplace)) {
     amplitudeMax = rules.amplitude.deplacementRemplacement;
     amplitudeRaison = "agent en déplacement avec remplacement";
-  } else if (deplacement && agent.peutEtreDeplace) {
+  } else if (deplacement && (deplacementLpaCompute || agent.peutEtreDeplace)) {
     amplitudeMax = rules.amplitude.deplacement;
-    amplitudeRaison = "agent en déplacement sans remplacement";
+    amplitudeRaison = "agent en déplacement";
   } else if (isNuitImprevu || simulation.posteNuit) {
     amplitudeMax = rules.amplitude.nuit;
     amplitudeRaison = "poste de nuit";
@@ -368,17 +378,15 @@ export function evaluerMobilisabilite(
   }
 
   // 7. Déplacement interdit si non habilité
-  // – Nouveau système LPA : JS hors LPA + agent non autorisé
-  // – Ancien système (fallback) : simulation.deplacement + !peutEtreDeplace
-  const horsLpaEtNonAutorise = jsDansLpa === false && !agent.peutEtreDeplace;
-  const deplacementManuelNonAutorise = jsDansLpa === null && simulation.deplacement && !agent.peutEtreDeplace;
-  if (horsLpaEtNonAutorise || deplacementManuelNonAutorise) {
-    const contexte = jsDansLpa === false
-      ? "JS hors LPA de l'agent"
-      : "déplacement requis";
+  // – Système LPA : la JS hors LPA est AUTORISÉE — le trajet est ajouté à l'amplitude
+  //   et le moteur vérifie l'amplitude résultante. Pas de violation ici.
+  // – Fallback manuel (jsDansLpa = null, pas de contexte LPA) : si simulation.deplacement
+  //   et agent non autorisé → violation.
+  const deplacementManuelNonAutorise = !deplacementLpaCompute && simulation.deplacement && !agent.peutEtreDeplace;
+  if (deplacementManuelNonAutorise) {
     violations.push({
       regle: "DEPLACEMENT_HABILITATION",
-      description: `Agent non autorisé pour déplacement (${contexte})`,
+      description: "Agent non autorisé pour déplacement (déplacement requis manuellement)",
     });
   }
 

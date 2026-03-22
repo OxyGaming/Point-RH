@@ -17,17 +17,62 @@ import type {
   MultiJsScenario,
   RobustesseScenario,
   CandidateScope,
+  JsOriginaleAgent,
 } from "@/types/multi-js-simulation";
 import type { WorkRulesMinutes } from "@/lib/rules/workRules";
 import { canAssignJsToAgentInScenario } from "./agentScenarioValidator";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 import { injecterJsDansPlanning } from "@/lib/simulation/candidateFinder";
+import { resoudreTousConflits } from "@/lib/simulation/cascadeResolver";
 import { buildImprevu } from "./multiJsCandidateFinder";
 import { combineDateTime } from "@/lib/utils";
+import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
+import type { PlanningEvent } from "@/engine/rules";
 
 let scenarioCounter = 0;
+
+/**
+ * Détermine ce que l'agent remplaçant avait initialement prévu
+ * dans son planning au créneau de la JS à couvrir.
+ */
+function determinerJsOriginale(
+  events: PlanningEvent[],
+  js: JsCible,
+  agentReserve: boolean
+): JsOriginaleAgent {
+  const debutJs = combineDateTime(js.date, js.heureDebut);
+  const finJs   = combineDateTime(js.date, js.heureFin);
+
+  const event = events.find(
+    (e) => e.jsNpo === "JS" && e.dateDebut < finJs && e.dateFin > debutJs
+  );
+
+  if (!event) {
+    return agentReserve
+      ? { type: "RESERVE", codeJs: null, heureDebut: null, heureFin: null, description: "Agent de réserve — disponible" }
+      : { type: "LIBRE",   codeJs: null, heureDebut: null, heureFin: null, description: "Aucune JS prévue" };
+  }
+
+  if (isZeroLoadJs(event.codeJs)) {
+    return {
+      type: "JS_Z",
+      codeJs: event.codeJs,
+      heureDebut: event.heureDebut,
+      heureFin:   event.heureFin,
+      description: `JS sans charge : ${event.codeJs ?? "—"} (${event.heureDebut}–${event.heureFin})`,
+    };
+  }
+
+  return {
+    type: "JS",
+    codeJs:    event.codeJs,
+    heureDebut: event.heureDebut,
+    heureFin:   event.heureFin,
+    description: `JS prévue : ${event.codeJs ?? "—"} (${event.heureDebut}–${event.heureFin})`,
+  };
+}
 
 /**
  * Point d'entrée principal : construit un scénario d'allocation pour un ensemble de JS.
@@ -42,7 +87,8 @@ export function allouerJsMultiple(
   description: string,
   remplacement = true,
   deplacement = false,
-  effectiveServiceMap?: Map<string, EffectiveServiceInfo>
+  effectiveServiceMap?: Map<string, EffectiveServiceInfo>,
+  npoExclusionCodes: string[] = []
 ): MultiJsScenario {
   scenarioCounter++;
 
@@ -129,6 +175,16 @@ export function allouerJsMultiple(
         score: candidat.score,
         justification: motif,
         conflitsInduits,
+        jsOriginaleAgent: determinerJsOriginale(
+          agentData!.events,
+          js,
+          candidat.agentReserve
+        ),
+        // Initialisés à vide, remplis lors de la passe cascade ci-dessous
+        cascadeModifications: [],
+        cascadeImpacts: [],
+        nbCascadesResolues: 0,
+        nbCascadesNonResolues: 0,
       });
 
       agentAssignments.set(candidat.agentId, [...existingAssignments, js]);
@@ -145,6 +201,60 @@ export function allouerJsMultiple(
         severity: "BLOQUANT",
       });
     }
+  }
+
+  // ─── Passe en cascade ─────────────────────────────────────────────────────────
+  // Pour chaque affectation avec conflitsInduits résolvables, tenter de trouver
+  // un agent tiers (non encore engagé dans le scénario) pour couvrir la JS
+  // conflictuelle libérée par la mobilisation de l'agent affecté.
+  for (const [jsId, aff] of affectations) {
+    const conflitsResolvables = aff.conflitsInduits.filter((c) => c.resolvable);
+
+    if (conflitsResolvables.length === 0) continue;
+
+    const agentData = agentsMap.get(aff.agentId);
+    if (!agentData) continue;
+
+    // Construire le planning simulé de l'agent : base + toutes ses JS déjà affectées
+    // (agentAssignments contient la JS courante, ajoutée ligne 134)
+    const existingAssignments = agentAssignments.get(aff.agentId) ?? [];
+    let eventsSimules = [...agentData.events];
+    for (const jsAff of existingAssignments) {
+      const imprevuAff = buildImprevu(jsAff, remplacement, deplacement);
+      eventsSimules = injecterJsDansPlanning(eventsSimules, jsAff, imprevuAff);
+    }
+
+    // Agents candidats pour la cascade : exclure les agents déjà engagés
+    // dans le scénario, et respecter le scope (reserve_only = réservistes uniquement)
+    const agentsCascade = Array.from(agentsMap.values()).filter(
+      (a) =>
+        !agentAssignments.has(a.context.id) &&
+        (candidateScope !== "reserve_only" || a.context.agentReserve)
+    );
+
+    const { modifications, impactsCascade, nbResolu } = resoudreTousConflits(
+      conflitsResolvables,
+      eventsSimules,
+      agentsCascade,
+      npoExclusionCodes
+    );
+
+    const nbNonResolu = conflitsResolvables.length - nbResolu;
+
+    // Mettre à jour le statut si tous les conflits résolvables sont traités
+    // ET qu'il n'existe pas de conflits non-résolvables (GPT_MAX, etc.)
+    const aNonResolvables = aff.conflitsInduits.some((c) => !c.resolvable);
+    const nouveauStatut: "DIRECT" | "VIGILANCE" =
+      nbNonResolu === 0 && !aNonResolvables ? "DIRECT" : "VIGILANCE";
+
+    affectations.set(jsId, {
+      ...aff,
+      statut: nouveauStatut,
+      cascadeModifications: modifications,
+      cascadeImpacts: impactsCascade,
+      nbCascadesResolues: nbResolu,
+      nbCascadesNonResolues: nbNonResolu,
+    });
   }
 
   // ─── JS non couvertes ─────────────────────────────────────────────────────────
@@ -176,7 +286,8 @@ export function allouerJsMultiple(
     if (aff.statut === "VIGILANCE" && entry.conformiteGlobale === "CONFORME") {
       entry.conformiteGlobale = "VIGILANCE";
     }
-    if (aff.conflitsInduits.length > 0) {
+    // NON_CONFORME uniquement si des conflits restent non résolus après cascade
+    if (aff.conflitsInduits.length > 0 && aff.nbCascadesNonResolues > 0) {
       entry.conformiteGlobale = "NON_CONFORME";
     }
   }
@@ -214,6 +325,14 @@ export function allouerJsMultiple(
 
   score = Math.min(100, Math.max(0, score));
 
+  // ─── Agrégats cascade ─────────────────────────────────────────────────────────
+  let nbCascadesResoluesTotal = 0;
+  let nbCascadesNonResoluesTotal = 0;
+  for (const aff of affectations.values()) {
+    nbCascadesResoluesTotal += aff.nbCascadesResolues;
+    nbCascadesNonResoluesTotal += aff.nbCascadesNonResolues;
+  }
+
   // Robustesse
   let robustesse: RobustesseScenario;
   if (tauxCouverture === 100 && nbVigilance === 0) {
@@ -243,5 +362,7 @@ export function allouerJsMultiple(
     nbAgentsMobilises: affectationsParAgentMap.size,
     robustesse,
     tauxCouverture,
+    nbCascadesResolues: nbCascadesResoluesTotal,
+    nbCascadesNonResolues: nbCascadesNonResoluesTotal,
   };
 }

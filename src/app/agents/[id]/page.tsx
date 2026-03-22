@@ -14,39 +14,65 @@ async function getAgent(id: string) {
     orderBy: { importedAt: "desc" },
   });
 
-  const agent = await prisma.agent.findUnique({
-    where: { id, deletedAt: null },
-    include: {
-      planningLignes: {
-        where: activeImport ? { importId: activeImport.id } : undefined,
-        orderBy: { dateDebutPop: "asc" },
-        take: 100,
+  const [agent, jsTypes] = await Promise.all([
+    prisma.agent.findUnique({
+      where: { id },
+      include: {
+        planningLignes: {
+          where: activeImport ? { importId: activeImport.id } : undefined,
+          orderBy: { dateDebutPop: "asc" },
+          take: 100,
+        },
       },
-    },
-  });
-  return agent;
+    }),
+    prisma.jsType.findMany({ where: { actif: true } }),
+  ]);
+  return { agent, jsTypes };
 }
 
 export default async function AgentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [agent, session] = await Promise.all([getAgent(id), getSession()]);
+  const [{ agent, jsTypes }, session] = await Promise.all([getAgent(id), getSession()]);
   if (!agent) notFound();
 
   const habilitations = JSON.parse(agent.habilitations) as string[];
   const lignes = agent.planningLignes;
   const importId = lignes[0]?.importId ?? null;
 
-  const lignesSerializees = lignes.map((l) => ({
-    id: l.id,
-    dateDebutPop: l.dateDebutPop.toISOString(),
-    heureDebutPop: l.heureDebutPop,
-    heureFinPop: l.heureFinPop,
-    jsNpo: l.jsNpo,
-    codeJs: l.codeJs,
-    amplitudeHHMM: l.amplitudeHHMM,
-    typeJs: l.typeJs,
-    amplitudeCentesimal: l.amplitudeCentesimal,
-  }));
+  /** Résout le JsType correspondant à une ligne (même logique que js-list/route.ts). */
+  function resolveJsType(codeJs: string | null, typeJs: string | null) {
+    if (typeJs) {
+      const exact = jsTypes.find((jt) => jt.code === typeJs);
+      if (exact) return exact;
+    }
+    if (codeJs) {
+      const prefixe = codeJs.trim().split(" ")[0] ?? "";
+      const byPrefix = jsTypes.find(
+        (jt) =>
+          prefixe.toUpperCase().startsWith(jt.code.toUpperCase()) ||
+          jt.code.toUpperCase() === prefixe.toUpperCase()
+      );
+      if (byPrefix) return byPrefix;
+    }
+    return null;
+  }
+
+  const lignesSerializees = lignes.map((l) => {
+    const jsType = resolveJsType(l.codeJs, l.typeJs);
+    return {
+      id: l.id,
+      dateDebutPop: l.dateDebutPop.toISOString(),
+      heureDebutPop: l.heureDebutPop,
+      heureFinPop: l.heureFinPop,
+      heureDebutJsType: jsType?.heureDebutStandard ?? undefined,
+      heureFinJsType: jsType?.heureFinStandard ?? undefined,
+      jsNpo: l.jsNpo,
+      codeJs: l.codeJs,
+      amplitudeHHMM: l.amplitudeHHMM,
+      typeJs: l.typeJs,
+      amplitudeCentesimal: l.amplitudeCentesimal,
+    };
+  });
 
   const nbJs = lignes.filter((l) => l.jsNpo === "JS").length;
   const isAdmin = session?.role === "ADMIN";

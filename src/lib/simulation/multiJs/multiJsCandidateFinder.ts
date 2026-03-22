@@ -9,7 +9,7 @@ import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { WorkRulesMinutes } from "@/lib/rules/workRules";
 import type { JsCible, ImpreuvuConfig } from "@/types/js-simulation";
 import type { CandidatMultiJs, CandidateScope } from "@/types/multi-js-simulation";
-import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
+import { isZeroLoadJs, isAbsenceInaptitude } from "@/lib/simulation/jsUtils";
 import { scorerCandidat } from "@/lib/simulation/scenarioScorer";
 import { isJsDeNuit, diffMinutes } from "@/lib/utils";
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
@@ -23,12 +23,15 @@ export interface AgentDataMultiJs {
 
 /**
  * Construit un ImpreuvuConfig par défaut pour une JS cible dans la simulation multi-JS.
+ * Utilise les horaires standard du JsType si disponibles (indépendants du trajet de l'agent initial).
  */
 export function buildImprevu(js: JsCible, remplacement = true, deplacement = false): ImpreuvuConfig {
   return {
     partiel: false,
-    heureDebutReel: js.heureDebut,
-    heureFinEstimee: js.heureFin,
+    // Priorité aux horaires standard du JsType : ils ne contiennent pas le temps de trajet
+    // de l'agent initial, contrairement aux horaires du planning (heureDebut/heureFin).
+    heureDebutReel: js.heureDebutJsType ?? js.heureDebut,
+    heureFinEstimee: js.heureFinJsType ?? js.heureFin,
     deplacement,
     remplacement,
   };
@@ -45,7 +48,8 @@ export function trouverCandidatsPourJs(
   rules: WorkRulesMinutes,
   remplacement = true,
   deplacement = false,
-  effectiveServiceMap?: Map<string, EffectiveServiceInfo>
+  effectiveServiceMap?: Map<string, EffectiveServiceInfo>,
+  npoExclusionCodes: string[] = []
 ): CandidatMultiJs[] {
   const imprevu = buildImprevu(js, remplacement, deplacement);
   const debutImprevu = combineDateTime(js.date, js.heureDebut);
@@ -78,6 +82,12 @@ export function trouverCandidatsPourJs(
     // Habilitation déplacement
     if (deplacement && !context.peutEtreDeplace) continue;
 
+    // Vérifier absence pour inaptitude (codes configurés par l'admin)
+    const absenceInaptitude = events.find(
+      (e) => isAbsenceInaptitude(e, npoExclusionCodes) && e.dateDebut < finImprevu && e.dateFin > debutImprevu
+    );
+    if (absenceInaptitude) continue;
+
     // L'agent ne doit pas avoir une JS non-Z en conflit horaire
     const conflit = events.find((e) => {
       if (e.jsNpo !== "JS") return false;
@@ -102,10 +112,12 @@ export function trouverCandidatsPourJs(
 
     // ─── Service effectif LPA-based ────────────────────────────────────────────
     const effectiveService = effectiveServiceMap?.get(`${context.id}:${js.planningLigneId}`) ?? null;
-    const heureDebutSim = effectiveService && !effectiveService.indeterminable
+    // Utiliser toujours heureDebutEffective quand disponible : même quand indeterminable=true,
+    // cette valeur est basée sur les horaires standard du JsType (pas sur le trajet de l'agent initial).
+    const heureDebutSim = effectiveService
       ? effectiveService.heureDebutEffective
       : imprevu.heureDebutReel;
-    const heureFinSim = effectiveService && !effectiveService.indeterminable
+    const heureFinSim = effectiveService
       ? effectiveService.heureFinEffective
       : imprevu.heureFinEstimee;
     const deplacementEffectif = effectiveService && effectiveService.estEnDeplacement !== null

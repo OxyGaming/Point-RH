@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Scenario } from "@/types/js-simulation";
+import AgentLink from "@/components/ui/AgentLink";
 
 const CONFORMITE_STYLES = {
   CONFORME: { badge: "bg-green-100 text-green-800", bar: "bg-green-500", label: "Conforme" },
@@ -80,7 +81,7 @@ export default function ScenarioCard({ scenario, index }: { scenario: Scenario; 
                 {ACTION_LABELS[m.action] ?? m.action}
               </span>
               <div>
-                <span className="font-semibold text-gray-800">{m.agentNom} {m.agentPrenom}</span>
+                <AgentLink agentId={m.agentId} nom={m.agentNom} prenom={m.agentPrenom} className="font-semibold text-gray-800" />
                 <p className="text-gray-600 mt-0.5">{m.description}</p>
               </div>
             </div>
@@ -111,7 +112,7 @@ export default function ScenarioCard({ scenario, index }: { scenario: Scenario; 
                   {impact.severity === "BLOQUANT" ? "⛔" : impact.severity === "AVERTISSEMENT" ? "⚠" : "ℹ"}
                 </span>
                 {impact.agentNom && (
-                  <span className="font-semibold">{impact.agentNom} {impact.agentPrenom}</span>
+                  <AgentLink agentId={impact.agentId} nom={impact.agentNom} prenom={impact.agentPrenom} className="font-semibold" />
                 )}
                 <span className="text-gray-500">— {impact.date}</span>
               </div>

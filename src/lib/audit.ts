@@ -22,7 +22,8 @@ export type AuditAction =
   | "PURGE_SIMULATIONS"
   | "REGISTER_REQUEST"
   | "APPROVE_REGISTRATION"
-  | "REJECT_REGISTRATION";
+  | "REJECT_REGISTRATION"
+  | "RESTORE_AGENT";
 
 export async function logAudit(
   action: AuditAction,

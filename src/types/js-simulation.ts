@@ -9,8 +9,11 @@ export interface JsCible {
   agentPrenom: string;
   agentMatricule: string;
   date: string;       // "YYYY-MM-DD"
-  heureDebut: string; // "HH:MM"
+  heureDebut: string; // "HH:MM" — horaires du planning de l'agent (peuvent inclure son trajet)
   heureFin: string;   // "HH:MM"
+  /** Horaires standard du JsType de référence (indépendants du trajet de l'agent initial) */
+  heureDebutJsType?: string; // "HH:MM"
+  heureFinJsType?: string;   // "HH:MM"
   amplitudeMin: number;
   codeJs: string | null;
   typeJs: string | null;

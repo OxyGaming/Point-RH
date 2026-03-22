@@ -240,6 +240,19 @@ model LpaJsType {
   @@index([lpaId])
 }
 
+// ─── Codes NPO exclus des simulations ────────────────────────────────────────
+
+/// Codes NPO (non-présence) qui excluent un agent des simulations d'imprévus.
+/// Chaque code est un préfixe : "MA" exclut "MA01", "MAL", etc.
+/// Configurables par l'administrateur. Pré-peuplés au premier lancement.
+model NpoExclusionCode {
+  id        String   @id @default(cuid())
+  code      String   @unique // préfixe, ex : "MA", "AT", "CLM"
+  libelle   String           // ex : "Maladie ordinaire"
+  actif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
 // ─── Règles de déplacement agent ──────────────────────────────────────────────
 
 /// Règles spécifiques de déplacement par agent.

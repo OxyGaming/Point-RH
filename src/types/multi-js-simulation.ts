@@ -2,7 +2,7 @@
  * Types pour la simulation multi-JS (grève, perturbation majeure, absences multiples)
  */
 
-import type { JsCible, ConflitInduit } from "./js-simulation";
+import type { JsCible, ConflitInduit, ModificationPlanning, ImpactCascade } from "./js-simulation";
 
 // ─── Mode de simulation ───────────────────────────────────────────────────────
 
@@ -34,6 +34,22 @@ export interface CandidatMultiJs {
   conflitsInduits: ConflitInduit[];
 }
 
+// ─── Situation initiale de l'agent remplaçant ────────────────────────────────
+
+/** Ce que l'agent remplaçant avait initialement dans son planning au créneau couvert */
+export type TypeSituationInitiale = "LIBRE" | "RESERVE" | "JS_Z" | "JS";
+
+export interface JsOriginaleAgent {
+  type: TypeSituationInitiale;
+  /** Code JS d'origine (null si LIBRE ou RESERVE) */
+  codeJs: string | null;
+  /** Heures d'origine (renseignées si JS ou JS_Z) */
+  heureDebut: string | null;
+  heureFin: string | null;
+  /** Libellé lisible affiché dans l'UI */
+  description: string;
+}
+
 // ─── Affectation d'une JS à un agent dans le scénario ────────────────────────
 
 export interface AffectationJs {
@@ -48,6 +64,16 @@ export interface AffectationJs {
   score: number;
   justification: string;
   conflitsInduits: ConflitInduit[];
+  /** Situation initiale de l'agent remplaçant au créneau couvert */
+  jsOriginaleAgent: JsOriginaleAgent;
+  /** Agents mobilisés en cascade pour couvrir les conflits induits */
+  cascadeModifications: ModificationPlanning[];
+  /** Impacts cascade résiduels (vigilances, bloquants non résolus) */
+  cascadeImpacts: ImpactCascade[];
+  /** Nombre de conflits induits résolus par cascade */
+  nbCascadesResolues: number;
+  /** Nombre de conflits induits non résolus malgré la tentative cascade */
+  nbCascadesNonResolues: number;
 }
 
 // ─── Conflit détecté dans le scénario global ─────────────────────────────────
@@ -103,6 +129,10 @@ export interface MultiJsScenario {
   nbAgentsMobilises: number;
   robustesse: RobustesseScenario;
   tauxCouverture: number; // 0-100 %
+  /** Nombre total de conflits induits résolus en cascade sur toutes les affectations */
+  nbCascadesResolues: number;
+  /** Nombre total de conflits induits non résolus malgré cascade sur toutes les affectations */
+  nbCascadesNonResolues: number;
 }
 
 // ─── Résultat global de la simulation multi-JS ───────────────────────────────
@@ -127,8 +157,11 @@ export interface JsTimeline {
   planningLigneId: string;
   importId: string;
   date: string;            // "YYYY-MM-DD"
-  heureDebut: string;
+  heureDebut: string;      // horaires du planning de l'agent (peuvent inclure son trajet)
   heureFin: string;
+  /** Horaires standard du JsType de référence (indépendants du trajet de l'agent initial) */
+  heureDebutJsType?: string; // "HH:MM"
+  heureFinJsType?: string;   // "HH:MM"
   amplitudeMin: number;
   codeJs: string | null;
   typeJs: string | null;

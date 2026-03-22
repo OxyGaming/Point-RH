@@ -10,6 +10,9 @@ interface PlanningLigne {
   dateDebutPop: string;
   heureDebutPop: string;
   heureFinPop: string;
+  /** Horaires standard du JsType (indépendants du trajet de l'agent) */
+  heureDebutJsType?: string;
+  heureFinJsType?: string;
   jsNpo: string;
   codeJs: string | null;
   amplitudeHHMM: string | null;
@@ -136,6 +139,8 @@ export default function PlanningTimeline({
       date: new Date(ligne.dateDebutPop).toISOString().slice(0, 10),
       heureDebut: ligne.heureDebutPop,
       heureFin: ligne.heureFinPop,
+      heureDebutJsType: ligne.heureDebutJsType,
+      heureFinJsType: ligne.heureFinJsType,
       amplitudeMin,
       codeJs: ligne.codeJs,
       typeJs: ligne.typeJs,

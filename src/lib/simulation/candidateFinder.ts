@@ -7,7 +7,7 @@ import { combineDateTime, diffMinutes, timeToMinutes } from "@/lib/utils";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { JsCible, ImpreuvuConfig } from "@/types/js-simulation";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
-import { isZeroLoadJs } from "./jsUtils";
+import { isZeroLoadJs, isAbsenceInaptitude } from "./jsUtils";
 import { isJourTravailleGPT } from "@/lib/gptUtils";
 
 export interface AgentWithPlanning {
@@ -27,7 +27,8 @@ export function preFilterCandidats(
   jsCible: JsCible,
   imprevu: ImpreuvuConfig,
   agentInitialId: string,
-  effectiveServiceMap?: Map<string, EffectiveServiceInfo>
+  effectiveServiceMap?: Map<string, EffectiveServiceInfo>,
+  npoExclusionCodes: string[] = []
 ): { eligible: AgentWithPlanning[]; exclus: { agent: AgentWithPlanning; raison: string }[] } {
   const eligible: AgentWithPlanning[] = [];
   const exclus: { agent: AgentWithPlanning; raison: string }[] = [];
@@ -66,28 +67,38 @@ export function preFilterCandidats(
     }
 
     // Vérifier habilitation déplacement
-    // Nouveau système LPA : on utilise effectiveServiceMap si disponible
+    // Système LPA : une JS hors LPA est autorisée — le trajet est ajouté à l'amplitude
+    // et l'évaluation fine (evaluerMobilisabilite) vérifiera l'amplitude résultante.
+    // On ne bloque ici que le cas du déplacement MANUEL (fallback) non autorisé.
     if (effectiveServiceMap) {
       const effSvc = effectiveServiceMap.get(a.context.id);
-      if (effSvc && !effSvc.indeterminable) {
-        // jsDansLpa = false + non autorisé → exclusion
-        if (effSvc.jsDansLpa === false && !a.context.peutEtreDeplace) {
-          exclus.push({ agent: a, raison: "JS hors LPA — agent non autorisé au déplacement" });
-          continue;
-        }
-      } else {
-        // Indéterminable ou pas de contexte LPA → fallback booléen
+      const lpaCompute = effSvc && effSvc.estEnDeplacement !== null;
+      if (!lpaCompute) {
+        // Pas de contexte LPA déterminable → fallback booléen
         if (imprevu.deplacement && !a.context.peutEtreDeplace) {
-          exclus.push({ agent: a, raison: "Non autorisé déplacement" });
+          exclus.push({ agent: a, raison: "Non autorisé déplacement (mode manuel)" });
           continue;
         }
       }
+      // Si LPA a calculé le déplacement : pas de blocage ici, l'amplitude jugera
     } else {
-      // Ancien système (fallback)
+      // Aucune effectiveServiceMap → ancien système (fallback)
       if (imprevu.deplacement && !a.context.peutEtreDeplace) {
         exclus.push({ agent: a, raison: "Non autorisé déplacement" });
         continue;
       }
+    }
+
+    // Vérifier absence pour inaptitude (codes configurés par l'admin)
+    const absenceInaptitude = a.events.find(
+      (e) => isAbsenceInaptitude(e, npoExclusionCodes) && e.dateDebut < finImprevu && e.dateFin > debutImprevu
+    );
+    if (absenceInaptitude) {
+      exclus.push({
+        agent: a,
+        raison: `Absent pour inaptitude (${absenceInaptitude.codeJs ?? absenceInaptitude.typeJs ?? "NPO"})`,
+      });
+      continue;
     }
 
     // Vérifier que l'agent n'a pas déjà une JS non-Z pendant l'imprévu

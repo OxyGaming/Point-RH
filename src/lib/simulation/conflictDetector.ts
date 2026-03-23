@@ -53,11 +53,24 @@ export function detecterConflitsInduits(
         finMatinMin: rules.periodeNocturne.finMatin,
         seuilMin: rules.periodeNocturne.seuilJsNuit,
       });
-      const reposMin = prevEstNuit
+      let reposMin = prevEstNuit
         ? rules.reposJournalier.apresNuit        // 14h — prioritaire sur toute réduction
         : agentReserve && remplacement
           ? rules.reposJournalier.reduitReserve  // 10h
           : rules.reposJournalier.standard;      // 12h
+
+      // +20 min si le poste précédent a un TE > 6h sans coupure (sauf poste de nuit).
+      // Homogénéise avec engine/rules.ts — s'applique à TOUTES les transitions,
+      // pas uniquement au dernier poste avant la JS simulée.
+      if (
+        !prevEstNuit &&
+        prev.jsNpo === "JS" &&
+        prev.dureeEffectiveMin !== null &&
+        prev.dureeEffectiveMin !== undefined &&
+        prev.dureeEffectiveMin > rules.pause.seuilTE
+      ) {
+        reposMin += rules.pause.supplementSansCoupure;
+      }
 
       // Repos journalier insuffisant
       if (gap < reposMin) {
@@ -67,7 +80,7 @@ export function detecterConflitsInduits(
           heureDebut: next.heureDebut,
           heureFin: next.heureFin,
           type: "REPOS_INSUFFISANT",
-          description: `Repos insuffisant avant JS du ${dateToYYYYMMDD(next.dateDebut)} ${next.heureDebut}: ${minutesToTime(gap)} disponibles (min: ${minutesToTime(reposMin)}${prevEstNuit ? " — post-nuit" : ""})`,
+          description: `Repos insuffisant avant JS du ${dateToYYYYMMDD(next.dateDebut)} ${next.heureDebut}: ${minutesToTime(gap)} disponibles (min: ${minutesToTime(reposMin)}${prevEstNuit ? " — post-nuit" : ""}${!prevEstNuit && prev.dureeEffectiveMin !== null && prev.dureeEffectiveMin !== undefined && prev.dureeEffectiveMin > rules.pause.seuilTE ? " — +20 min TE>6h" : ""})`,
           regleCode: "REPOS_JOURNALIER",
           resolvable: true,
         });

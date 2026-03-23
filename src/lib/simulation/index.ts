@@ -10,13 +10,15 @@ import { loadWorkRules } from "@/lib/rules/workRulesLoader";
 import { preFilterCandidats, injecterJsDansPlanning } from "./candidateFinder";
 import { detecterConflitsInduits } from "./conflictDetector";
 import { construireScenarios } from "./scenarioBuilder";
-import { scorerCandidat } from "./scenarioScorer";
+import { scorerCandidatDetail } from "./scenarioScorer";
 import { isZeroLoadJs } from "./jsUtils";
 import { loadNpoExclusionCodes } from "./npoExclusionLoader";
 import { loadLpaContext } from "@/lib/deplacement/loadLpaContext";
 import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
 import type { JsSimulationRequest, JsSimulationResultat, CandidatResult, StatutCandidat } from "@/types/js-simulation";
+import { createLogger } from "@/engine/logger";
+import type { LogEntry } from "@/engine/logger";
 
 export interface AgentDataForSimulation {
   context: AgentContext;
@@ -28,6 +30,16 @@ export async function executerSimulationJS(
   agents: AgentDataForSimulation[]
 ): Promise<JsSimulationResultat> {
   const { jsCible, imprevu } = request;
+  const logger = createLogger();
+
+  logger.info("SIMULATION_START", {
+    data: {
+      jsCibleId: jsCible.planningLigneId,
+      codeJs: jsCible.codeJs,
+      date: jsCible.date,
+      nbAgents: agents.length,
+    },
+  });
 
   // Charger les règles dynamiques (fallback sur défauts si base vide)
   const rules = await loadWorkRules();
@@ -65,6 +77,16 @@ export async function executerSimulationJS(
   const { eligible, exclus } = preFilterCandidats(
     agents, jsCible, imprevu, agentInitialId, effectiveServiceMap, npoExclusionCodes
   );
+
+  logger.info("PREFILTRAGE_DONE", {
+    data: { nbEligible: eligible.length, nbExclus: exclus.length },
+  });
+  for (const { agent, raison } of exclus) {
+    logger.warn("AGENT_EXCLU_PREFILTRAGE", {
+      agentId: agent.context.id,
+      data: { raison },
+    });
+  }
 
   // ─── Étape 2 : simulation pour chaque candidat ───────────────────────────────
   const candidats: CandidatResult[] = [];
@@ -142,6 +164,20 @@ export async function executerSimulationJS(
         ? "VIGILANCE"
         : "DIRECT";
 
+    logger[statut === "REFUSE" ? "warn" : statut === "VIGILANCE" ? "info" : "info"](
+      `AGENT_EVALUE_${statut}`,
+      {
+        agentId: context.id,
+        data: {
+          statut,
+          nbViolations: resultat.detail.violations.length,
+          nbConflitsInduits: conflitsInduits.length,
+          reposDisponible: resultat.detail.reposJournalierDisponible,
+          gptActuel: resultat.detail.gptActuel,
+        },
+      }
+    );
+
     // Motif principal : mention JS Z si applicable
     const motifJsZ = surJsZ
       ? `JS de type Z (${jsZOrigine!.codeJs}) — réaffectation sans remplacement de la journée d'origine`
@@ -170,8 +206,8 @@ export async function executerSimulationJS(
       nbConflits: conflitsInduits.length,
     };
 
-    const scorePertinence = scorerCandidat(candidatPartiel);
-    candidats.push({ ...candidatPartiel, scorePertinence });
+    const scoreBreakdown = scorerCandidatDetail(candidatPartiel);
+    candidats.push({ ...candidatPartiel, scorePertinence: scoreBreakdown.total, scoreBreakdown });
   }
 
   // Ajouter les exclus comme refusés
@@ -209,6 +245,7 @@ export async function executerSimulationJS(
       codeJsZOrigine: null,
       statut: "REFUSE",
       scorePertinence: 0,
+      scoreBreakdown: { base: 100, penaliteViolations: 100, penaliteConflits: 0, bonusReserve: 0, bonusJsZ: 0, penaliteMargeRepos: 0, penaliteGpt: 0, total: 0 },
       motifPrincipal: raison,
       detail: resultat.detail,
       conflitsInduits: [],
@@ -221,19 +258,35 @@ export async function executerSimulationJS(
     candidats.filter((c) => c.statut !== "REFUSE"),
     jsCible,
     imprevu,
-    agents.filter((a) => a.context.id !== agentInitialId)
+    agents.filter((a) => a.context.id !== agentInitialId),
+    lpaContext,
+    rules
   );
 
   // ─── Tri final ─────────────────────────────────────────────────────────────────
   candidats.sort((a, b) => b.scorePertinence - a.scorePertinence);
 
+  const directs  = candidats.filter((c) => c.statut === "DIRECT");
+  const vigilants = candidats.filter((c) => c.statut === "VIGILANCE");
+  const refuses  = candidats.filter((c) => c.statut === "REFUSE");
+
+  logger.info("SIMULATION_END", {
+    data: {
+      nbDirect: directs.length,
+      nbVigilance: vigilants.length,
+      nbRefuse: refuses.length,
+      nbScenarios: scenarios.length,
+    },
+  });
+
   return {
     jsCible,
     imprevu,
-    directsUtilisables: candidats.filter((c) => c.statut === "DIRECT"),
-    vigilance: candidats.filter((c) => c.statut === "VIGILANCE"),
-    refuses: candidats.filter((c) => c.statut === "REFUSE"),
+    directsUtilisables: directs,
+    vigilance: vigilants,
+    refuses,
     scenarios,
     nbAgentsAnalyses: agents.length - 1, // exclut l'agent initial
+    auditLog: logger.all(),
   };
 }

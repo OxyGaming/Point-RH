@@ -14,6 +14,7 @@ import type {
   AffectationsParAgent,
   CandidatMultiJs,
   ConflitMultiJs,
+  ExclusionsParJs,
   MultiJsScenario,
   RobustesseScenario,
   CandidateScope,
@@ -21,6 +22,7 @@ import type {
 } from "@/types/multi-js-simulation";
 import type { WorkRulesMinutes } from "@/lib/rules/workRules";
 import { canAssignJsToAgentInScenario } from "./agentScenarioValidator";
+import { POIDS_SCORE_SCENARIO_MULTI } from "@/lib/simulation/scenarioScorer";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 import { injecterJsDansPlanning } from "@/lib/simulation/candidateFinder";
@@ -28,10 +30,20 @@ import { resoudreTousConflits } from "@/lib/simulation/cascadeResolver";
 import { buildImprevu } from "./multiJsCandidateFinder";
 import { combineDateTime } from "@/lib/utils";
 import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
-import type { EffectiveServiceInfo } from "@/types/deplacement";
+import type { EffectiveServiceInfo, LpaContext } from "@/types/deplacement";
 import type { PlanningEvent } from "@/engine/rules";
+import type { Exclusion } from "@/engine/ruleTypes";
+import type { MultiJsExclusion } from "@/types/multi-js-simulation";
+import type { LogCollector } from "@/engine/logger";
 
-let scenarioCounter = 0;
+/**
+ * Génère un identifiant de scénario unique et thread-safe.
+ * Pas de compteur global — chaque appel produit un ID distinct
+ * même en cas d'exécutions parallèles.
+ */
+function generateScenarioId(): string {
+  return `scenario-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
 
 /**
  * Détermine ce que l'agent remplaçant avait initialement prévu
@@ -88,9 +100,15 @@ export function allouerJsMultiple(
   remplacement = true,
   deplacement = false,
   effectiveServiceMap?: Map<string, EffectiveServiceInfo>,
-  npoExclusionCodes: string[] = []
+  npoExclusionCodes: string[] = [],
+  /** Exclusions pré-calculées par JS (depuis trouverCandidatsPourJs) */
+  exclusionsPerJs: Map<string, MultiJsExclusion[]> = new Map(),
+  /** Contexte LPA pour calcul déplacement dynamique dans les résolutions cascade */
+  lpaContext?: LpaContext,
+  /** Logger de traçabilité — optionnel, aucun log si absent */
+  logger?: LogCollector
 ): MultiJsScenario {
-  scenarioCounter++;
+  const id = generateScenarioId();
 
   // ─── Tri par difficulté (moins de candidats → traité en premier) ──────────────
   const sortedJs = [...jsCibles].sort((a, b) => {
@@ -116,6 +134,10 @@ export function allouerJsMultiple(
         description: `Aucun candidat disponible pour ${js.codeJs ?? "JS"} du ${js.date} (${js.heureDebut}–${js.heureFin})`,
         jsId: js.planningLigneId,
         severity: "BLOQUANT",
+      });
+      logger?.warn("MULTI_JS_NOT_COVERED", {
+        jsId: js.planningLigneId,
+        data: { scenarioId: id, codeJs: js.codeJs, nbCandidatesExamined: 0 },
       });
       continue;
     }
@@ -189,6 +211,13 @@ export function allouerJsMultiple(
 
       agentAssignments.set(candidat.agentId, [...existingAssignments, js]);
       assigned = true;
+
+      logger?.info("MULTI_ASSIGNMENT_DONE", {
+        jsId: js.planningLigneId,
+        agentId: candidat.agentId,
+        data: { scenarioId: id, codeJs: js.codeJs, statut: statutFinal, score: candidat.score },
+      });
+
       break;
     }
 
@@ -199,6 +228,180 @@ export function allouerJsMultiple(
         description: `Aucun agent compatible pour ${js.codeJs ?? "JS"} du ${js.date} (${js.heureDebut}–${js.heureFin}) après vérification des contraintes RH`,
         jsId: js.planningLigneId,
         severity: "BLOQUANT",
+      });
+
+      logger?.warn("MULTI_JS_NOT_COVERED", {
+        jsId: js.planningLigneId,
+        data: { scenarioId: id, codeJs: js.codeJs, nbCandidatesExamined: candidates.length },
+      });
+    }
+  }
+
+  // ─── Post-passe : réaffectation 2-opt pour JS non couvertes ──────────────────
+  // Pour chaque JS non couverte, on tente un swap : si un agent déjà affecté
+  // pourrait couvrir la JS non couverte ET qu'un autre agent libre peut couvrir
+  // la JS que cet agent laisserait derrière lui, on effectue l'échange.
+  // Cette passe améliore la couverture sans toucher à la logique greedy principale.
+  const jsNonCouvertesAvantSwap = sortedJs.filter(
+    (js) => !affectations.has(js.planningLigneId)
+  );
+
+  for (const jsNonCouverte of jsNonCouvertesAvantSwap) {
+    // Vérifier si la JS vient d'être couverte par un swap précédent
+    if (affectations.has(jsNonCouverte.planningLigneId)) continue;
+
+    let swapReussi = false;
+
+    // Parcourir les JS déjà affectées pour trouver un candidat potentiel
+    for (const [jsAffecteeId, affExistante] of affectations) {
+      if (swapReussi) break;
+
+      const agentData = agentsMap.get(affExistante.agentId);
+      if (!agentData) continue;
+
+      // L'agent actuellement affecté à jsAffectee peut-il couvrir jsNonCouverte ?
+      const assignmentsActuels = agentAssignments.get(affExistante.agentId) ?? [];
+      // Simuler : retirer jsAffectee de ses assignments, ajouter jsNonCouverte
+      const assignmentsSansJsAffectee = assignmentsActuels.filter(
+        (j) => j.planningLigneId !== jsAffecteeId
+      );
+      const { compatible: peutFaireNonCouverte } = canAssignJsToAgentInScenario(
+        agentData,
+        jsNonCouverte,
+        assignmentsSansJsAffectee,
+        rules,
+        remplacement,
+        deplacement,
+        effectiveServiceMap
+      );
+      if (!peutFaireNonCouverte) continue;
+
+      // Un autre agent libre peut-il couvrir jsAffectee à la place ?
+      const jsAffecteeCible = sortedJs.find((j) => j.planningLigneId === jsAffecteeId);
+      if (!jsAffecteeCible) continue;
+
+      let agentRemplacant: string | null = null;
+      const candidatsJsAffectee = (candidatesPerJs.get(jsAffecteeId) ?? [])
+        .filter((c) => c.agentId !== affExistante.agentId && !agentAssignments.has(c.agentId));
+
+      for (const autreCandidat of candidatsJsAffectee) {
+        const autreAgentData = agentsMap.get(autreCandidat.agentId);
+        if (!autreAgentData) continue;
+
+        const { compatible } = canAssignJsToAgentInScenario(
+          autreAgentData,
+          jsAffecteeCible,
+          [],
+          rules,
+          remplacement,
+          deplacement,
+          effectiveServiceMap
+        );
+        if (compatible) {
+          agentRemplacant = autreCandidat.agentId;
+          break;
+        }
+      }
+
+      if (!agentRemplacant) continue;
+
+      // ─── Swap validé ─────────────────────────────────────────────────────────
+      // 1. Réaffecter l'agent existant → jsNonCouverte
+      const imprevu = buildImprevu(jsNonCouverte, remplacement, deplacement);
+      const finImprevu = combineDateTime(jsNonCouverte.date, jsNonCouverte.heureFin);
+      const eventsAvecJs = injecterJsDansPlanning(agentData.events, jsNonCouverte, imprevu);
+      const conflitsInduits = detecterConflitsInduits(
+        eventsAvecJs,
+        finImprevu,
+        agentData.context.agentReserve,
+        imprevu.remplacement,
+        rules
+      );
+
+      affectations.set(jsNonCouverte.planningLigneId, {
+        jsId:          jsNonCouverte.planningLigneId,
+        jsCible:       jsNonCouverte,
+        agentId:       affExistante.agentId,
+        agentNom:      affExistante.agentNom,
+        agentPrenom:   affExistante.agentPrenom,
+        agentMatricule: affExistante.agentMatricule,
+        agentReserve:  affExistante.agentReserve,
+        statut:        conflitsInduits.length > 0 ? "VIGILANCE" : "DIRECT",
+        score:         affExistante.score,
+        justification: `Réaffecté via swap 2-opt (libéré de ${jsAffecteeCible.codeJs ?? jsAffecteeId})`,
+        conflitsInduits,
+        jsOriginaleAgent: determinerJsOriginale(agentData.events, jsNonCouverte, agentData.context.agentReserve),
+        cascadeModifications: [],
+        cascadeImpacts: [],
+        nbCascadesResolues: 0,
+        nbCascadesNonResolues: 0,
+      });
+
+      // 2. Réaffecter l'agent remplaçant → jsAffectee
+      const agentRemplacantData = agentsMap.get(agentRemplacant)!;
+      const imprevuAff = buildImprevu(jsAffecteeCible, remplacement, deplacement);
+      const finImprevuAff = combineDateTime(jsAffecteeCible.date, jsAffecteeCible.heureFin);
+      const eventsAvecJsAff = injecterJsDansPlanning(agentRemplacantData.events, jsAffecteeCible, imprevuAff);
+      const conflitsInd = detecterConflitsInduits(
+        eventsAvecJsAff,
+        finImprevuAff,
+        agentRemplacantData.context.agentReserve,
+        imprevuAff.remplacement,
+        rules
+      );
+      const candidatRemplagant = (candidatesPerJs.get(jsAffecteeId) ?? []).find(
+        (c) => c.agentId === agentRemplacant
+      );
+
+      affectations.set(jsAffecteeId, {
+        jsId:          jsAffecteeId,
+        jsCible:       jsAffecteeCible,
+        agentId:       agentRemplacant,
+        agentNom:      agentRemplacantData.context.nom,
+        agentPrenom:   agentRemplacantData.context.prenom,
+        agentMatricule: agentRemplacantData.context.matricule,
+        agentReserve:  agentRemplacantData.context.agentReserve,
+        statut:        conflitsInd.length > 0 ? "VIGILANCE" : "DIRECT",
+        score:         candidatRemplagant?.score ?? 0,
+        justification: `Affecté via swap 2-opt (remplace ${affExistante.agentNom} ${affExistante.agentPrenom})`,
+        conflitsInduits: conflitsInd,
+        jsOriginaleAgent: determinerJsOriginale(agentRemplacantData.events, jsAffecteeCible, agentRemplacantData.context.agentReserve),
+        cascadeModifications: [],
+        cascadeImpacts: [],
+        nbCascadesResolues: 0,
+        nbCascadesNonResolues: 0,
+      });
+
+      // 3. Mettre à jour agentAssignments
+      agentAssignments.set(affExistante.agentId, [
+        ...assignmentsSansJsAffectee,
+        jsNonCouverte,
+      ]);
+      agentAssignments.set(agentRemplacant, [jsAffecteeCible]);
+
+      // 4. Supprimer l'ancien conflit AUCUN_CANDIDAT si présent
+      const idxConflit = conflitsGlobaux.findIndex(
+        (c) => c.jsId === jsNonCouverte.planningLigneId && c.type === "AUCUN_CANDIDAT"
+      );
+      if (idxConflit >= 0) conflitsGlobaux.splice(idxConflit, 1);
+
+      logger?.info("MULTI_SWAP_APPLIED", {
+        jsId: jsNonCouverte.planningLigneId,
+        agentId: affExistante.agentId,
+        data: {
+          scenarioId: id,
+          jsLibereId: jsAffecteeId,
+          agentRemplacantId: agentRemplacant,
+        },
+      });
+
+      swapReussi = true;
+    }
+
+    if (!swapReussi) {
+      logger?.info("MULTI_SWAP_SKIPPED", {
+        jsId: jsNonCouverte.planningLigneId,
+        data: { scenarioId: id, raison: "Aucun swap 2-opt valide trouvé" },
       });
     }
   }
@@ -236,7 +439,9 @@ export function allouerJsMultiple(
       conflitsResolvables,
       eventsSimules,
       agentsCascade,
-      npoExclusionCodes
+      npoExclusionCodes,
+      lpaContext,   // calcul LPA-based pour les agents de la cascade
+      rules
     );
 
     const nbNonResolu = conflitsResolvables.length - nbResolu;
@@ -254,6 +459,12 @@ export function allouerJsMultiple(
       cascadeImpacts: impactsCascade,
       nbCascadesResolues: nbResolu,
       nbCascadesNonResolues: nbNonResolu,
+    });
+
+    logger?.info("MULTI_CASCADE_DONE", {
+      jsId,
+      agentId: aff.agentId,
+      data: { scenarioId: id, nbResolu, nbNonResolu, nouveauStatut },
     });
   }
 
@@ -309,19 +520,20 @@ export function allouerJsMultiple(
   const nbTotal = jsCibles.length;
   const tauxCouverture = nbTotal > 0 ? Math.round((nbCouvertes / nbTotal) * 100) : 0;
 
-  let score = tauxCouverture; // base = taux de couverture
+  // Base = taux de couverture pondéré
+  let score = Math.round(tauxCouverture * POIDS_SCORE_SCENARIO_MULTI.poidsCouverture);
 
-  // Bonus agents de réserve
+  // Bonus agents de réserve (ratio pondéré)
   const nbReserve = Array.from(affectations.values()).filter((a) => a.agentReserve).length;
-  score += Math.round((nbReserve / Math.max(1, nbCouvertes)) * 10);
+  score += Math.round((nbReserve / Math.max(1, nbCouvertes)) * POIDS_SCORE_SCENARIO_MULTI.bonusMaxReserve);
 
   // Pénalité vigilance
   const nbVigilance = Array.from(affectations.values()).filter((a) => a.statut === "VIGILANCE").length;
-  score -= nbVigilance * 5;
+  score -= nbVigilance * POIDS_SCORE_SCENARIO_MULTI.penaliteParVigilance;
 
-  // Pénalité conflits
-  score -= conflitsGlobaux.filter((c) => c.severity === "BLOQUANT").length * 10;
-  score -= conflitsGlobaux.filter((c) => c.severity === "AVERTISSEMENT").length * 3;
+  // Pénalité conflits bloquants et avertissements
+  score -= conflitsGlobaux.filter((c) => c.severity === "BLOQUANT").length  * POIDS_SCORE_SCENARIO_MULTI.penaliteConflitBloquant;
+  score -= conflitsGlobaux.filter((c) => c.severity === "AVERTISSEMENT").length * POIDS_SCORE_SCENARIO_MULTI.penaliteConflitAvert;
 
   score = Math.min(100, Math.max(0, score));
 
@@ -343,8 +555,20 @@ export function allouerJsMultiple(
     robustesse = "FAIBLE";
   }
 
+  // ─── Consolidation des exclusions par JS ──────────────────────────────────────
+  // On expose toutes les exclusions pré-calculées (pré-filtre) dans le scénario,
+  // ce qui permet à l'UI et aux logs d'expliquer chaque décision d'exclusion.
+  const exclusionsParJs: ExclusionsParJs[] = jsCibles.map((js) => ({
+    jsId:      js.planningLigneId,
+    codeJs:    js.codeJs,
+    date:      js.date,
+    heureDebut: js.heureDebut,
+    heureFin:  js.heureFin,
+    exclusions: exclusionsPerJs.get(js.planningLigneId) ?? [],
+  }));
+
   return {
-    id: `scenario-${scenarioCounter}`,
+    id,
     titre,
     description,
     score,
@@ -364,5 +588,6 @@ export function allouerJsMultiple(
     tauxCouverture,
     nbCascadesResolues: nbCascadesResoluesTotal,
     nbCascadesNonResolues: nbCascadesNonResoluesTotal,
+    exclusionsParJs,
   };
 }

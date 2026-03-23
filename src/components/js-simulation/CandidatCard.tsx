@@ -252,6 +252,69 @@ export default function CandidatCard({ candidat }: { candidat: CandidatResult })
             </div>
           )}
 
+          {/* Décomposition du score */}
+          {candidat.scoreBreakdown && (
+            <div>
+              <p className="text-xs font-semibold text-gray-600 mb-1.5">
+                Détail du score ({candidat.scorePertinence}/100)
+              </p>
+              <div className="bg-white/70 rounded-lg p-2.5 space-y-1 text-xs">
+                {/* Base */}
+                <div className="flex justify-between text-gray-500">
+                  <span>Base</span>
+                  <span className="font-mono">+{candidat.scoreBreakdown.base}</span>
+                </div>
+                {/* Violations */}
+                {candidat.scoreBreakdown.penaliteViolations > 0 && (
+                  <div className="flex justify-between text-red-600">
+                    <span>Violations ({detail.violations.length}×25)</span>
+                    <span className="font-mono">−{candidat.scoreBreakdown.penaliteViolations}</span>
+                  </div>
+                )}
+                {/* Conflits induits */}
+                {candidat.scoreBreakdown.penaliteConflits > 0 && (
+                  <div className="flex justify-between text-orange-600">
+                    <span>Conflits induits ({candidat.nbConflits}×15)</span>
+                    <span className="font-mono">−{candidat.scoreBreakdown.penaliteConflits}</span>
+                  </div>
+                )}
+                {/* Bonus réserve */}
+                {candidat.scoreBreakdown.bonusReserve > 0 && (
+                  <div className="flex justify-between text-blue-600">
+                    <span>Bonus agent de réserve</span>
+                    <span className="font-mono">+{candidat.scoreBreakdown.bonusReserve}</span>
+                  </div>
+                )}
+                {/* Bonus JS Z */}
+                {candidat.scoreBreakdown.bonusJsZ > 0 && (
+                  <div className="flex justify-between text-purple-600">
+                    <span>Bonus JS Z (réaffectation directe)</span>
+                    <span className="font-mono">+{candidat.scoreBreakdown.bonusJsZ}</span>
+                  </div>
+                )}
+                {/* Pénalité marge repos */}
+                {candidat.scoreBreakdown.penaliteMargeRepos > 0 && (
+                  <div className="flex justify-between text-yellow-700">
+                    <span>Marge repos &lt; 2h</span>
+                    <span className="font-mono">−{candidat.scoreBreakdown.penaliteMargeRepos}</span>
+                  </div>
+                )}
+                {/* Pénalité GPT */}
+                {candidat.scoreBreakdown.penaliteGpt > 0 && (
+                  <div className="flex justify-between text-yellow-700">
+                    <span>GPT chargé (&gt;80%)</span>
+                    <span className="font-mono">−{candidat.scoreBreakdown.penaliteGpt}</span>
+                  </div>
+                )}
+                {/* Total */}
+                <div className="border-t border-gray-200 pt-1 mt-1 flex justify-between font-semibold text-gray-800">
+                  <span>Total</span>
+                  <span className="font-mono">{candidat.scoreBreakdown.total}/100</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Règles respectées */}
           {detail.respectees.length > 0 && (
             <div>

@@ -8,6 +8,7 @@ import type { DetailCalcul, RegleViolation, RegleRespectee, ResultatAgentDetail,
 import type { SimulationInput } from "@/types/simulation";
 import { DEFAULT_WORK_RULES_MINUTES, type WorkRulesMinutes } from "@/lib/rules/workRules";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
+import { REGLES_BLOQUANTES } from "@/engine/ruleTypes";
 import {
   trouverDebutGPT,
   cumulTravailEffectifGPT,
@@ -257,8 +258,28 @@ export function evaluerMobilisabilite(
 
   // GPT minimum
   if (joursGPTApres < rules.gpt.min) {
+    if (joursGPTApres >= rules.gpt.minDimanche) {
+      // Entre le minimum dimanche (2j) et le minimum standard (3j) :
+      // la règle normale n'est PAS respectée, mais une exception existe
+      // si le prochain RP simple tombe un dimanche avec accord exprès de l'agent.
+      // Non évaluée automatiquement — à vérifier manuellement.
+      pointsVigilance.push(
+        `GPT en cours : ${joursGPTApres} jour(s) — GPT minimum standard de ${rules.gpt.min} jours non atteint. ` +
+        `Exception possible : si le RP simple tombe un dimanche avec accord de l'agent, le minimum réduit (${rules.gpt.minDimanche}j) peut s'appliquer — à vérifier manuellement.`
+      );
+    } else {
+      pointsVigilance.push(
+        `GPT en cours : ${joursGPTApres} jour(s) sur ${rules.gpt.min} minimum — un repos périodique ne peut intervenir qu'après ${rules.gpt.min} jours de GPT`
+      );
+    }
+  }
+
+  // Coupure en plage horaire [11h-14h] / [18h-21h] — règle configurée, non évaluée automatiquement.
+  // Les données de coupure interne de la JS ne sont pas disponibles dans PlanningEvent.
+  // Si l'amplitude dépasse 6h, une coupure peut être requise selon convention.
+  if (amplitudeImprevu > rules.pause.seuilTE && amplitudeImprevu <= amplitudeMax) {
     pointsVigilance.push(
-      `GPT en cours : ${joursGPTApres} jour(s) sur ${rules.gpt.min} minimum — un repos périodique ne peut intervenir qu'après ${rules.gpt.min} jours de GPT`
+      `Amplitude > ${rules.pause.seuilTE / 60}h : vérifier la présence d'une coupure réglementaire en plage [11h-14h] ou [18h-21h] (règle non évaluée automatiquement — données de coupure non disponibles).`
     );
   }
 
@@ -438,7 +459,13 @@ export function evaluerMobilisabilite(
     scorePertinence = Math.min(100, Math.max(0, scorePertinence));
     statut = "CONFORME";
     motifPrincipal = "Toutes les règles respectées";
-  } else if (violations.length === 1 && violations[0].regle !== "REPOS_JOURNALIER" && violations[0].regle !== "AMPLITUDE") {
+  } else if (
+    violations.length === 1 &&
+    !REGLES_BLOQUANTES.includes(violations[0].regle as (typeof REGLES_BLOQUANTES)[number])
+  ) {
+    // Une seule violation non bloquante → VIGILANCE (pénalité score, agent mobilisable)
+    // Les règles bloquantes (REPOS, AMPLITUDE, PREFIXE_JS, NUIT_HABILITATION, etc.)
+    // génèrent NON_CONFORME même seules — comportement cohérent avec le pré-filtre.
     statut = "VIGILANCE";
     scorePertinence = 40;
     motifPrincipal = violations[0].description;

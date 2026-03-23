@@ -8,6 +8,7 @@ import type {
   AffectationJs,
   AffectationsParAgent,
   JsOriginaleAgent,
+  ExclusionsParJs,
 } from "@/types/multi-js-simulation";
 import type { ModificationPlanning, ImpactCascade } from "@/types/js-simulation";
 import AgentLink from "@/components/ui/AgentLink";
@@ -16,7 +17,7 @@ interface Props {
   resultat: MultiJsSimulationResultat;
 }
 
-type Tab = "resume" | "affectations" | "agents" | "non-couvertes" | "conflits";
+type Tab = "resume" | "affectations" | "agents" | "non-couvertes" | "conflits" | "exclusions";
 
 function ScoreBadge({ score }: { score: number }) {
   const color =
@@ -438,6 +439,134 @@ function AgentCard({ agent }: { agent: AffectationsParAgent }) {
   );
 }
 
+// ─── Codes de règles → libellés lisibles ──────────────────────────────────────
+
+const REGLE_LABELS: Record<string, string> = {
+  REPOS_JOURNALIER:         "Repos journalier insuffisant",
+  AMPLITUDE:                "Amplitude dépassée",
+  PREFIXE_JS:               "Préfixe JS non autorisé",
+  NUIT_HABILITATION:        "Non habilité nuit",
+  DEPLACEMENT_HABILITATION: "Non habilité déplacement",
+  GPT_MAX:                  "GPT maximum atteint",
+  TE_GPT_48H:               "Travail effectif GPT 48h dépassé",
+  TRAVAIL_EFFECTIF:         "Travail effectif dépassé",
+  SCOPE_RESERVE:            "Hors périmètre réserve",
+  ABSENCE_INAPTITUDE:       "Absence / inaptitude",
+  CONFLIT_HORAIRE:          "Déjà en service",
+  REGLE_METIER:             "Règle métier",
+};
+
+// ─── Panel exclusions ─────────────────────────────────────────────────────────
+
+function ExclusionsPanel({ exclusionsParJs }: { exclusionsParJs: ExclusionsParJs[] }) {
+  const [openJs, setOpenJs] = useState<string | null>(null);
+
+  const avecExclusions = exclusionsParJs.filter((e) => e.exclusions.length > 0);
+
+  if (avecExclusions.length === 0) {
+    return (
+      <div className="py-6 text-center">
+        <p className="text-2xl mb-1">✅</p>
+        <p className="text-sm font-semibold text-emerald-600">
+          Aucune exclusion enregistrée pour ce scénario
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-slate-500 mb-3">
+        Raisons pour lesquelles chaque agent a été écarté par JS.
+        Les agents affectés n'apparaissent pas ici.
+      </p>
+
+      {avecExclusions.map((jsExcl) => {
+        const isOpen = openJs === jsExcl.jsId;
+
+        // Regrouper par regle
+        const parRegle = jsExcl.exclusions.reduce<Record<string, typeof jsExcl.exclusions>>(
+          (acc, excl) => {
+            (acc[excl.regle] ??= []).push(excl);
+            return acc;
+          },
+          {}
+        );
+
+        return (
+          <div key={jsExcl.jsId} className="border border-slate-200 rounded-lg overflow-hidden">
+            {/* En-tête JS */}
+            <button
+              type="button"
+              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+              onClick={() => setOpenJs(isOpen ? null : jsExcl.jsId)}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="font-mono font-bold text-sm text-slate-800">
+                  {jsExcl.codeJs ?? "JS sans code"}
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  {new Date(jsExcl.date).toLocaleDateString("fr-FR", {
+                    day: "2-digit",
+                    month: "short",
+                  })}{" "}
+                  · {jsExcl.heureDebut}–{jsExcl.heureFin}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] font-semibold bg-red-100 text-red-600 px-2 py-0.5 rounded-full">
+                  {jsExcl.exclusions.length} exclu{jsExcl.exclusions.length > 1 ? "s" : ""}
+                </span>
+                <span className="text-slate-400 text-sm">{isOpen ? "▲" : "▼"}</span>
+              </div>
+            </button>
+
+            {/* Détail exclusions */}
+            {isOpen && (
+              <div className="border-t border-slate-200 bg-white px-4 py-3 space-y-3">
+                {Object.entries(parRegle).map(([regle, agents]) => (
+                  <div key={regle}>
+                    {/* En-tête raison */}
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">
+                        {regle}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        {REGLE_LABELS[regle] ?? regle}
+                      </span>
+                      <span className="text-[10px] text-slate-400 ml-auto">
+                        {agents.length} agent{agents.length > 1 ? "s" : ""}
+                      </span>
+                    </div>
+
+                    {/* Liste des agents */}
+                    <div className="space-y-1 pl-2 border-l-2 border-slate-100">
+                      {agents.map((excl) => (
+                        <div key={excl.agentId} className="flex items-start gap-2 text-xs">
+                          <span className="text-slate-400 shrink-0 mt-0.5">⛔</span>
+                          <div className="min-w-0">
+                            <span className="font-semibold text-slate-700">
+                              {excl.agentNom} {excl.agentPrenom}
+                            </span>
+                            <span className="text-slate-400 font-mono ml-1.5 text-[10px]">
+                              {excl.agentMatricule}
+                            </span>
+                            <p className="text-slate-500 text-[10px] mt-0.5">{excl.raison}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 export default function MultiJsResultsPanel({ resultat }: Props) {
@@ -447,12 +576,17 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
   const scenario = resultat.scenarios[activeScenarioIdx];
   if (!scenario) return null;
 
+  const nbExclusions = scenario.exclusionsParJs.reduce(
+    (sum, e) => sum + e.exclusions.length, 0
+  );
+
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "resume", label: "Résumé" },
     { id: "affectations", label: "Affectations", count: scenario.affectations.length },
     { id: "agents", label: "Par agent", count: scenario.affectationsParAgent.length },
     { id: "non-couvertes", label: "Non couvertes", count: scenario.jsNonCouvertes.length },
     { id: "conflits", label: "Conflits", count: scenario.conflitsDetectes.length },
+    { id: "exclusions", label: "Exclusions", count: nbExclusions },
   ];
 
   return (
@@ -607,6 +741,11 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
                 </>
               )}
             </div>
+          )}
+
+          {/* Exclusions */}
+          {activeTab === "exclusions" && (
+            <ExclusionsPanel exclusionsParJs={scenario.exclusionsParJs} />
           )}
 
           {/* Conflits */}

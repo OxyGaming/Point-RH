@@ -16,10 +16,12 @@ import type { JsCible } from "@/types/js-simulation";
 import type { MultiJsSimulationResultat, CandidateScope } from "@/types/multi-js-simulation";
 import { trouverCandidatsPourJs } from "./multiJsCandidateFinder";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
+import type { MultiJsExclusion } from "@/types/multi-js-simulation";
 import { allouerJsMultiple } from "./multiJsAllocator";
 import { loadLpaContext } from "@/lib/deplacement/loadLpaContext";
 import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
+import { createLogger } from "@/engine/logger";
 
 export type { AgentDataMultiJs };
 
@@ -30,6 +32,18 @@ export async function executerSimulationMultiJs(
   remplacement = true,
   deplacement = false
 ): Promise<MultiJsSimulationResultat> {
+  const logger = createLogger();
+
+  logger.info("MULTI_SIMULATION_START", {
+    data: {
+      nbJs: jsSelectionnees.length,
+      nbAgents: agents.length,
+      candidateScope,
+      remplacement,
+      deplacement,
+    },
+  });
+
   const rules = await loadWorkRules();
   const npoExclusionCodes = await loadNpoExclusionCodes();
 
@@ -64,12 +78,36 @@ export async function executerSimulationMultiJs(
 
   // ─── Fonction utilitaire : construire candidats + scénario pour un scope donné ─
   function construireScenario(scope: CandidateScope, titre: string, description: string) {
-    const candidatesPerJs = new Map(
-      jsSelectionnees.map((js) => [
-        js.planningLigneId,
-        trouverCandidatsPourJs(js, agents, scope, rules, remplacement, deplacement, effectiveServiceMap, npoExclusionCodes),
-      ])
-    );
+    // Collecter candidats ET exclusions structurées pour chaque JS
+    const candidatesPerJs = new Map<string, ReturnType<typeof trouverCandidatsPourJs>["candidats"]>();
+    const exclusionsPerJs = new Map<string, MultiJsExclusion[]>();
+
+    for (const js of jsSelectionnees) {
+      const { candidats, exclusions } = trouverCandidatsPourJs(
+        js, agents, scope, rules, remplacement, deplacement, effectiveServiceMap, npoExclusionCodes
+      );
+      candidatesPerJs.set(js.planningLigneId, candidats);
+      exclusionsPerJs.set(js.planningLigneId, exclusions);
+
+      logger.info("MULTI_JS_CANDIDATES_BUILT", {
+        jsId: js.planningLigneId,
+        data: {
+          scope,
+          codeJs: js.codeJs,
+          nbCandidats: candidats.length,
+          nbExclusions: exclusions.length,
+        },
+      });
+    }
+
+    const totalExclusions = [...exclusionsPerJs.values()].reduce((s, e) => s + e.length, 0);
+    logger.info("MULTI_PREFILTER_DONE", {
+      data: {
+        scope,
+        nbJs: jsSelectionnees.length,
+        totalExclusions,
+      },
+    });
 
     return allouerJsMultiple(
       jsSelectionnees,
@@ -82,7 +120,10 @@ export async function executerSimulationMultiJs(
       remplacement,
       deplacement,
       effectiveServiceMap,
-      npoExclusionCodes
+      npoExclusionCodes,
+      exclusionsPerJs,
+      lpaContext,  // propagé pour calcul LPA-based dans les cascades
+      logger       // traçabilité allocation
     );
   }
 
@@ -115,11 +156,23 @@ export async function executerSimulationMultiJs(
     (a, b) => b.score - a.score
   );
 
+  const meilleur = scenarios[0] ?? null;
+
+  logger.info("MULTI_SIMULATION_END", {
+    data: {
+      nbScenarios: scenarios.length,
+      meilleurScore: meilleur?.score ?? null,
+      meilleurTauxCouverture: meilleur?.tauxCouverture ?? null,
+      meilleurNbJsCouvertes: meilleur?.nbJsCouvertes ?? null,
+      meilleurRobustesse: meilleur?.robustesse ?? null,
+    },
+  });
+
   return {
     jsSelectionnees,
     nbJsSelectionnees: jsSelectionnees.length,
     scenarios,
-    scenarioMeilleur: scenarios[0] ?? null,
+    scenarioMeilleur: meilleur,
     scenarioReserveOnly:
       candidateScope === "reserve_only"
         ? scenarioPrincipal
@@ -129,5 +182,6 @@ export async function executerSimulationMultiJs(
         ? scenarioPrincipal
         : scenarioComparatif,
     nbAgentsAnalyses: agents.length,
+    auditLog: logger.all(),
   };
 }

@@ -2,6 +2,9 @@
  * Étape 4 — Résolution en cascade
  * Pour chaque conflit résolvable, tente de trouver un agent qui peut
  * reprendre la JS conflictuelle (profondeur max = 2).
+ *
+ * Correction #4 : le déplacement est désormais calculé dynamiquement via LPA
+ * pour chaque agent cascade. Le `deplacement: false` forcé est supprimé.
  */
 
 import { combineDateTime, diffMinutes, minutesToTime, isJsDeNuit } from "@/lib/utils";
@@ -9,6 +12,9 @@ import { evaluerMobilisabilite } from "@/engine/rules";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { ImpreuvuConfig, ImpactCascade, ModificationPlanning, ConflitInduit } from "@/types/js-simulation";
 import { isAbsenceInaptitude } from "./jsUtils";
+import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
+import type { LpaContext } from "@/types/deplacement";
+import { DEFAULT_WORK_RULES_MINUTES, type WorkRulesMinutes } from "@/lib/rules/workRules";
 
 const CASCADE_MAX_DEPTH = 2;
 
@@ -22,22 +28,34 @@ export interface ResolutionResultat {
 /**
  * Tente de résoudre un conflit de type REPOS_INSUFFISANT
  * en trouvant un agent qui peut reprendre la JS conflictuelle.
+ *
+ * Le déplacement est calculé dynamiquement (LPA-based) si lpaContext est fourni,
+ * sinon fallback sur deplacement=false (ancien comportement).
  */
 export function tenterResolutionCascade(
   conflit: ConflitInduit,
   conflictingEvent: PlanningEvent | null,
   autresAgents: { context: AgentContext; events: PlanningEvent[] }[],
   depth: number = 1,
-  npoExclusionCodes: string[] = []
+  npoExclusionCodes: string[] = [],
+  /** Contexte LPA pour calcul déplacement dynamique. Si absent : deplacement=false. */
+  lpaContext?: LpaContext,
+  rules: WorkRulesMinutes = DEFAULT_WORK_RULES_MINUTES
 ): ResolutionResultat {
   if (depth > CASCADE_MAX_DEPTH || !conflictingEvent) {
     return { resolu: false, agentRemplagant: null, modification: null, impactsCascade: [] };
   }
 
+  const jsEstNuit = isJsDeNuit(conflictingEvent.heureDebut, conflictingEvent.heureFin, {
+    debutSoirMin: rules.periodeNocturne.debutSoir,
+    finMatinMin:  rules.periodeNocturne.finMatin,
+    seuilMin:     rules.periodeNocturne.seuilJsNuit,
+  });
+
   // Chercher un agent disponible pour la JS conflictuelle
   for (const autre of autresAgents) {
     const jsDebut = conflictingEvent.dateDebut;
-    const jsFin = conflictingEvent.dateFin;
+    const jsFin   = conflictingEvent.dateFin;
 
     // Vérifier qu'il n'a pas de JS pendant cette période
     const dejaPris = autre.events.some(
@@ -51,41 +69,76 @@ export function tenterResolutionCascade(
     );
     if (enInaptitude) continue;
 
-    // Simuler en injectant la JS conflictuelle dans son planning
-    const impreuvuSimule: ImpreuvuConfig = {
-      partiel: false,
-      heureDebutReel: conflictingEvent.heureDebut,
-      heureFinEstimee: conflictingEvent.heureFin,
-      deplacement: false,
-      remplacement: true,
-    };
+    // ─── Calcul LPA-based si contexte disponible ──────────────────────────────
+    // Corrige : `deplacement: false` n'est plus forcé.
+    // Pour chaque agent cascade, on calcule son déplacement effectif
+    // en fonction de son LPA et de la JS conflictuelle.
+    const effectiveService = lpaContext
+      ? computeEffectiveService(
+          {
+            id:              autre.context.id,
+            lpaBaseId:       autre.context.lpaBaseId,
+            peutEtreDeplace: autre.context.peutEtreDeplace,
+          },
+          {
+            codeJs:    conflictingEvent.codeJs,
+            typeJs:    conflictingEvent.typeJs,
+            heureDebut: conflictingEvent.heureDebut,
+            heureFin:   conflictingEvent.heureFin,
+            estNuit:    jsEstNuit,
+          },
+          lpaContext,
+          { remplacement: true }
+        )
+      : null;
+
+    // Horaires effectifs (avec trajet si déplacement LPA)
+    const heureDebutSim = effectiveService
+      ? effectiveService.heureDebutEffective
+      : conflictingEvent.heureDebut;
+    const heureFinSim = effectiveService
+      ? effectiveService.heureFinEffective
+      : conflictingEvent.heureFin;
+
+    // Déplacement effectif : LPA-based si disponible, sinon false (conservatif)
+    const deplacementEffectif =
+      effectiveService && effectiveService.estEnDeplacement !== null
+        ? effectiveService.estEnDeplacement
+        : false;
 
     const simulationInput = {
-      importId: "",
-      dateDebut: jsDebut.toISOString().slice(0, 10),
-      dateFin: jsFin.toISOString().slice(0, 10),
-      heureDebut: conflictingEvent.heureDebut,
-      heureFin: conflictingEvent.heureFin,
-      poste: conflictingEvent.codeJs ?? "JS",
+      importId:   "",
+      dateDebut:  jsDebut.toISOString().slice(0, 10),
+      dateFin:    jsFin.toISOString().slice(0, 10),
+      heureDebut: heureDebutSim,
+      heureFin:   heureFinSim,
+      poste:      conflictingEvent.codeJs ?? "JS",
+      codeJs:     conflictingEvent.codeJs,
       remplacement: true,
-      deplacement: false,
-      posteNuit: isJsDeNuit(conflictingEvent.heureDebut, conflictingEvent.heureFin),
+      deplacement:  deplacementEffectif,
+      posteNuit:    jsEstNuit,
     };
 
-    const resultat = evaluerMobilisabilite(autre.context, autre.events, simulationInput);
+    const resultat = evaluerMobilisabilite(
+      autre.context,
+      autre.events,
+      simulationInput,
+      rules,
+      effectiveService ?? undefined
+    );
 
     if (resultat.statut === "CONFORME" || resultat.statut === "VIGILANCE") {
       const impacts: ImpactCascade[] = [];
 
       if (resultat.statut === "VIGILANCE") {
         impacts.push({
-          agentId: autre.context.id,
-          agentNom: autre.context.nom,
+          agentId:     autre.context.id,
+          agentNom:    autre.context.nom,
           agentPrenom: autre.context.prenom,
           description: resultat.motifPrincipal,
-          regle: resultat.detail.violations[0]?.regle ?? "VIGILANCE",
-          severity: "AVERTISSEMENT",
-          date: jsDebut.toISOString().slice(0, 10),
+          regle:       resultat.detail.violations[0]?.regle ?? "VIGILANCE",
+          severity:    "AVERTISSEMENT",
+          date:        jsDebut.toISOString().slice(0, 10),
         });
       }
 
@@ -93,13 +146,13 @@ export function tenterResolutionCascade(
         resolu: true,
         agentRemplagant: autre.context,
         modification: {
-          agentId: autre.context.id,
-          agentNom: autre.context.nom,
+          agentId:     autre.context.id,
+          agentNom:    autre.context.nom,
           agentPrenom: autre.context.prenom,
-          action: "ECHANGER_JS",
-          description: `${autre.context.nom} ${autre.context.prenom} reprend la JS du ${jsDebut.toISOString().slice(0, 10)} ${conflictingEvent.heureDebut}-${conflictingEvent.heureFin} libérée par le conflit`,
-          violations: resultat.detail.violations,
-          conforme: resultat.statut === "CONFORME",
+          action:      "ECHANGER_JS",
+          description: `${autre.context.nom} ${autre.context.prenom} reprend la JS du ${jsDebut.toISOString().slice(0, 10)} ${conflictingEvent.heureDebut}-${conflictingEvent.heureFin} libérée par le conflit${deplacementEffectif ? " (déplacement calculé LPA)" : ""}`,
+          violations:  resultat.detail.violations,
+          conforme:    resultat.statut === "CONFORME",
         },
         impactsCascade: impacts,
       };
@@ -111,12 +164,18 @@ export function tenterResolutionCascade(
 
 /**
  * Résout tous les conflits résolvables en cascade pour un candidat.
+ *
+ * @param lpaContext - Si fourni, le déplacement des agents cascade est calculé via LPA.
+ *                    Sinon fallback sur deplacement=false (conservatif).
+ * @param rules      - Règles métier à appliquer. Défaut : valeurs standard.
  */
 export function resoudreTousConflits(
   conflitsResolvables: ConflitInduit[],
   eventsApresJs: PlanningEvent[],
   autresAgents: { context: AgentContext; events: PlanningEvent[] }[],
-  npoExclusionCodes: string[] = []
+  npoExclusionCodes: string[] = [],
+  lpaContext?: LpaContext,
+  rules: WorkRulesMinutes = DEFAULT_WORK_RULES_MINUTES
 ): { modifications: ModificationPlanning[]; impactsCascade: ImpactCascade[]; nbResolu: number } {
   const modifications: ModificationPlanning[] = [];
   const impactsCascade: ImpactCascade[] = [];
@@ -132,7 +191,15 @@ export function resoudreTousConflits(
         (conflit.heureDebut ? e.heureDebut === conflit.heureDebut : true);
     }) ?? null;
 
-    const res = tenterResolutionCascade(conflit, evConflictuel, autresAgents, 1, npoExclusionCodes);
+    const res = tenterResolutionCascade(
+      conflit,
+      evConflictuel,
+      autresAgents,
+      1,
+      npoExclusionCodes,
+      lpaContext,
+      rules
+    );
 
     if (res.resolu && res.modification) {
       modifications.push(res.modification);
@@ -140,13 +207,13 @@ export function resoudreTousConflits(
       nbResolu++;
     } else if (!res.resolu) {
       impactsCascade.push({
-        agentId: "",
-        agentNom: "—",
+        agentId:     "",
+        agentNom:    "—",
         agentPrenom: "",
         description: `Conflit non résolu : ${conflit.description}`,
-        regle: conflit.regleCode,
-        severity: "BLOQUANT",
-        date: conflit.date,
+        regle:       conflit.regleCode,
+        severity:    "BLOQUANT",
+        date:        conflit.date,
       });
     }
   }

@@ -3,6 +3,8 @@
  */
 
 import type { JsCible, ConflitInduit, ModificationPlanning, ImpactCascade } from "./js-simulation";
+import type { Exclusion } from "@/engine/ruleTypes";
+import type { LogEntry } from "@/engine/logger";
 
 // ─── Mode de simulation ───────────────────────────────────────────────────────
 
@@ -114,6 +116,35 @@ export interface AffectationsParAgent {
 
 export type RobustesseScenario = "HAUTE" | "MOYENNE" | "FAIBLE";
 
+/**
+ * Exclusion enrichie avec les informations nominatives de l'agent.
+ * Étend Exclusion (agentId, jsId, raison, regle, niveau) avec les
+ * champs d'affichage nécessaires dans l'UI.
+ */
+export interface MultiJsExclusion extends Exclusion {
+  agentNom: string;
+  agentPrenom: string;
+  agentMatricule: string;
+}
+
+/**
+ * Exclusions tracées par JS dans un scénario multi-JS.
+ * Permet de comprendre pourquoi chaque agent a été écarté pour chaque JS.
+ */
+export interface ExclusionsParJs {
+  /** planningLigneId de la JS concernée */
+  jsId: string;
+  /** Code lisible de la JS (ex: "GIV001") */
+  codeJs: string | null;
+  /** Date de la JS (YYYY-MM-DD) */
+  date: string;
+  /** Horaire de la JS */
+  heureDebut: string;
+  heureFin: string;
+  /** Agents exclus avec leur raison structurée et informations nominatives */
+  exclusions: MultiJsExclusion[];
+}
+
 export interface MultiJsScenario {
   id: string;
   titre: string;
@@ -133,6 +164,11 @@ export interface MultiJsScenario {
   nbCascadesResolues: number;
   /** Nombre total de conflits induits non résolus malgré cascade sur toutes les affectations */
   nbCascadesNonResolues: number;
+  /**
+   * Exclusions tracées par JS — aucune exclusion silencieuse.
+   * Permet d'expliquer à l'utilisateur pourquoi chaque agent a été écarté.
+   */
+  exclusionsParJs: ExclusionsParJs[];
 }
 
 // ─── Résultat global de la simulation multi-JS ───────────────────────────────
@@ -149,6 +185,11 @@ export interface MultiJsSimulationResultat {
   scenarioTousAgents: MultiJsScenario | null;
   /** Nombre total d'agents analysés */
   nbAgentsAnalyses: number;
+  /**
+   * Traces horodatées de toutes les décisions du moteur multi-JS.
+   * Utile pour l'audit post-événement et le debug.
+   */
+  auditLog: LogEntry[];
 }
 
 // ─── Ligne JS pour l'affichage timeline ──────────────────────────────────────

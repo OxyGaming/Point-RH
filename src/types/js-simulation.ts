@@ -1,4 +1,6 @@
 import type { DetailCalcul, RegleViolation } from "./simulation";
+import type { ScoreBreakdownCandidat } from "@/lib/simulation/scenarioScorer";
+import type { LogEntry } from "@/engine/logger";
 
 // ─── JS Cible ────────────────────────────────────────────────────────────────
 
@@ -74,6 +76,11 @@ export interface CandidatResult {
   codeJsZOrigine: string | null;
   statut: StatutCandidat;
   scorePertinence: number;
+  /**
+   * Décomposition détaillée du score (transparence).
+   * Chaque composante (violations, conflits, bonus, pénalités) est exposée.
+   */
+  scoreBreakdown: ScoreBreakdownCandidat;
   motifPrincipal: string;
   detail: DetailCalcul;
   conflitsInduits: ConflitInduit[];
@@ -141,4 +148,9 @@ export interface JsSimulationResultat {
   refuses: CandidatResult[];
   scenarios: Scenario[];
   nbAgentsAnalyses: number;
+  /**
+   * Traces horodatées de toutes les décisions du moteur pour cette simulation.
+   * Utile pour l'audit, le debug et l'explicabilité des résultats.
+   */
+  auditLog: LogEntry[];
 }

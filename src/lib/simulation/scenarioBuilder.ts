@@ -8,6 +8,8 @@ import { scorerScenario, determinerConformiteFinale } from "./scenarioScorer";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { CandidatResult, Scenario, ModificationPlanning } from "@/types/js-simulation";
 import type { JsCible, ImpreuvuConfig } from "@/types/js-simulation";
+import type { LpaContext } from "@/types/deplacement";
+import { DEFAULT_WORK_RULES_MINUTES, type WorkRulesMinutes } from "@/lib/rules/workRules";
 
 let scenarioCounter = 0;
 
@@ -18,7 +20,9 @@ export function construireScenarios(
   candidats: CandidatResult[],
   jsCible: JsCible,
   imprevu: ImpreuvuConfig,
-  tousAgents: { context: AgentContext; events: PlanningEvent[] }[]
+  tousAgents: { context: AgentContext; events: PlanningEvent[] }[],
+  lpaContext?: LpaContext,
+  rules: WorkRulesMinutes = DEFAULT_WORK_RULES_MINUTES
 ): Scenario[] {
   scenarioCounter = 0;
   const scenarios: Scenario[] = [];
@@ -49,7 +53,10 @@ export function construireScenarios(
     const { modifications, impactsCascade, nbResolu } = resoudreTousConflits(
       conflitsResolvables,
       agentPlanning.events,
-      autresAgents
+      autresAgents,
+      [],        // npoExclusionCodes — non disponibles ici, filtrage déjà fait en amont
+      lpaContext,
+      rules
     );
 
     const nbConflitsResidus = candidat.nbConflits - nbResolu;

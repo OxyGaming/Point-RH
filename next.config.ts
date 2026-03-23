@@ -1,4 +1,15 @@
 import type { NextConfig } from "next";
+import { execSync } from "child_process";
+
+// Hash court du commit courant — injecté comme variable publique au build.
+// Retombe sur "dev" si git n'est pas disponible (CI sans dépôt, etc.)
+const COMMIT_SHA = (() => {
+  try {
+    return execSync("git rev-parse --short HEAD").toString().trim();
+  } catch {
+    return "dev";
+  }
+})();
 
 /**
  * En-têtes de sécurité HTTP appliqués à toutes les routes.
@@ -71,6 +82,10 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["better-sqlite3"],
+
+  env: {
+    NEXT_PUBLIC_COMMIT_SHA: COMMIT_SHA,
+  },
 
   async headers() {
     return [

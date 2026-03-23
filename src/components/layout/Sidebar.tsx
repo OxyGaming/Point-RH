@@ -87,7 +87,12 @@ function NavLinks({ onClose }: { onClose?: () => void }) {
         >
           <span>↩</span> Se déconnecter
         </button>
-        <p className="text-xs text-slate-600 pt-1">Point RH v1.1</p>
+        <p className="text-xs text-slate-600 pt-1 font-mono">
+          Point RH v1.1
+          <span className="ml-1 text-slate-700">
+            #{process.env.NEXT_PUBLIC_COMMIT_SHA ?? "dev"}
+          </span>
+        </p>
       </div>
     </div>
   );

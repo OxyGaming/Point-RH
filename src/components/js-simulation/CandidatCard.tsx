@@ -4,6 +4,99 @@ import { useState } from "react";
 import Link from "next/link";
 import { minutesToTime } from "@/lib/utils";
 import type { CandidatResult } from "@/types/js-simulation";
+import type { GptRpAnalyse } from "@/types/simulation";
+
+// ─── Badge transitionImpactee ────────────────────────────────────────────────
+
+const TRANSITION_CONFIG = {
+  AUCUNE:   { label: "Transitions conformes",        cls: "bg-green-100 text-green-800" },
+  AVANT:    { label: "RP avant dégradé",             cls: "bg-amber-100 text-amber-800" },
+  APRES:    { label: "RP après dégradé",             cls: "bg-amber-100 text-amber-800" },
+  LES_DEUX: { label: "RP avant et après dégradés",   cls: "bg-red-100 text-red-800"   },
+} as const;
+
+// ─── Ligne RP (avant ou après) ───────────────────────────────────────────────
+
+function LigneRp({
+  label,
+  valeurMin,
+  requisMin,
+  conforme,
+  absenceLabel,
+}: {
+  label: string;
+  valeurMin: number | null;
+  requisMin: number;
+  conforme: boolean | null;
+  absenceLabel: string;
+}) {
+  if (valeurMin === null) {
+    return (
+      <div className="flex items-center justify-between">
+        <span className="text-gray-500">{label}</span>
+        <span className="text-gray-400 italic">{absenceLabel}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-gray-500">{label}</span>
+      <span className={`font-mono font-semibold ${conforme ? "text-green-700" : "text-red-700"}`}>
+        {minutesToTime(valeurMin)}
+        <span className="font-normal text-gray-400 ml-1">/ {minutesToTime(requisMin)} min</span>
+        <span className="ml-1">{conforme ? "✓" : "✗"}</span>
+      </span>
+    </div>
+  );
+}
+
+// ─── Bloc GPT RP complet ─────────────────────────────────────────────────────
+
+function GptRpAnalyseBloc({ analyse }: { analyse: GptRpAnalyse }) {
+  const { label: tLabel, cls: tCls } = TRANSITION_CONFIG[analyse.transitionImpactee];
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-xs font-semibold text-gray-600">Repos périodiques — GPT</p>
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${tCls}`}>
+          {tLabel}
+        </span>
+      </div>
+      <div className="bg-white/70 rounded-lg p-2.5 space-y-1.5 text-xs">
+        {/* Identité de la GPT */}
+        <div className="flex items-center justify-between text-gray-500">
+          <span>GPT simulée</span>
+          <span className="font-mono text-gray-700">
+            {analyse.premierJsDate} → {analyse.dernierJsDate}
+            <span className="ml-1 text-gray-400">({analyse.gptLength}j)</span>
+          </span>
+        </div>
+
+        <div className="border-t border-gray-100 pt-1.5" />
+
+        {/* RP avant */}
+        <LigneRp
+          label="RP avant GPT"
+          valeurMin={analyse.rpAvantGptMin}
+          requisMin={analyse.rpAvantGptMinRequis}
+          conforme={analyse.rpAvantGptConforme}
+          absenceLabel="Pas de GPT précédente"
+        />
+
+        {/* RP après */}
+        <LigneRp
+          label="RP après GPT"
+          valeurMin={analyse.rpApresGptMin}
+          requisMin={analyse.rpApresGptMinRequis}
+          conforme={analyse.rpApresGptConforme}
+          absenceLabel="Pas de GPT suivante"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Statuts ─────────────────────────────────────────────────────────────────
 
 const STATUT_STYLES = {
   DIRECT: "bg-green-50 border-green-200",
@@ -152,6 +245,11 @@ export default function CandidatCard({ candidat }: { candidat: CandidatResult })
       {/* Détails calculs */}
       {open && (
         <div className="border-t border-white/50 px-4 py-3 bg-white/40 space-y-3">
+
+          {/* ── Repos périodiques autour de la GPT ── */}
+          {detail.gptRpAnalyse && (
+            <GptRpAnalyseBloc analyse={detail.gptRpAnalyse} />
+          )}
 
           {/* ── Analyse déplacement (LPA-based) ── */}
           {detail.deplacementInfo && (

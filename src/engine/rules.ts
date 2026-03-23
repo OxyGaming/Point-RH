@@ -16,6 +16,7 @@ import {
   isCongeOuAbsence,
   isJourTravailleGPT,
 } from "@/lib/gptUtils";
+import { analyserRpAutourGpt } from "@/lib/simulation/gptRpAnalyser";
 
 // ─── Types internes ────────────────────────────────────────────────────────────
 
@@ -477,6 +478,9 @@ export function evaluerMobilisabilite(
     motifPrincipal = violations[0].description;
   }
 
+  // ─ Analyse RP autour de la GPT impactée ─────────────────────────────────────
+  const gptRpAnalyse = analyserRpAutourGpt(eventsSimules, debutImprevu, rules, events);
+
   const detail: DetailCalcul = {
     amplitudeMaxAutorisee: amplitudeMax,
     amplitudeImprevu,
@@ -494,6 +498,7 @@ export function evaluerMobilisabilite(
     disponible: violations.length === 0,
     // Informations de déplacement calculées (null si non disponibles)
     deplacementInfo: effectiveService ?? null,
+    gptRpAnalyse,
   };
 
   return {

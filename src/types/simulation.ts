@@ -29,6 +29,53 @@ export interface RegleRespectee {
 
 import type { EffectiveServiceInfo } from "./deplacement";
 
+/**
+ * Analyse des Repos Périodiques (RP) encadrant la GPT affectée par la simulation.
+ * Concerne uniquement les transitions RP ↔ GPT, pas les repos journaliers inter-JS.
+ *
+ * V1 : RP simple uniquement (rpSimpleMin = 36h).
+ * V2 prévue : RP double/triple selon longueur GPT (hors périmètre V1).
+ */
+export interface GptRpAnalyse {
+  // ── Identité de la GPT post-simulation ────────────────────────────────────
+  /** Nombre de JS dans la GPT impactée (après injection) */
+  gptLength: number;
+  /** "YYYY-MM-DD" — premier jour de la GPT impactée */
+  premierJsDate: string;
+  /** "YYYY-MM-DD" — dernier jour de la GPT impactée */
+  dernierJsDate: string;
+
+  // ── Bornes de repos périodique (événements voisins) ───────────────────────
+  /** Fin du dernier JS de la GPT précédente (ISO string). Null = pas de GPT précédente. */
+  gptPrecedenteFin: string | null;
+  /** Début du premier JS de la GPT suivante (ISO string). Null = pas de GPT suivante. */
+  gptSuivanteDebut: string | null;
+
+  // ── Durées RP calculées (minutes) ─────────────────────────────────────────
+  /** Gap entre GPT précédente et GPT impactée. Null si pas de GPT précédente. */
+  rpAvantGptMin: number | null;
+  /** Gap entre GPT impactée et GPT suivante. Null si pas de GPT suivante. */
+  rpApresGptMin: number | null;
+
+  // ── Minimums requis (V1 : RP simple uniquement) ───────────────────────────
+  /** Toujours rpSimpleMin (2160 min = 36h) en V1. Prévu pour V2 (RP double). */
+  rpAvantGptMinRequis: number;
+  rpApresGptMinRequis: number;
+
+  // ── Conformité ────────────────────────────────────────────────────────────
+  /** Null si données absentes (pas de GPT voisine). */
+  rpAvantGptConforme: boolean | null;
+  rpApresGptConforme: boolean | null;
+
+  // ── Diagnostic de l'impact ────────────────────────────────────────────────
+  /**
+   * Synthèse des transitions dégradées ou non conformes après simulation.
+   * "AUCUNE" = les deux RP encadrants sont conformes ET non dégradés
+   * par rapport au planning original.
+   */
+  transitionImpactee: "AVANT" | "APRES" | "LES_DEUX" | "AUCUNE";
+}
+
 export interface DetailCalcul {
   amplitudeMaxAutorisee: number;
   amplitudeImprevu: number;
@@ -46,6 +93,11 @@ export interface DetailCalcul {
   disponible: boolean;
   /** Informations de déplacement calculées (null si non disponibles / LPA non configurée) */
   deplacementInfo: EffectiveServiceInfo | null;
+  /**
+   * Analyse des transitions RP autour de la GPT contenant la JS simulée.
+   * Null si le planning ne permet pas d'identifier une GPT.
+   */
+  gptRpAnalyse: GptRpAnalyse | null;
 }
 
 export interface ResultatAgentDetail {

@@ -52,6 +52,7 @@ function buildCandidat(
       pointsVigilance:           [],
       disponible:                true,
       deplacementInfo:           null,
+      gptRpAnalyse:              null,
     },
     ...overrides,
   };

@@ -7,7 +7,8 @@ import { evaluerMobilisabilite } from "@/engine/rules";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import { combineDateTime, diffMinutes, isJsDeNuit, getDateFinJs } from "@/lib/utils";
 import { loadWorkRules } from "@/lib/rules/workRulesLoader";
-import { preFilterCandidats, injecterJsDansPlanning } from "./candidateFinder";
+import { preFilterCandidats, injecterJsDansPlanning, trouverCandidatsParFigeage } from "./candidateFinder";
+import { loadJsTypeFlexibiliteMap } from "./jsTypeFlexibiliteLoader";
 import { detecterConflitsInduits } from "./conflictDetector";
 import { construireScenarios } from "./scenarioBuilder";
 import { scorerCandidatDetail } from "./scenarioScorer";
@@ -210,8 +211,112 @@ export async function executerSimulationJS(
     candidats.push({ ...candidatPartiel, scorePertinence: scoreBreakdown.total, scoreBreakdown });
   }
 
+  // ─── Étape 2bis : candidats libérés par figeage (DERNIER_RECOURS) ───────────
+  // Uniquement si autoriserFigeage est activé. Ces agents étaient exclus pour
+  // "Déjà en service" mais leur JS conflictuelle est DERNIER_RECOURS → on peut
+  // la figer pour les libérer vers la JS cible.
+  const agentsEvaluesViaFigeage = new Set<string>();
+
+  if (request.autoriserFigeage) {
+    const jsTypeFlexibiliteMap = await loadJsTypeFlexibiliteMap();
+    const candidatsFigeage = trouverCandidatsParFigeage(exclus, jsCible, imprevu, jsTypeFlexibiliteMap);
+
+    logger.info("FIGEAGE_CANDIDATS", {
+      data: { nbCandidatsFigeage: candidatsFigeage.length },
+    });
+
+    for (const { agent: { context }, eventsAvecFigeage, jsSourceFigee } of candidatsFigeage) {
+      const jsZOrigine = eventsAvecFigeage.find(
+        (e) =>
+          e.jsNpo === "JS" &&
+          isZeroLoadJs(e.codeJs) &&
+          e.dateDebut < finImprevu &&
+          e.dateFin > debutImprevu
+      ) ?? null;
+      const surJsZ = jsZOrigine !== null;
+
+      const effectiveService = effectiveServiceMap.get(context.id) ?? null;
+      const heureDebutSim = effectiveService ? effectiveService.heureDebutEffective : imprevu.heureDebutReel;
+      const heureFinSim   = effectiveService ? effectiveService.heureFinEffective   : imprevu.heureFinEstimee;
+      const deplacementEffectif =
+        effectiveService && effectiveService.estEnDeplacement !== null
+          ? effectiveService.estEnDeplacement
+          : imprevu.deplacement;
+
+      const simulationInput = {
+        importId: jsCible.importId,
+        dateDebut: jsCible.date,
+        dateFin: getDateFinJs(jsCible.date, heureDebutSim, heureFinSim),
+        heureDebut: heureDebutSim,
+        heureFin: heureFinSim,
+        poste: jsCible.codeJs ?? "JS",
+        codeJs: jsCible.codeJs,
+        remplacement: imprevu.remplacement,
+        deplacement: deplacementEffectif,
+        posteNuit: isNuitImprevu || jsCible.isNuit,
+      };
+
+      const eventsEffectifs = surJsZ
+        ? eventsAvecFigeage.filter((e) => e !== jsZOrigine)
+        : eventsAvecFigeage;
+
+      const resultat = evaluerMobilisabilite(context, eventsEffectifs, simulationInput, rules, effectiveService);
+
+      const eventsAvecJs = injecterJsDansPlanning(eventsEffectifs, jsCible, imprevu);
+      const conflitsInduits = detecterConflitsInduits(
+        eventsAvecJs,
+        finImprevu,
+        context.agentReserve,
+        imprevu.remplacement,
+        rules
+      );
+
+      const statut: StatutCandidat =
+        resultat.statut === "NON_CONFORME"
+          ? "REFUSE"
+          : resultat.statut === "VIGILANCE" || conflitsInduits.length > 0
+          ? "VIGILANCE"
+          : "DIRECT";
+
+      logger[statut === "REFUSE" ? "warn" : "info"](`AGENT_FIGEAGE_EVALUE_${statut}`, {
+        agentId: context.id,
+        data: { statut, jsSourceFigee: jsSourceFigee.codeJs },
+      });
+
+      const motifPrincipal =
+        statut === "REFUSE"
+          ? resultat.motifPrincipal
+          : conflitsInduits.length > 0
+          ? conflitsInduits[0].description
+          : resultat.motifPrincipal;
+
+      const candidatPartiel = {
+        agentId: context.id,
+        nom: context.nom,
+        prenom: context.prenom,
+        matricule: context.matricule,
+        posteAffectation: context.posteAffectation,
+        agentReserve: context.agentReserve,
+        surJsZ,
+        codeJsZOrigine: jsZOrigine?.codeJs ?? null,
+        statut,
+        motifPrincipal,
+        detail: resultat.detail,
+        conflitsInduits,
+        nbConflits: conflitsInduits.length,
+        jsSourceFigee,
+      };
+
+      const scoreBreakdown = scorerCandidatDetail(candidatPartiel);
+      candidats.push({ ...candidatPartiel, scorePertinence: scoreBreakdown.total, scoreBreakdown });
+      agentsEvaluesViaFigeage.add(context.id);
+    }
+  }
+
   // Ajouter les exclus comme refusés
   for (const { agent, raison } of exclus) {
+    // Ne pas doubler un agent déjà évalué via figeage
+    if (agentsEvaluesViaFigeage.has(agent.context.id)) continue;
     const effectiveService = effectiveServiceMap.get(agent.context.id) ?? null;
     const heureDebutSim = effectiveService
       ? effectiveService.heureDebutEffective

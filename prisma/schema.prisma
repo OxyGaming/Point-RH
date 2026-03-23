@@ -187,23 +187,37 @@ model WorkRule {
   updatedAt DateTime @updatedAt
 }
 
+// ─── Énumérations ─────────────────────────────────────────────────────────────
+
+/// Degré de priorité d'un type de JS dans la simulation.
+/// OBLIGATOIRE  : la JS doit être couverte ; pénalité maximale si non couverte.
+/// DERNIER_RECOURS : la JS peut rester non couverte ; pénalité réduite,
+///                  et l'agent planifié sur cette JS peut être "figé" pour
+///                  en libérer un autre (si autoriserFigeage est activé).
+enum FlexibiliteJs {
+  OBLIGATOIRE
+  DERNIER_RECOURS
+}
+
 // ─── Référentiel JsType ───────────────────────────────────────────────────────
 
 /// Type de journée de service (référentiel central).
 /// code peut être un préfixe (ex: "GIV") ou un typeJs exact (ex: "FIX").
 /// Définit les horaires standard et la nature nuit/jour.
 model JsType {
-  id                 String   @id @default(cuid())
-  code               String   @unique
+  id                 String        @id @default(cuid())
+  code               String        @unique
   libelle            String
-  heureDebutStandard String   // "HH:MM"
-  heureFinStandard   String   // "HH:MM"
-  dureeStandard      Int      // minutes
-  estNuit            Boolean  @default(false)
-  regime             String?  // optionnel : ex "B", "C"
-  actif              Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  heureDebutStandard String        // "HH:MM"
+  heureFinStandard   String        // "HH:MM"
+  dureeStandard      Int           // minutes
+  estNuit            Boolean       @default(false)
+  regime             String?       // optionnel : ex "B", "C"
+  actif              Boolean       @default(true)
+  /// Priorité de couverture en simulation. Configuré dans l'écran Types JS.
+  flexibilite        FlexibiliteJs @default(OBLIGATOIRE)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
 
   lpaJsTypes            LpaJsType[]
   agentDeplacementRules AgentJsDeplacementRule[]

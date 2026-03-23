@@ -2,6 +2,48 @@ import type { DetailCalcul, RegleViolation } from "./simulation";
 import type { ScoreBreakdownCandidat } from "@/lib/simulation/scenarioScorer";
 import type { LogEntry } from "@/engine/logger";
 
+// ─── Flexibilité des JS ───────────────────────────────────────────────────────
+
+/**
+ * Degré de priorité d'un type de JS dans la simulation.
+ * Configuré sur JsType dans l'écran "Types JS".
+ * - OBLIGATOIRE    : la JS doit être couverte ; pénalité maximale si non couverte.
+ * - DERNIER_RECOURS: non-couverture moins pénalisée ; l'agent planifié sur cette
+ *                   JS peut être figé pour en libérer un autre (si autoriserFigeage).
+ */
+export type FlexibiliteJs = "OBLIGATOIRE" | "DERNIER_RECOURS";
+
+// ─── Types de solution ────────────────────────────────────────────────────────
+
+/** Nature de la solution retenue pour couvrir une JS. */
+export type NatureSolution = "DIRECTE" | "CASCADE";
+// DIRECTE  → l'agent est directement disponible (libre ou réserve)
+// CASCADE  → l'agent avait une autre JS ; un remplaçant couvre cette JS d'origine
+
+/** Ajustement appliqué à la JS source de l'agent remplaçant. */
+export type AjustementSolution =
+  | "AUCUN"             // agent était libre — aucune JS figée
+  | "FIGEAGE_DIRECT"    // la JS source de l'agent principal est figée (DERNIER_RECOURS)
+  | "FIGEAGE_INDIRECT"; // la JS source d'un agent de cascade est figée
+
+export interface SolutionJs {
+  nature:     NatureSolution;
+  ajustement: AjustementSolution;
+}
+
+/**
+ * Informations sur la JS source figée pour libérer un agent.
+ * Non null ssi ajustement !== 'AUCUN'.
+ * En V1 : toujours rattachée à une JS DERNIER_RECOURS.
+ */
+export interface JsSourceFigee {
+  planningLigneId: string;
+  codeJs:          string | null;
+  flexibilite:     FlexibiliteJs;  // toujours 'DERNIER_RECOURS' en V1
+  agentId:         string;         // agent dont la JS a été figée
+  justification:   string;         // ex: "JS GIV002 (DERNIER_RECOURS) figée — agent libéré vers GIV001 le 2024-03-20"
+}
+
 // ─── JS Cible ────────────────────────────────────────────────────────────────
 
 export interface JsCible {
@@ -21,6 +63,8 @@ export interface JsCible {
   typeJs: string | null;
   isNuit: boolean;
   importId: string;
+  /** Priorité de couverture — propagée depuis JsType.flexibilite. Défaut : OBLIGATOIRE. */
+  flexibilite: FlexibiliteJs;
 }
 
 // ─── Contexte simulation ──────────────────────────────────────────────────────
@@ -37,6 +81,12 @@ export interface ImpreuvuConfig {
 export interface JsSimulationRequest {
   jsCible: JsCible;
   imprevu: ImpreuvuConfig;
+  /**
+   * Si true, le moteur peut libérer un agent planifié sur une JS DERNIER_RECOURS
+   * en la figeant, pour le proposer comme candidat.
+   * Défaut false — comportement identique à aujourd'hui si non fourni.
+   */
+  autoriserFigeage?: boolean;
 }
 
 // ─── Conflit induit ────────────────────────────────────────────────────────────
@@ -85,6 +135,12 @@ export interface CandidatResult {
   detail: DetailCalcul;
   conflitsInduits: ConflitInduit[];
   nbConflits: number;
+  /**
+   * JS source figée pour libérer cet agent (FIGEAGE_DIRECT).
+   * null si l'agent était libre — aucun figeage appliqué.
+   * Le score candidat n'est pas affecté par la présence de ce champ.
+   */
+  jsSourceFigee?: JsSourceFigee | null;
 }
 
 // ─── Modification planning ─────────────────────────────────────────────────────
@@ -136,6 +192,13 @@ export interface Scenario {
   nbModifications: number;
   profondeurCascade: number;
   justification: string;
+  /** Nature et ajustement de la solution retenue pour ce scénario. */
+  solution: SolutionJs;
+  /**
+   * JS source figée pour libérer l'agent principal.
+   * null si ajustement === 'AUCUN' (aucun figeage dans ce scénario).
+   */
+  jsSourceFigee: JsSourceFigee | null;
 }
 
 // ─── Résultat global ──────────────────────────────────────────────────────────

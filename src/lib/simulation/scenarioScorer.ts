@@ -186,10 +186,14 @@ export const POIDS_SCORE_SCENARIO_MULTI = {
   bonusMaxReserve:       10,
   /** Pénalité par affectation VIGILANCE */
   penaliteParVigilance:   5,
-  /** Pénalité par conflit BLOQUANT non résolu */
+  /** Pénalité par JS OBLIGATOIRE non couverte */
   penaliteConflitBloquant: 10,
+  /** Pénalité par JS DERNIER_RECOURS non couverte (réduite) */
+  penaliteJsDernierRecours: 5,
   /** Pénalité par conflit AVERTISSEMENT */
   penaliteConflitAvert:   3,
+  /** Coût par figeage appliqué (impact sur le score scénario, pas le score candidat) */
+  penaliteParFigeage:     3,
 } as const;
 
 // ─── Conformité finale ────────────────────────────────────────────────────────

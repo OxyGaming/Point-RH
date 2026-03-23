@@ -8,7 +8,7 @@
  *   – Construire le scénario résultant avec métriques et conflits détectés
  */
 
-import type { JsCible } from "@/types/js-simulation";
+import type { JsCible, FlexibiliteJs } from "@/types/js-simulation";
 import type {
   AffectationJs,
   AffectationsParAgent,
@@ -108,13 +108,31 @@ export function allouerJsMultiple(
   /** Logger de traçabilité — optionnel, aucun log si absent */
   logger?: LogCollector
 ): MultiJsScenario {
+  // Helper : priorité de flexibilité pour le tri des JS cibles
+  const flexPrio = (f: FlexibiliteJs) => f === "OBLIGATOIRE" ? 0 : 1;
   const id = generateScenarioId();
 
-  // ─── Tri par difficulté (moins de candidats → traité en premier) ──────────────
+  // ─── Tri des JS cibles ────────────────────────────────────────────────────────
+  // Priorité 1 : flexibilité (OBLIGATOIRE avant DERNIER_RECOURS — couvrir l'essentiel en premier)
+  // Priorité 2 : difficulté (moins de candidats → traité en premier, à criticité égale)
   const sortedJs = [...jsCibles].sort((a, b) => {
+    const flexDiff = flexPrio(a.flexibilite) - flexPrio(b.flexibilite);
+    if (flexDiff !== 0) return flexDiff;
     const nA = candidatesPerJs.get(a.planningLigneId)?.length ?? 0;
     const nB = candidatesPerJs.get(b.planningLigneId)?.length ?? 0;
     return nA - nB;
+  });
+
+  logger?.info("MULTI_JS_ORDERED_BY_FLEX", {
+    data: {
+      scenarioId: id,
+      ordre: sortedJs.map((js) => ({
+        id: js.planningLigneId,
+        codeJs: js.codeJs,
+        flexibilite: js.flexibilite,
+        nbCandidats: candidatesPerJs.get(js.planningLigneId)?.length ?? 0,
+      })),
+    },
   });
 
   // ─── État du scénario en construction ────────────────────────────────────────
@@ -185,6 +203,7 @@ export function allouerJsMultiple(
         conflitsInduits.length > 0 ? "VIGILANCE" : (statut as "DIRECT" | "VIGILANCE");
 
       // ─── Enregistrer l'affectation ──────────────────────────────────────────
+      const jsSourceFigeeAff = candidat.jsSourceFigee ?? null;
       affectations.set(js.planningLigneId, {
         jsId: js.planningLigneId,
         jsCible: js,
@@ -207,7 +226,25 @@ export function allouerJsMultiple(
         cascadeImpacts: [],
         nbCascadesResolues: 0,
         nbCascadesNonResolues: 0,
+        solution: {
+          nature: "DIRECTE",
+          ajustement: jsSourceFigeeAff ? "FIGEAGE_DIRECT" : "AUCUN",
+        },
+        jsSourceFigee: jsSourceFigeeAff,
       });
+
+      if (jsSourceFigeeAff) {
+        logger?.info("MULTI_FIGEAGE_APPLIED", {
+          jsId: js.planningLigneId,
+          agentId: candidat.agentId,
+          data: {
+            scenarioId: id,
+            codeJsCible: js.codeJs,
+            jsSourceFigeeCode: jsSourceFigeeAff.codeJs,
+            jsSourceFigeeId: jsSourceFigeeAff.planningLigneId,
+          },
+        });
+      }
 
       agentAssignments.set(candidat.agentId, [...existingAssignments, js]);
       assigned = true;
@@ -335,6 +372,9 @@ export function allouerJsMultiple(
         cascadeImpacts: [],
         nbCascadesResolues: 0,
         nbCascadesNonResolues: 0,
+        // Phase 1 — valeurs neutres ; la logique de figeage sera implémentée en Phase 2
+        solution: { nature: "CASCADE", ajustement: "AUCUN" },
+        jsSourceFigee: null,
       });
 
       // 2. Réaffecter l'agent remplaçant → jsAffectee
@@ -370,6 +410,9 @@ export function allouerJsMultiple(
         cascadeImpacts: [],
         nbCascadesResolues: 0,
         nbCascadesNonResolues: 0,
+        // Phase 1 — valeurs neutres ; la logique de figeage sera implémentée en Phase 2
+        solution: { nature: "DIRECTE", ajustement: "AUCUN" },
+        jsSourceFigee: null,
       });
 
       // 3. Mettre à jour agentAssignments
@@ -531,9 +574,21 @@ export function allouerJsMultiple(
   const nbVigilance = Array.from(affectations.values()).filter((a) => a.statut === "VIGILANCE").length;
   score -= nbVigilance * POIDS_SCORE_SCENARIO_MULTI.penaliteParVigilance;
 
-  // Pénalité conflits bloquants et avertissements
-  score -= conflitsGlobaux.filter((c) => c.severity === "BLOQUANT").length  * POIDS_SCORE_SCENARIO_MULTI.penaliteConflitBloquant;
+  // Pénalité JS non couvertes — différenciée selon flexibilité
+  // Les JS OBLIGATOIRE non couvertes sont plus pénalisées que les DERNIER_RECOURS.
+  // On n'utilise pas conflitsGlobaux.BLOQUANT pour éviter le double-comptage avec jsNonCouvertes.
+  const nbNonCouvertesOblig = jsNonCouvertes.filter((js) => js.flexibilite !== "DERNIER_RECOURS").length;
+  const nbNonCouvertesDR    = jsNonCouvertes.filter((js) => js.flexibilite === "DERNIER_RECOURS").length;
+  score -= nbNonCouvertesOblig * POIDS_SCORE_SCENARIO_MULTI.penaliteConflitBloquant;
+  score -= nbNonCouvertesDR   * POIDS_SCORE_SCENARIO_MULTI.penaliteJsDernierRecours;
+
+  // Pénalité des autres conflits bloquants (hors AUCUN_CANDIDAT déjà comptés ci-dessus)
+  score -= conflitsGlobaux.filter((c) => c.severity === "BLOQUANT" && c.type !== "AUCUN_CANDIDAT").length * POIDS_SCORE_SCENARIO_MULTI.penaliteConflitBloquant;
   score -= conflitsGlobaux.filter((c) => c.severity === "AVERTISSEMENT").length * POIDS_SCORE_SCENARIO_MULTI.penaliteConflitAvert;
+
+  // Pénalité figeage (coût d'un figeage sur le score scénario, pas sur le score candidat)
+  const nbFigeages = Array.from(affectations.values()).filter((a) => a.jsSourceFigee !== null).length;
+  score -= nbFigeages * POIDS_SCORE_SCENARIO_MULTI.penaliteParFigeage;
 
   score = Math.min(100, Math.max(0, score));
 

@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
         jsNpo: ligne.jsNpo as "JS" | "NPO",
         codeJs: ligne.codeJs,
         typeJs: ligne.typeJs,
+        planningLigneId: ligne.id,
       });
     }
 

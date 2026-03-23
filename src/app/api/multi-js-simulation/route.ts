@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
       candidateScope,
       deplacement = false,
       remplacement = true,
+      autoriserFigeage = false,
     } = body;
 
     if (!importId || !jsSelectionnees?.length || !candidateScope) {
@@ -98,7 +99,8 @@ export async function POST(req: NextRequest) {
       agents,
       candidateScope,
       remplacement,
-      deplacement
+      deplacement,
+      autoriserFigeage
     );
 
     return NextResponse.json(resultat, { status: 200 });

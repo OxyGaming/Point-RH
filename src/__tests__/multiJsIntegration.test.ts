@@ -66,6 +66,7 @@ function makeJs(
     typeJs: null,
     isNuit: false,
     importId: "import-test",
+    flexibilite: "OBLIGATOIRE" as const,
   };
 }
 

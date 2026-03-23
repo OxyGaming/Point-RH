@@ -40,6 +40,7 @@ function makeJs(
     typeJs: null,
     isNuit: false,
     importId: "import-1",
+    flexibilite: "OBLIGATOIRE" as const,
     ...overrides,
   };
 }

@@ -2,7 +2,7 @@
  * Types pour la simulation multi-JS (grève, perturbation majeure, absences multiples)
  */
 
-import type { JsCible, ConflitInduit, ModificationPlanning, ImpactCascade } from "./js-simulation";
+import type { JsCible, ConflitInduit, ModificationPlanning, ImpactCascade, SolutionJs, JsSourceFigee, FlexibiliteJs } from "./js-simulation";
 import type { Exclusion } from "@/engine/ruleTypes";
 import type { LogEntry } from "@/engine/logger";
 
@@ -19,6 +19,11 @@ export interface MultiJsSimulationRequest {
   candidateScope: CandidateScope;
   deplacement?: boolean;
   remplacement?: boolean;
+  /**
+   * Si true, l'allocateur peut figer une JS DERNIER_RECOURS pour libérer son agent.
+   * Défaut false — aucun figeage sans activation explicite.
+   */
+  autoriserFigeage?: boolean;
 }
 
 // ─── Candidat interne (avant allocation) ─────────────────────────────────────
@@ -34,6 +39,11 @@ export interface CandidatMultiJs {
   statut: "DIRECT" | "VIGILANCE";
   motif: string;
   conflitsInduits: ConflitInduit[];
+  /**
+   * Renseigné si l'agent est libéré par figeage de sa JS source DERNIER_RECOURS.
+   * null si l'agent était libre ou sur JS Z — aucun figeage appliqué.
+   */
+  jsSourceFigee?: JsSourceFigee | null;
 }
 
 // ─── Situation initiale de l'agent remplaçant ────────────────────────────────
@@ -76,6 +86,13 @@ export interface AffectationJs {
   nbCascadesResolues: number;
   /** Nombre de conflits induits non résolus malgré la tentative cascade */
   nbCascadesNonResolues: number;
+  /** Nature et ajustement de la solution retenue pour cette affectation. */
+  solution: SolutionJs;
+  /**
+   * JS source figée pour libérer l'agent affecté.
+   * null si ajustement === 'AUCUN' (aucun figeage).
+   */
+  jsSourceFigee: JsSourceFigee | null;
 }
 
 // ─── Conflit détecté dans le scénario global ─────────────────────────────────
@@ -200,6 +217,8 @@ export interface JsTimeline {
   date: string;            // "YYYY-MM-DD"
   heureDebut: string;      // horaires du planning de l'agent (peuvent inclure son trajet)
   heureFin: string;
+  /** Propagé depuis JsType.flexibilite. Optionnel en Phase 1 — défaut OBLIGATOIRE si absent. */
+  flexibilite?: FlexibiliteJs;
   /** Horaires standard du JsType de référence (indépendants du trajet de l'agent initial) */
   heureDebutJsType?: string; // "HH:MM"
   heureFinJsType?: string;   // "HH:MM"

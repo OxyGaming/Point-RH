@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { cn, isJsDeNuit } from "@/lib/utils";
 import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
-import type { JsCible } from "@/types/js-simulation";
+import type { JsCible, FlexibiliteJs } from "@/types/js-simulation";
 
 interface PlanningLigne {
   id: string;
@@ -18,6 +18,8 @@ interface PlanningLigne {
   amplitudeHHMM: string | null;
   typeJs: string | null;
   amplitudeCentesimal: number | null;
+  /** Propagé depuis JsType.flexibilite — défaut OBLIGATOIRE */
+  flexibilite?: FlexibiliteJs;
 }
 
 // ─── Calcul GPT ──────────────────────────────────────────────────────────────
@@ -146,6 +148,7 @@ export default function PlanningTimeline({
       typeJs: ligne.typeJs,
       isNuit: isJsDeNuit(ligne.heureDebutPop, ligne.heureFinPop),
       importId,
+      flexibilite: ligne.flexibilite ?? "OBLIGATOIRE",
     };
 
     onJsSelected(jsCible);

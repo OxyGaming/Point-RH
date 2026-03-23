@@ -3,7 +3,7 @@
 import { useState } from "react";
 import PlanningTimeline from "@/components/js-simulation/PlanningTimeline";
 import JsAnalysisPanel from "@/components/js-simulation/JsAnalysisPanel";
-import type { JsCible } from "@/types/js-simulation";
+import type { JsCible, FlexibiliteJs } from "@/types/js-simulation";
 
 interface PlanningLigne {
   id: string;
@@ -18,6 +18,8 @@ interface PlanningLigne {
   amplitudeHHMM: string | null;
   typeJs: string | null;
   amplitudeCentesimal: number | null;
+  /** Propagé depuis JsType.flexibilite — défaut OBLIGATOIRE */
+  flexibilite?: FlexibiliteJs;
 }
 
 interface Props {

@@ -90,6 +90,11 @@ export function construireScenarios(
       nbModifications: allModifications.length,
       profondeurCascade: profondeur,
       justification: buildJustification(candidat, nbResolu, nbConflitsResidus),
+      solution: {
+        nature: modifications.length > 0 ? "CASCADE" : "DIRECTE",
+        ajustement: candidat.jsSourceFigee ? "FIGEAGE_DIRECT" : "AUCUN",
+      },
+      jsSourceFigee: candidat.jsSourceFigee ?? null,
     };
 
     scenarios.push(scenario);
@@ -110,13 +115,19 @@ function buildScenarioDirect(
   const score = scorerScenario("CONFORME", 1, 0, 0);
 
   const titreZSuffix = candidat.surJsZ ? ` (libéré de JS Z : ${candidat.codeJsZOrigine})` : "";
+  const titreFigeageSuffix = candidat.jsSourceFigee
+    ? ` [figeage JS ${candidat.jsSourceFigee.codeJs ?? "source"}]`
+    : "";
   const justifZ = candidat.surJsZ
     ? ` Agent prévu sur une JS de type Z (${candidat.codeJsZOrigine}) — réaffectation sans besoin de remplacement de la journée d'origine.`
+    : "";
+  const justifFigeage = candidat.jsSourceFigee
+    ? ` JS ${candidat.jsSourceFigee.codeJs ?? "source"} (DERNIER_RECOURS) figée pour libérer l'agent.`
     : "";
 
   return {
     id: `scenario-${scenarioCounter}`,
-    titre: `${candidat.nom} ${candidat.prenom} reprend directement la JS${titreZSuffix}`,
+    titre: `${candidat.nom} ${candidat.prenom} reprend directement la JS${titreZSuffix}${titreFigeageSuffix}`,
     score,
     agentPrincipalId: candidat.agentId,
     agentPrincipalNom: candidat.nom,
@@ -136,7 +147,12 @@ function buildScenarioDirect(
     conformiteFinale: "CONFORME",
     nbModifications: 1,
     profondeurCascade: 0,
-    justification: `Solution idéale — ${candidat.nom} est disponible et toutes les règles sont respectées.${justifZ}`,
+    justification: `Solution idéale — ${candidat.nom} est disponible et toutes les règles sont respectées.${justifZ}${justifFigeage}`,
+    solution: {
+      nature: "DIRECTE",
+      ajustement: candidat.jsSourceFigee ? "FIGEAGE_DIRECT" : "AUCUN",
+    },
+    jsSourceFigee: candidat.jsSourceFigee ?? null,
   };
 }
 

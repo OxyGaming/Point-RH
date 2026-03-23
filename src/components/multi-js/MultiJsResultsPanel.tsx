@@ -84,6 +84,33 @@ function SeveriteBadge({ severity }: { severity: string }) {
   );
 }
 
+function FlexibiliteBadge({ flexibilite }: { flexibilite: string }) {
+  if (flexibilite === "DERNIER_RECOURS") {
+    return (
+      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700">
+        DERNIER RECOURS
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700">
+      OBLIGATOIRE
+    </span>
+  );
+}
+
+function FigeageBadge({ justification }: { justification: string }) {
+  return (
+    <div className="mt-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1">
+      <p className="text-[10px] font-semibold text-amber-700 flex items-center gap-1 mb-0.5">
+        <span>🔒</span>
+        <span>JS figée — DERNIER RECOURS</span>
+      </p>
+      <p className="text-[10px] text-amber-800">{justification}</p>
+    </div>
+  );
+}
+
 function ScopeBadge({ scope }: { scope: string }) {
   return (
     <span className={cn(
@@ -334,6 +361,11 @@ function AffectationsTable({ affectations }: { affectations: AffectationJs[] }) 
               modifications={aff.cascadeModifications}
               impacts={aff.cascadeImpacts}
             />
+
+            {/* Figeage JS source */}
+            {aff.jsSourceFigee && (
+              <FigeageBadge justification={aff.jsSourceFigee.justification} />
+            )}
           </div>
         );
       })}
@@ -430,6 +462,11 @@ function AgentCard({ agent }: { agent: AffectationsParAgent }) {
                   modifications={aff.cascadeModifications}
                   impacts={aff.cascadeImpacts}
                 />
+
+                {/* Figeage JS source */}
+                {aff.jsSourceFigee && (
+                  <FigeageBadge justification={aff.jsSourceFigee.justification} />
+                )}
               </div>
             );
           })}
@@ -717,13 +754,23 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
                   {scenario.jsNonCouvertes.map((js) => (
                     <div
                       key={js.planningLigneId}
-                      className="flex items-center gap-3 p-3 bg-red-50 border border-red-200 rounded-lg"
+                      className={cn(
+                        "flex items-center gap-3 p-3 border rounded-lg",
+                        js.flexibilite === "DERNIER_RECOURS"
+                          ? "bg-amber-50 border-amber-200"
+                          : "bg-red-50 border-red-200"
+                      )}
                     >
-                      <span className="text-red-400 text-lg">⛔</span>
+                      <span className={cn("text-lg", js.flexibilite === "DERNIER_RECOURS" ? "text-amber-400" : "text-red-400")}>
+                        {js.flexibilite === "DERNIER_RECOURS" ? "⚠️" : "⛔"}
+                      </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-bold text-slate-800">
-                          {js.codeJs ?? "JS sans code"}
-                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-xs font-bold text-slate-800">
+                            {js.codeJs ?? "JS sans code"}
+                          </p>
+                          <FlexibiliteBadge flexibilite={js.flexibilite} />
+                        </div>
                         <p className="text-[10px] text-slate-500">
                           {new Date(js.date).toLocaleDateString("fr-FR", {
                             weekday: "long",

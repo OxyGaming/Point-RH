@@ -71,6 +71,8 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
       amplitudeHHMM: l.amplitudeHHMM,
       typeJs: l.typeJs,
       amplitudeCentesimal: l.amplitudeCentesimal,
+      // Propagation depuis JsType — défaut OBLIGATOIRE si aucun JsType résolu
+      flexibilite: jsType?.flexibilite ?? "OBLIGATOIRE",
     };
   });
 

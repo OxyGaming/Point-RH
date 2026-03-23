@@ -68,6 +68,17 @@ export default function ScenarioCard({ scenario, index }: { scenario: Scenario; 
       <div className="px-4 py-3">
         <p className="text-xs text-gray-600 italic">{scenario.justification}</p>
 
+        {/* Figeage — affiché uniquement si une JS source a été figée */}
+        {scenario.jsSourceFigee && (
+          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+            <p className="text-[10px] font-semibold text-amber-700 flex items-center gap-1 mb-0.5">
+              <span>🔒</span>
+              <span>JS figée — DERNIER RECOURS</span>
+            </p>
+            <p className="text-[10px] text-amber-800">{scenario.jsSourceFigee.justification}</p>
+          </div>
+        )}
+
         {/* Modifications résumé */}
         <div className="mt-3 space-y-2">
           {scenario.modifications.map((m, i) => (

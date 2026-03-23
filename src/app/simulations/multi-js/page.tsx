@@ -137,6 +137,8 @@ export default function MultiJsPage() {
         typeJs: js.typeJs,
         isNuit: js.isNuit,
         importId,
+        // Propagé depuis JsTimeline.flexibilite — défaut OBLIGATOIRE tant que l'API ne l'expose pas
+        flexibilite: js.flexibilite ?? ("OBLIGATOIRE" as const),
       }));
   }, [allJs, selectedIds, importId]);
 

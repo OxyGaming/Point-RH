@@ -10,13 +10,13 @@ import { combineDateTime, getDateFinJs } from "@/lib/utils";
 import { evaluerMobilisabilite } from "@/engine/rules";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { WorkRulesMinutes } from "@/lib/rules/workRules";
-import type { JsCible, ImpreuvuConfig } from "@/types/js-simulation";
+import type { JsCible, ImpreuvuConfig, FlexibiliteJs, JsSourceFigee } from "@/types/js-simulation";
 import type { CandidatMultiJs, CandidateScope, MultiJsExclusion } from "@/types/multi-js-simulation";
 import { isZeroLoadJs, isAbsenceInaptitude } from "@/lib/simulation/jsUtils";
 import { scorerCandidat } from "@/lib/simulation/scenarioScorer";
 import { isJsDeNuit, diffMinutes } from "@/lib/utils";
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
-import { injecterJsDansPlanning } from "@/lib/simulation/candidateFinder";
+import { injecterJsDansPlanning, resolveFlexibiliteEvent } from "@/lib/simulation/candidateFinder";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
 import type { Exclusion } from "@/engine/ruleTypes";
 
@@ -61,7 +61,11 @@ export function trouverCandidatsPourJs(
   remplacement = true,
   deplacement = false,
   effectiveServiceMap?: Map<string, EffectiveServiceInfo>,
-  npoExclusionCodes: string[] = []
+  npoExclusionCodes: string[] = [],
+  /** Si true, un agent dont la JS source est DERNIER_RECOURS peut être libéré par figeage */
+  autoriserFigeage = false,
+  /** Map JsType.code → FlexibiliteJs, requise si autoriserFigeage */
+  jsTypeFlexibiliteMap?: Map<string, FlexibiliteJs>
 ): CandidatsEtExclusions {
   const imprevu = buildImprevu(js, remplacement, deplacement);
   const debutImprevu = combineDateTime(js.date, js.heureDebut);
@@ -142,22 +146,44 @@ export function trouverCandidatsPourJs(
     }
 
     // L'agent ne doit pas avoir une JS non-Z en conflit horaire
-    const conflit = events.find((e) => {
+    // Exception : figeage autorisé + JS source DERNIER_RECOURS → agent libérable
+    const conflitEvent = events.find((e) => {
       if (e.jsNpo !== "JS") return false;
       if (isZeroLoadJs(e.codeJs)) return false;
       return e.dateDebut < finImprevu && e.dateFin > debutImprevu;
     });
-    if (conflit) {
-      exclure(
-        context,
-        `Déjà en service pendant l'imprévu (${conflit.codeJs ?? conflit.heureDebut}–${conflit.heureFin})`,
-        "CONFLIT_HORAIRE"
-      );
-      continue;
+
+    let eventsBase = events;
+    let jsSourceFigeeCandidat: JsSourceFigee | null = null;
+
+    if (conflitEvent) {
+      let figeable = false;
+      if (autoriserFigeage && jsTypeFlexibiliteMap) {
+        const flex = resolveFlexibiliteEvent(conflitEvent, jsTypeFlexibiliteMap);
+        if (flex === "DERNIER_RECOURS") {
+          figeable = true;
+          jsSourceFigeeCandidat = {
+            planningLigneId: conflitEvent.planningLigneId ?? "",
+            codeJs: conflitEvent.codeJs,
+            flexibilite: "DERNIER_RECOURS",
+            agentId: context.id,
+            justification: `JS ${conflitEvent.codeJs ?? "source"} (DERNIER_RECOURS) figée — ${context.nom} ${context.prenom} libéré vers ${js.codeJs ?? "JS cible"} le ${js.date}`,
+          };
+          eventsBase = events.filter((e) => e !== conflitEvent);
+        }
+      }
+      if (!figeable) {
+        exclure(
+          context,
+          `Déjà en service pendant l'imprévu (${conflitEvent.codeJs ?? conflitEvent.heureDebut}–${conflitEvent.heureFin})`,
+          "CONFLIT_HORAIRE"
+        );
+        continue;
+      }
     }
 
-    // JS Z : obtenir la JS Z d'origine si présente
-    const jsZOrigine = events.find(
+    // JS Z : obtenir la JS Z d'origine si présente (sur eventsBase)
+    const jsZOrigine = eventsBase.find(
       (e) =>
         e.jsNpo === "JS" &&
         isZeroLoadJs(e.codeJs) &&
@@ -167,8 +193,8 @@ export function trouverCandidatsPourJs(
     const surJsZ = jsZOrigine !== null;
 
     const eventsEffectifs = surJsZ
-      ? events.filter((e) => e !== jsZOrigine)
-      : events;
+      ? eventsBase.filter((e) => e !== jsZOrigine)
+      : eventsBase;
 
     // ─── Service effectif LPA-based ────────────────────────────────────────────
     const effectiveService = effectiveServiceMap?.get(`${context.id}:${js.planningLigneId}`) ?? null;
@@ -248,6 +274,7 @@ export function trouverCandidatsPourJs(
       statut,
       motif: resultat.motifPrincipal,
       conflitsInduits,
+      jsSourceFigee: jsSourceFigeeCandidat,
     });
   }
 

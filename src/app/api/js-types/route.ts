@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
     dureeStandard?: number;
     estNuit?: boolean;
     regime?: string | null;
+    flexibilite?: "OBLIGATOIRE" | "DERNIER_RECOURS";
   };
 
   if (!body.code?.trim() || !body.libelle?.trim()) {
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
         dureeStandard: body.dureeStandard,
         estNuit: body.estNuit ?? false,
         regime: body.regime ?? null,
+        flexibilite: body.flexibilite ?? "OBLIGATOIRE",
       },
     });
     return NextResponse.json(jsType, { status: 201 });

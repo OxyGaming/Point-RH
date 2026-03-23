@@ -36,6 +36,7 @@ function makeJs(overrides: Partial<JsCible> = {}): JsCible {
     typeJs:          null,
     isNuit:          false,
     importId:        "import-1",
+    flexibilite:     "OBLIGATOIRE" as const,
     ...overrides,
   };
 }

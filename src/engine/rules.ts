@@ -45,6 +45,8 @@ export interface PlanningEvent {
   jsNpo: "JS" | "NPO";
   codeJs: string | null;
   typeJs: string | null;
+  /** ID de la ligne de planning source — optionnel, renseigné par les routes API pour le figeage. */
+  planningLigneId?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

@@ -12,7 +12,7 @@
 
 import { loadWorkRules } from "@/lib/rules/workRulesLoader";
 import { loadNpoExclusionCodes } from "@/lib/simulation/npoExclusionLoader";
-import type { JsCible } from "@/types/js-simulation";
+import type { JsCible, FlexibiliteJs } from "@/types/js-simulation";
 import type { MultiJsSimulationResultat, CandidateScope } from "@/types/multi-js-simulation";
 import { trouverCandidatsPourJs } from "./multiJsCandidateFinder";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
@@ -30,7 +30,8 @@ export async function executerSimulationMultiJs(
   agents: AgentDataMultiJs[],
   candidateScope: CandidateScope,
   remplacement = true,
-  deplacement = false
+  deplacement = false,
+  autoriserFigeage = false
 ): Promise<MultiJsSimulationResultat> {
   const logger = createLogger();
 
@@ -41,11 +42,18 @@ export async function executerSimulationMultiJs(
       candidateScope,
       remplacement,
       deplacement,
+      autoriserFigeage,
     },
   });
 
   const rules = await loadWorkRules();
   const npoExclusionCodes = await loadNpoExclusionCodes();
+
+  // Charger la map JsType → flexibilité uniquement si le figeage est activé.
+  // Import dynamique pour isoler la dépendance "server-only" (Prisma) du contexte de test.
+  const jsTypeFlexibiliteMap: Map<string, FlexibiliteJs> | undefined = autoriserFigeage
+    ? await (await import("@/lib/simulation/jsTypeFlexibiliteLoader")).loadJsTypeFlexibiliteMap()
+    : undefined;
 
   const agentsMap = new Map(agents.map((a) => [a.context.id, a]));
 
@@ -84,7 +92,8 @@ export async function executerSimulationMultiJs(
 
     for (const js of jsSelectionnees) {
       const { candidats, exclusions } = trouverCandidatsPourJs(
-        js, agents, scope, rules, remplacement, deplacement, effectiveServiceMap, npoExclusionCodes
+        js, agents, scope, rules, remplacement, deplacement, effectiveServiceMap, npoExclusionCodes,
+        autoriserFigeage, jsTypeFlexibiliteMap
       );
       candidatesPerJs.set(js.planningLigneId, candidats);
       exclusionsPerJs.set(js.planningLigneId, exclusions);

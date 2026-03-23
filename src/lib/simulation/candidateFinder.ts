@@ -5,10 +5,15 @@
 
 import { combineDateTime, diffMinutes, timeToMinutes } from "@/lib/utils";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
-import type { JsCible, ImpreuvuConfig } from "@/types/js-simulation";
+import type { JsCible, ImpreuvuConfig, FlexibiliteJs, JsSourceFigee } from "@/types/js-simulation";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
 import { isZeroLoadJs, isAbsenceInaptitude } from "./jsUtils";
 import { isJourTravailleGPT } from "@/lib/gptUtils";
+
+// ─── Constante de raison d'exclusion ─────────────────────────────────────────
+// Utilisée à la fois dans preFilterCandidats et trouverCandidatsParFigeage
+// pour éviter le matching par chaîne littérale.
+export const RAISON_DEJA_EN_SERVICE = "Déjà en service pendant l'imprévu";
 
 export interface AgentWithPlanning {
   context: AgentContext;
@@ -111,7 +116,7 @@ export function preFilterCandidats(
     });
 
     if (conflit) {
-      exclus.push({ agent: a, raison: "Déjà en service pendant l'imprévu" });
+      exclus.push({ agent: a, raison: RAISON_DEJA_EN_SERVICE });
       continue;
     }
 
@@ -119,6 +124,100 @@ export function preFilterCandidats(
   }
 
   return { eligible, exclus };
+}
+
+// ─── Figeage ──────────────────────────────────────────────────────────────────
+
+/**
+ * Résout la FlexibiliteJs d'un événement en cherchant dans la map JsType.
+ * Logique : match exact sur typeJs, puis match par préfixe sur codeJs.
+ * Retourne 'OBLIGATOIRE' par défaut (comportement sécurisé).
+ */
+export function resolveFlexibiliteEvent(
+  event: PlanningEvent,
+  jsTypeFlexibiliteMap: Map<string, FlexibiliteJs>
+): FlexibiliteJs {
+  if (event.typeJs) {
+    const f = jsTypeFlexibiliteMap.get(event.typeJs);
+    if (f !== undefined) return f;
+  }
+  if (event.codeJs) {
+    const prefix = event.codeJs.trim().split(" ")[0] ?? "";
+    for (const [code, flex] of jsTypeFlexibiliteMap) {
+      if (
+        prefix.toUpperCase().startsWith(code.toUpperCase()) ||
+        code.toUpperCase() === prefix.toUpperCase()
+      ) {
+        return flex;
+      }
+    }
+  }
+  return "OBLIGATOIRE";
+}
+
+/**
+ * Candidat proposé par figeage de sa JS source DERNIER_RECOURS.
+ */
+export interface CandidatFigeage {
+  agent: AgentWithPlanning;
+  /** Informations sur la JS figée pour audit et affichage. */
+  jsSourceFigee: JsSourceFigee;
+  /** Planning de l'agent sans la JS figée — utilisé pour evaluerMobilisabilite. */
+  eventsAvecFigeage: PlanningEvent[];
+}
+
+/**
+ * Identifie les agents exclus pour "Déjà en service" dont la JS source est
+ * DERNIER_RECOURS, et les retourne comme candidats libérables par figeage.
+ *
+ * Invariants :
+ * - Une JS OBLIGATOIRE ne peut jamais être figée.
+ * - Le figeage est indépendant du déplacement.
+ * - Le score candidat n'est pas affecté par le figeage.
+ */
+export function trouverCandidatsParFigeage(
+  exclus: { agent: AgentWithPlanning; raison: string }[],
+  jsCible: JsCible,
+  imprevu: ImpreuvuConfig,
+  jsTypeFlexibiliteMap: Map<string, FlexibiliteJs>
+): CandidatFigeage[] {
+  const debutImprevu = combineDateTime(jsCible.date, imprevu.heureDebutReel);
+  const finImprevu   = combineDateTime(jsCible.date, imprevu.heureFinEstimee);
+
+  const result: CandidatFigeage[] = [];
+
+  for (const { agent, raison } of exclus) {
+    // Seuls les agents exclus pour "déjà en service" sont candidats au figeage
+    if (raison !== RAISON_DEJA_EN_SERVICE) continue;
+
+    // Trouver la JS conflictuelle (non-Z, chevauchant l'imprévu)
+    const jsConflictuelle = agent.events.find((e) => {
+      if (e.jsNpo !== "JS") return false;
+      if (isZeroLoadJs(e.codeJs)) return false;
+      return e.dateDebut < finImprevu && e.dateFin > debutImprevu;
+    });
+
+    if (!jsConflictuelle) continue;
+
+    // Vérifier la flexibilité — OBLIGATOIRE interdit le figeage
+    const flexibilite = resolveFlexibiliteEvent(jsConflictuelle, jsTypeFlexibiliteMap);
+    if (flexibilite !== "DERNIER_RECOURS") continue;
+
+    const jsSourceFigee: JsSourceFigee = {
+      planningLigneId: jsConflictuelle.planningLigneId ?? "",
+      codeJs:          jsConflictuelle.codeJs,
+      flexibilite:     "DERNIER_RECOURS",
+      agentId:         agent.context.id,
+      justification:   `JS ${jsConflictuelle.codeJs ?? "source"} (DERNIER_RECOURS) figée — ${agent.context.nom} ${agent.context.prenom} libéré vers ${jsCible.codeJs ?? "JS cible"} le ${jsCible.date}`,
+    };
+
+    // Planning sans la JS figée : l'agent est traité comme libre
+    const eventsAvecFigeage = agent.events.filter((e) => e !== jsConflictuelle);
+
+    result.push({ agent, jsSourceFigee, eventsAvecFigeage });
+  }
+
+  return result;
 }
 
 /**

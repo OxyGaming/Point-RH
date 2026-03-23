@@ -39,7 +39,7 @@ export async function PATCH(
 
   const ALLOWED = [
     "code", "libelle", "heureDebutStandard", "heureFinStandard",
-    "dureeStandard", "estNuit", "regime", "actif",
+    "dureeStandard", "estNuit", "regime", "actif", "flexibilite",
   ];
   const data: Record<string, unknown> = {};
   for (const key of ALLOWED) {

@@ -55,6 +55,15 @@ export async function executerSimulationMultiJs(
     ? await (await import("@/lib/simulation/jsTypeFlexibiliteLoader")).loadJsTypeFlexibiliteMap()
     : undefined;
 
+  logger.info("FIGEAGE_FLAG_STATE", {
+    data: {
+      autoriserFigeage,
+      jsTypeFlexibiliteMapSize: jsTypeFlexibiliteMap?.size ?? 0,
+      nbAgents: agents.length,
+      nbJs: jsSelectionnees.length,
+    },
+  });
+
   const agentsMap = new Map(agents.map((a) => [a.context.id, a]));
 
   // ─── Chargement du contexte LPA ──────────────────────────────────────────────

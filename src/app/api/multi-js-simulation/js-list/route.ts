@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
         ? ligne.codeJs.trim().split(" ")[0] ?? null
         : null;
 
-      // Horaires standard du JsType (indépendants du trajet de l'agent initial)
+      // Horaires standard et flexibilité du JsType (indépendants du trajet de l'agent initial)
       const jsType = resolveJsType(ligne.codeJs, ligne.typeJs);
       const heureDebutJsType = jsType?.heureDebutStandard ?? undefined;
       const heureFinJsType = jsType?.heureFinStandard ?? undefined;
@@ -99,6 +99,7 @@ export async function GET(req: NextRequest) {
         uch: ligne.uch,
         numeroJs: ligne.numeroJs,
         prefixeJs,
+        flexibilite: jsType?.flexibilite ?? "OBLIGATOIRE",
       };
     });
 

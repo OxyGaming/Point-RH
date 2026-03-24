@@ -217,6 +217,17 @@ export async function executerSimulationJS(
   // la figer pour les libérer vers la JS cible.
   const agentsEvaluesViaFigeage = new Set<string>();
 
+  const nbExclusDejaEnService = exclus.filter(
+    ({ raison }) => raison === "Déjà en service pendant l'imprévu"
+  ).length;
+  logger.info("FIGEAGE_FLAG_STATE", {
+    data: {
+      autoriserFigeage: request.autoriserFigeage ?? false,
+      nbExclusTotal: exclus.length,
+      nbExclusDejaEnService,
+    },
+  });
+
   if (request.autoriserFigeage) {
     const jsTypeFlexibiliteMap = await loadJsTypeFlexibiliteMap();
     const candidatsFigeage = trouverCandidatsParFigeage(exclus, jsCible, imprevu, jsTypeFlexibiliteMap);

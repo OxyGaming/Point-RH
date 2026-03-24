@@ -15,6 +15,7 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
   const [loading, setLoading] = useState(false);
   const [resultat, setResultat] = useState<JsSimulationResultat | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [autoriserFigeage, setAutoriserFigeage] = useState(false);
   const [imprevu, setImprevu] = useState<ImpreuvuConfig>({
     partiel: false,
     // Priorité aux horaires standard du JsType : ils ne contiennent pas le trajet de l'agent initial.
@@ -35,7 +36,7 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
       const res = await fetch("/api/js-simulation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsCible, imprevu }),
+        body: JSON.stringify({ jsCible, imprevu, autoriserFigeage }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -170,6 +171,22 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
                 Configurez les LPA dans <a href="/lpa" className="underline font-medium">Gestion LPA</a>.
               </p>
             </div>
+
+            {/* Figeage DERNIER_RECOURS */}
+            <label className="flex items-start gap-2 cursor-pointer text-sm">
+              <input
+                type="checkbox"
+                checked={autoriserFigeage}
+                onChange={(e) => setAutoriserFigeage(e.target.checked)}
+                className="w-4 h-4 text-amber-600 rounded mt-0.5 shrink-0"
+              />
+              <span className="text-gray-700">
+                Autoriser le figeage{" "}
+                <span className="text-xs text-amber-700 font-medium">
+                  (libère les agents en JS DERNIER_RECOURS)
+                </span>
+              </span>
+            </label>
 
             {/* Commentaire */}
             <div>

@@ -63,6 +63,7 @@ export default function MultiJsPage() {
   const [loading, setLoading] = useState(false);
   const [resultat, setResultat] = useState<MultiJsSimulationResultat | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [autoriserFigeage, setAutoriserFigeage] = useState(false);
 
   // ─── Charger les imports disponibles ─────────────────────────────────────
   useEffect(() => {
@@ -137,8 +138,8 @@ export default function MultiJsPage() {
         typeJs: js.typeJs,
         isNuit: js.isNuit,
         importId,
-        // Propagé depuis JsTimeline.flexibilite — défaut OBLIGATOIRE tant que l'API ne l'expose pas
-        flexibilite: js.flexibilite ?? ("OBLIGATOIRE" as const),
+        // Propagé depuis JsTimeline.flexibilite (résolu par js-list depuis JsType)
+        flexibilite: js.flexibilite ?? "OBLIGATOIRE",
       }));
   }, [allJs, selectedIds, importId]);
 
@@ -159,6 +160,7 @@ export default function MultiJsPage() {
           candidateScope,
           remplacement: true,
           deplacement: false,
+          autoriserFigeage,
         }),
       });
 
@@ -375,6 +377,27 @@ export default function MultiJsPage() {
                   value={candidateScope}
                   onChange={setCandidateScope}
                 />
+              </div>
+
+              {/* Figeage DERNIER_RECOURS */}
+              <div className="bg-white border border-slate-200 rounded-xl p-4">
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoriserFigeage}
+                    onChange={(e) => setAutoriserFigeage(e.target.checked)}
+                    className="w-4 h-4 text-amber-600 rounded mt-0.5 shrink-0"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-slate-700">
+                      Autoriser le figeage
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Libère les agents dont la JS conflictuelle est marquée{" "}
+                      <span className="font-mono text-amber-600">DERNIER_RECOURS</span>.
+                    </p>
+                  </div>
+                </label>
               </div>
 
               {/* Bouton analyser */}

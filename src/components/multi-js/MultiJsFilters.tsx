@@ -94,9 +94,9 @@ export default function MultiJsFilters({
       </div>
 
       {/* Ligne 1 : dates */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] font-medium text-slate-500 mb-1">
+          <label className="block text-xs font-medium text-slate-500 mb-1">
             Du
           </label>
           <input
@@ -107,7 +107,7 @@ export default function MultiJsFilters({
           />
         </div>
         <div>
-          <label className="block text-[10px] font-medium text-slate-500 mb-1">
+          <label className="block text-xs font-medium text-slate-500 mb-1">
             Au
           </label>
           <input
@@ -120,9 +120,9 @@ export default function MultiJsFilters({
       </div>
 
       {/* Ligne 2 : préfixe + agent */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div>
-          <label className="block text-[10px] font-medium text-slate-500 mb-1">
+          <label className="block text-xs font-medium text-slate-500 mb-1">
             Code / Préfixe JS
           </label>
           <input
@@ -134,7 +134,7 @@ export default function MultiJsFilters({
           />
         </div>
         <div>
-          <label className="block text-[10px] font-medium text-slate-500 mb-1">
+          <label className="block text-xs font-medium text-slate-500 mb-1">
             Agent
           </label>
           <input
@@ -171,7 +171,7 @@ export default function MultiJsFilters({
 
       {/* Sélection rapide */}
       <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
-        <span className="text-[10px] text-slate-500">Sélection rapide :</span>
+        <span className="text-xs text-slate-500">Sélection rapide :</span>
         <button
           onClick={onSelectAll}
           className="text-xs text-blue-600 hover:underline font-medium"

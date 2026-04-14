@@ -143,7 +143,7 @@ function NewJsTypeForm({ onCreated }: { onCreated: () => void }) {
   return (
     <form onSubmit={handleSubmit} className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
       <p className="text-sm font-semibold text-blue-800">Nouveau type JS</p>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">Code</label>
           <input
@@ -287,7 +287,7 @@ function JsTypeEditRow({
             className="w-full border border-gray-300 rounded px-1.5 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
           />
         </td>
-        <td className="py-2 px-3">
+        <td className="py-2 px-3 hidden sm:table-cell">
           <div className="flex gap-1 items-center">
             <input
               type="time"
@@ -304,7 +304,7 @@ function JsTypeEditRow({
             />
           </div>
         </td>
-        <td className="py-2 px-3">
+        <td className="py-2 px-3 hidden md:table-cell">
           <input
             type="number"
             value={form.dureeStandard}
@@ -314,7 +314,7 @@ function JsTypeEditRow({
           />
           <span className="text-xs text-gray-400 ml-1">min</span>
         </td>
-        <td className="py-2 px-3">
+        <td className="py-2 px-3 hidden sm:table-cell">
           <label className="flex items-center gap-1.5 cursor-pointer">
             <input
               type="checkbox"
@@ -644,9 +644,9 @@ export default function LpaManager() {
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Code</th>
                     <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Libellé</th>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Horaires</th>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Durée</th>
-                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Nuit</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Horaires</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase hidden md:table-cell">Durée</th>
+                    <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase hidden sm:table-cell">Nuit</th>
                     <th className="py-2 px-3"></th>
                   </tr>
                 </thead>
@@ -668,13 +668,13 @@ export default function LpaManager() {
                           )}
                         </td>
                         <td className="py-2 px-3 text-gray-700">{jt.libelle}</td>
-                        <td className="py-2 px-3 text-gray-600 font-mono text-xs">
+                        <td className="py-2 px-3 text-gray-600 font-mono text-xs hidden sm:table-cell">
                           {jt.heureDebutStandard}→{jt.heureFinStandard}
                         </td>
-                        <td className="py-2 px-3 text-gray-600 text-xs">
+                        <td className="py-2 px-3 text-gray-600 text-xs hidden md:table-cell">
                           {minutesToTime(jt.dureeStandard)}
                         </td>
-                        <td className="py-2 px-3">
+                        <td className="py-2 px-3 hidden sm:table-cell">
                           {jt.estNuit ? (
                             <span className="text-xs bg-indigo-100 text-indigo-700 rounded px-1.5 py-0.5">nuit</span>
                           ) : (

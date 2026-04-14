@@ -27,7 +27,7 @@ export default async function ImportPage() {
         jamais un agent existant. Les agents sont <strong>rémanents</strong>.
       </div>
 
-      <div className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
             <h2 className="font-semibold text-gray-800">Nouveau fichier</h2>

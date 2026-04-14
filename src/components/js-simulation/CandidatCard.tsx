@@ -80,7 +80,7 @@ export default function CandidatCard({ candidat }: { candidat: CandidatResult })
         <p className="text-xs text-gray-600">{candidat.motifPrincipal}</p>
 
         {/* Mini stats */}
-        <div className="grid grid-cols-3 gap-2 mt-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
           <div className="bg-white/60 rounded p-1.5">
             <p className="text-gray-600 text-xs">Repos dispo</p>
             <p className="font-semibold text-gray-700 text-xs">

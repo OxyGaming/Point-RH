@@ -4,7 +4,7 @@ export const metadata = { title: "Gestion LPA — Point RH" };
 
 export default function LpaPage() {
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Gestion des LPA</h1>
         <p className="text-sm text-gray-500 mt-1">

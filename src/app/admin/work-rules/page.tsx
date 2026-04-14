@@ -243,7 +243,7 @@ export default function WorkRulesPage() {
                 const error = getFieldError(value, meta);
                 return (
                   <div key={key} className={`px-5 py-3 ${error ? "bg-red-50" : ""}`}>
-                    <div className="flex items-start gap-4">
+                    <div className="flex flex-col sm:flex-row items-start gap-2 sm:gap-4">
                       <div className="flex-1 min-w-0">
                         <label htmlFor={key} className="block text-sm font-medium text-slate-700">
                           {meta.label}
@@ -265,7 +265,7 @@ export default function WorkRulesPage() {
                           <p className="text-xs text-red-600 mt-0.5 font-medium">{error}</p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                      <div className="flex items-center gap-2 sm:shrink-0">
                         <input
                           id={key}
                           type="number"
@@ -274,7 +274,7 @@ export default function WorkRulesPage() {
                           max={meta.max}
                           value={value}
                           onChange={(e) => handleChange(key, e.target.value)}
-                          className={`w-24 text-right text-sm border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                          className={`w-20 sm:w-24 text-right text-sm border rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                             error
                               ? "border-red-400 bg-red-50"
                               : "border-slate-300"
@@ -282,7 +282,7 @@ export default function WorkRulesPage() {
                         />
                         <span className="text-xs text-slate-400 w-8">{meta.unit}</span>
                         {isModified && !error && (
-                          <span className="text-xs text-slate-400 whitespace-nowrap">
+                          <span className="text-xs text-slate-400">
                             (défaut&nbsp;: {meta.defaultValue})
                           </span>
                         )}

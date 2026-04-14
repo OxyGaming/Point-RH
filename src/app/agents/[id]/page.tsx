@@ -63,9 +63,9 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
         )}
       </div>
 
-      <div className="grid lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid md:grid-cols-4 gap-4 sm:gap-6">
         {/* Colonne gauche — informations */}
-        <div className="lg:col-span-1 space-y-4">
+        <div className="md:col-span-1 space-y-4">
           <Card>
             <CardHeader>
               <h2 className="font-semibold text-gray-800">Informations</h2>
@@ -129,7 +129,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
         </div>
 
         {/* Colonne droite — planning */}
-        <div className="lg:col-span-3">
+        <div className="md:col-span-3">
           <Card className="overflow-hidden">
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">

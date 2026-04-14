@@ -52,7 +52,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
   const isAdmin = session?.role === "ADMIN";
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* En-tête */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-6 sm:mb-8">
         <Link href="/agents" className="text-gray-500 hover:text-gray-700 text-sm">← Agents</Link>

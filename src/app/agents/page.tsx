@@ -17,7 +17,7 @@ export default async function AgentsPage() {
   const isAdmin = session?.role === "ADMIN";
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-screen-xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6 sm:mb-8">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Agents</h1>

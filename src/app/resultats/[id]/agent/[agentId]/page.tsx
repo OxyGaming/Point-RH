@@ -29,7 +29,7 @@ export default async function AgentResultatPage({
   const agent = resultat.agent;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
       <div className="flex flex-wrap items-center gap-2 mb-6 text-sm text-gray-400">
         <Link href="/resultats" className="hover:text-gray-600">Résultats</Link>
         <span>/</span>

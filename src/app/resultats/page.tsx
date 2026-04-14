@@ -15,7 +15,7 @@ export default async function ResultatsPage() {
   const simulations = await getSimulations();
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 sm:mb-8">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Résultats</h1>

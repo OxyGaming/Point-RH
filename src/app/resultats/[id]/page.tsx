@@ -41,7 +41,7 @@ export default async function ResultatPage({ params }: { params: Promise<{ id: s
   const nonConformes = resultats.filter((r) => r.statut === "NON_CONFORME");
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
       <div className="flex flex-wrap items-center gap-2 mb-6">
         <Link href="/resultats" className="text-slate-400 hover:text-slate-600 text-sm">← Résultats</Link>
         <span className="text-slate-300">/</span>

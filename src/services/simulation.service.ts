@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { evaluerMobilisabilite, AgentContext, PlanningEvent } from "@/engine/rules";
 import { combineDateTime } from "@/lib/utils";
 import { loadWorkRules } from "@/lib/rules/workRulesLoader";
+import { loadLpaContext } from "@/lib/deplacement/loadLpaContext";
+import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
 import type { SimulationInput, SimulationResultat, ResultatAgentDetail } from "@/types/simulation";
 
 export async function lancerSimulation(input: SimulationInput): Promise<SimulationResultat> {
@@ -47,6 +49,10 @@ export async function lancerSimulation(input: SimulationInput): Promise<Simulati
     });
   }
 
+  // Charger le contexte LPA une seule fois pour tous les agents
+  const agentIds = Array.from(agentsMap.keys());
+  const lpaContext = await loadLpaContext(agentIds);
+
   // Créer la simulation en base
   const simulation = await prisma.simulation.create({
     data: {
@@ -82,7 +88,20 @@ export async function lancerSimulation(input: SimulationInput): Promise<Simulati
       lpaBaseId: agent.lpaBaseId,
     };
 
-    const resultat = evaluerMobilisabilite(ctx, events, input, rules);
+    const effectiveService = computeEffectiveService(
+      { id: agent.id, lpaBaseId: agent.lpaBaseId, peutEtreDeplace: agent.peutEtreDeplace },
+      {
+        codeJs: input.codeJs ?? null,
+        typeJs: null,
+        heureDebut: input.heureDebut,
+        heureFin: input.heureFin,
+        estNuit: input.posteNuit,
+      },
+      lpaContext,
+      { remplacement: input.remplacement }
+    );
+
+    const resultat = evaluerMobilisabilite(ctx, events, input, rules, effectiveService);
     resultats.push(resultat);
 
     // Sauvegarder en base

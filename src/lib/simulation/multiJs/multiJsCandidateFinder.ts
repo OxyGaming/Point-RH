@@ -14,6 +14,8 @@ import { scorerCandidat } from "@/lib/simulation/scenarioScorer";
 import { isJsDeNuit, diffMinutes } from "@/lib/utils";
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 import { injecterJsDansPlanning } from "@/lib/simulation/candidateFinder";
+import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
+import type { LpaContext } from "@/types/deplacement";
 
 export interface AgentDataMultiJs {
   context: AgentContext;
@@ -42,6 +44,7 @@ export function trouverCandidatsPourJs(
   agents: AgentDataMultiJs[],
   candidateScope: CandidateScope,
   rules: WorkRulesMinutes,
+  lpaContext: LpaContext,
   remplacement = true,
   deplacement = false
 ): CandidatMultiJs[] {
@@ -73,8 +76,36 @@ export function trouverCandidatsPourJs(
     // Habilitation nuit
     if (isNuitJs && !context.peutFaireNuit) continue;
 
-    // Habilitation déplacement
-    if (deplacement && !context.peutEtreDeplace) continue;
+    // ─── Service effectif LPA-based pour cet agent + cette JS ─────────────────
+    const effectiveService = computeEffectiveService(
+      { id: context.id, lpaBaseId: context.lpaBaseId, peutEtreDeplace: context.peutEtreDeplace },
+      {
+        codeJs: js.codeJs,
+        typeJs: js.typeJs,
+        heureDebut: js.heureDebut,
+        heureFin: js.heureFin,
+        estNuit: js.isNuit,
+      },
+      lpaContext,
+      { remplacement }
+    );
+
+    // Habilitation déplacement (LPA-based ou fallback booléen)
+    const jsDansLpa = effectiveService.jsDansLpa;
+    const horsLpaEtNonAutorise = jsDansLpa === false && !context.peutEtreDeplace;
+    const deplacementManuelNonAutorise = jsDansLpa === null && deplacement && !context.peutEtreDeplace;
+    if (horsLpaEtNonAutorise || deplacementManuelNonAutorise) continue;
+
+    // Horaires effectifs (avec trajet si déplacement)
+    const heureDebutSim = effectiveService && !effectiveService.indeterminable
+      ? effectiveService.heureDebutEffective
+      : imprevu.heureDebutReel;
+    const heureFinSim = effectiveService && !effectiveService.indeterminable
+      ? effectiveService.heureFinEffective
+      : imprevu.heureFinEstimee;
+    const deplacementEffectif = effectiveService.estEnDeplacement !== null
+      ? effectiveService.estEnDeplacement
+      : deplacement;
 
     // L'agent ne doit pas avoir une JS non-Z en conflit horaire
     const conflit = events.find((e) => {
@@ -101,17 +132,17 @@ export function trouverCandidatsPourJs(
     const simulationInput = {
       importId: js.importId,
       dateDebut: js.date,
-      dateFin: getDateFinJs(js.date, imprevu.heureDebutReel, imprevu.heureFinEstimee),
-      heureDebut: imprevu.heureDebutReel,
-      heureFin: imprevu.heureFinEstimee,
+      dateFin: getDateFinJs(js.date, heureDebutSim, heureFinSim),
+      heureDebut: heureDebutSim,
+      heureFin: heureFinSim,
       poste: js.codeJs ?? "JS",
       codeJs: js.codeJs,
       remplacement: imprevu.remplacement,
-      deplacement: imprevu.deplacement,
+      deplacement: deplacementEffectif,
       posteNuit: isNuitJs || js.isNuit,
     };
 
-    const resultat = evaluerMobilisabilite(context, eventsEffectifs, simulationInput, rules);
+    const resultat = evaluerMobilisabilite(context, eventsEffectifs, simulationInput, rules, effectiveService);
     if (resultat.statut === "NON_CONFORME") continue;
 
     // Conflits induits

@@ -3,8 +3,9 @@
  * Analyse le planning d'un agent après injection de la JS cible.
  */
 
-import { diffMinutes, minutesToTime, isJsDeNuit, jsComportePeriode0h4h } from "@/lib/utils";
+import { diffMinutes, minutesToTime, isJsDeNuit } from "@/lib/utils";
 import type { PlanningEvent } from "@/engine/rules";
+import { isGPTDeNuit } from "@/engine/rules";
 import type { ConflitInduit, TypeConflit } from "@/types/js-simulation";
 import { DEFAULT_WORK_RULES_MINUTES, type WorkRulesMinutes } from "@/lib/rules/workRules";
 import { computeWorkSequences } from "@/lib/rules/gptEngine";
@@ -98,16 +99,13 @@ export function detecterConflitsInduits(
   }
 
   // ─ 2 GPT de nuit consécutives ───────────────────────────────────────────────
-  // Une GPT est de nuit si au moins la moitié de ses JS comportent la période 0h-4h.
-  const isGPTDeNuit = (days: PlanningEvent[]) => {
-    const nb = days.filter((j) => jsComportePeriode0h4h(j.heureDebut, j.heureFin, rules.periodeNocturne.seuilGptNuit)).length;
-    return nb >= days.length / 2;
-  };
-
   const allSequences = computeWorkSequences(eventsAvecJs, rules.reposPeriodique.simple);
   if (allSequences.length >= 2) {
     const n = allSequences.length;
-    if (isGPTDeNuit(allSequences[n - 1].days) && isGPTDeNuit(allSequences[n - 2].days)) {
+    if (
+      isGPTDeNuit(allSequences[n - 1].days, rules.periodeNocturne.seuilGptNuit) &&
+      isGPTDeNuit(allSequences[n - 2].days, rules.periodeNocturne.seuilGptNuit)
+    ) {
       const e = allSequences[n - 1].days[0];
       conflits.push({
         planningLigneId: null,

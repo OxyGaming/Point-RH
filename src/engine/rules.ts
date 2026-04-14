@@ -60,7 +60,7 @@ function getDernierPoste(events: PlanningEvent[], before: Date): PlanningEvent |
  * Une GPT est de nuit si au moins la moitié de ses journées de service
  * comporte la période de 0h à 4h.
  */
-function isGPTDeNuit(joursGPT: PlanningEvent[], seuilGptNuitMin: number): boolean {
+export function isGPTDeNuit(joursGPT: PlanningEvent[], seuilGptNuitMin: number): boolean {
   if (joursGPT.length === 0) return false;
   const nbAvec0h4h = joursGPT.filter((j) => jsComportePeriode0h4h(j.heureDebut, j.heureFin, seuilGptNuitMin)).length;
   return nbAvec0h4h >= joursGPT.length / 2;

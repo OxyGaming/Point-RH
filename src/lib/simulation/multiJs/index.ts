@@ -11,6 +11,7 @@
  */
 
 import { loadWorkRules } from "@/lib/rules/workRulesLoader";
+import { loadLpaContext } from "@/lib/deplacement/loadLpaContext";
 import type { JsCible } from "@/types/js-simulation";
 import type { MultiJsSimulationResultat, CandidateScope } from "@/types/multi-js-simulation";
 import { trouverCandidatsPourJs } from "./multiJsCandidateFinder";
@@ -28,6 +29,10 @@ export async function executerSimulationMultiJs(
 ): Promise<MultiJsSimulationResultat> {
   const rules = await loadWorkRules();
 
+  // Chargement du contexte LPA une seule fois pour toute la simulation
+  const agentIds = agents.map((a) => a.context.id);
+  const lpaContext = await loadLpaContext(agentIds);
+
   const agentsMap = new Map(agents.map((a) => [a.context.id, a]));
 
   // ─── Fonction utilitaire : construire candidats + scénario pour un scope donné ─
@@ -36,7 +41,7 @@ export async function executerSimulationMultiJs(
     const candidatesPerJs = new Map(
       jsSelectionnees.map((js) => [
         js.planningLigneId,
-        trouverCandidatsPourJs(js, agents, scope, rules, remplacement, deplacement),
+        trouverCandidatsPourJs(js, agents, scope, rules, lpaContext, remplacement, deplacement),
       ])
     );
 

@@ -76,27 +76,28 @@ export default async function ResultatPage({ params }: { params: Promise<{ id: s
       </Card>
 
       {/* Score summary */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-6 sm:mb-8">
+      <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8" role="region" aria-label="Résumé de la simulation">
         {[
-          { label: "Mobilisables", count: conformes.length, style: "bg-green-50 border-green-300 text-green-800" },
-          { label: "Vigilance",    count: vigilance.length, style: "bg-amber-50 border-amber-300 text-amber-800" },
-          { label: "Non mobilis.", count: nonConformes.length, style: "bg-red-50 border-red-300 text-red-800" },
+          { label: "Mobilisables",   count: conformes.length,    style: "bg-green-50 border-green-300 text-green-800" },
+          { label: "Vigilance",      count: vigilance.length,    style: "bg-amber-50 border-amber-300 text-amber-800" },
+          { label: "Non mobilis.",   count: nonConformes.length, style: "bg-red-50 border-red-300 text-red-800" },
         ].map(({ label, count, style }) => (
-          <div key={label} className={`rounded-xl border p-4 sm:p-5 text-center ${style}`}>
-            <p className="text-3xl sm:text-4xl font-bold">{count}</p>
-            <p className="text-xs sm:text-sm font-semibold mt-1">{label}</p>
+          <div key={label} className={`rounded-xl border p-3 sm:p-5 text-center ${style}`}>
+            <p className="text-2xl sm:text-4xl font-bold tabular-nums">{count}</p>
+            <p className="text-[11px] sm:text-sm font-semibold mt-0.5 sm:mt-1 leading-tight">{label}</p>
           </div>
         ))}
       </div>
 
       {/* Agents conformes */}
       {conformes.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold text-green-700 mb-4 flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-green-500 inline-block" />
-            Agents mobilisables ({conformes.length})
+        <section className="mb-8" aria-labelledby="section-conformes">
+          <h2 id="section-conformes" className="text-base sm:text-lg font-semibold text-green-700 mb-4 flex items-center gap-2">
+            <span className="w-4 h-4 rounded-full bg-green-500 inline-block shrink-0" aria-hidden="true" />
+            Agents mobilisables
+            <span className="text-sm font-normal text-green-600">({conformes.length})</span>
           </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {conformes.map((r) => (
               <ResultatCard key={r.agentId} resultat={r} simulationId={id} />
             ))}
@@ -106,12 +107,13 @@ export default async function ResultatPage({ params }: { params: Promise<{ id: s
 
       {/* Vigilance */}
       {vigilance.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold text-amber-700 mb-4 flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-amber-500 inline-block" />
-            Vigilance ({vigilance.length})
+        <section className="mb-8" aria-labelledby="section-vigilance">
+          <h2 id="section-vigilance" className="text-base sm:text-lg font-semibold text-amber-700 mb-4 flex items-center gap-2">
+            <span className="w-4 h-4 rounded-full bg-amber-500 inline-block shrink-0" aria-hidden="true" />
+            Vigilance
+            <span className="text-sm font-normal text-amber-600">({vigilance.length})</span>
           </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {vigilance.map((r) => (
               <ResultatCard key={r.agentId} resultat={r} simulationId={id} />
             ))}
@@ -121,12 +123,13 @@ export default async function ResultatPage({ params }: { params: Promise<{ id: s
 
       {/* Non conformes */}
       {nonConformes.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold text-red-700 mb-4 flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-red-400 inline-block" />
-            Non mobilisables ({nonConformes.length})
+        <section className="mb-8" aria-labelledby="section-non-conformes">
+          <h2 id="section-non-conformes" className="text-base sm:text-lg font-semibold text-red-700 mb-4 flex items-center gap-2">
+            <span className="w-4 h-4 rounded-full bg-red-400 inline-block shrink-0" aria-hidden="true" />
+            Non mobilisables
+            <span className="text-sm font-normal text-red-600">({nonConformes.length})</span>
           </h2>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {nonConformes.map((r) => (
               <ResultatCard key={r.agentId} resultat={r} simulationId={id} />
             ))}

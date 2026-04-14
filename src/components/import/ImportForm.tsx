@@ -1,6 +1,7 @@
 "use client";
-import { useState, useRef } from "react";
+import { useState, useRef, useId } from "react";
 import { useRouter } from "next/navigation";
+import Spinner from "@/components/ui/Spinner";
 
 interface ImportResult {
   success: boolean;
@@ -15,6 +16,7 @@ interface ImportResult {
 export default function ImportForm() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const dropzoneId = useId();
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -30,6 +32,13 @@ export default function ImportForm() {
     setDragOver(false);
     const f = e.dataTransfer.files[0];
     if (f) handleFile(f);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      inputRef.current?.click();
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,7 +59,7 @@ export default function ImportForm() {
         setTimeout(() => router.push("/agents"), 1500);
       }
     } catch {
-      setResult({ success: false, nbLignes: 0, nbAgents: 0, erreurs: [], error: "Erreur réseau" });
+      setResult({ success: false, nbLignes: 0, nbAgents: 0, erreurs: [], error: "Erreur réseau — vérifiez votre connexion et réessayez." });
     } finally {
       setLoading(false);
     }
@@ -61,10 +70,19 @@ export default function ImportForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Drop zone */}
         <div
-          className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors ${
-            dragOver ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-blue-400 hover:bg-gray-50"
-          }`}
+          id={dropzoneId}
+          role="button"
+          tabIndex={0}
+          aria-label={file ? `Fichier sélectionné : ${file.name}. Appuyez sur Entrée pour changer` : "Zone de dépôt — cliquez ou appuyez sur Entrée pour sélectionner un fichier"}
+          className={[
+            "border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-all duration-150",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1",
+            dragOver
+              ? "border-blue-500 bg-blue-50 scale-[1.01]"
+              : "border-slate-300 hover:border-blue-400 hover:bg-slate-50",
+          ].join(" ")}
           onClick={() => inputRef.current?.click()}
+          onKeyDown={handleKeyDown}
           onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
@@ -74,18 +92,29 @@ export default function ImportForm() {
             type="file"
             accept=".xlsx,.xls,.txt"
             className="hidden"
+            aria-hidden="true"
+            tabIndex={-1}
             onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
           />
-          <div className="text-4xl mb-3">📥</div>
-          {file ? (
+          <div className="text-4xl mb-3" aria-hidden="true">
+            {loading ? "⏳" : file ? "📄" : "📥"}
+          </div>
+          {loading ? (
+            <div className="flex flex-col items-center gap-2">
+              <Spinner size="lg" label="Import en cours…" />
+              <p className="text-sm text-slate-600 font-medium">Analyse du fichier…</p>
+            </div>
+          ) : file ? (
             <div>
-              <p className="font-semibold text-gray-800">{file.name}</p>
-              <p className="text-sm text-gray-500">{(file.size / 1024).toFixed(1)} Ko</p>
+              <p className="font-semibold text-slate-800">{file.name}</p>
+              <p className="text-sm text-slate-500">{(file.size / 1024).toFixed(1)} Ko</p>
+              <p className="text-xs text-blue-600 mt-2 hover:underline">Cliquer pour changer de fichier</p>
             </div>
           ) : (
             <div>
-              <p className="text-gray-700 font-medium">Glissez votre fichier ici</p>
-              <p className="text-sm text-gray-500 mt-1">ou cliquez pour sélectionner (.xlsx, .xls, .txt)</p>
+              <p className="text-slate-700 font-medium">Glissez votre fichier ici</p>
+              <p className="text-sm text-slate-500 mt-1">ou cliquez / appuyez sur Entrée</p>
+              <p className="text-xs text-slate-400 mt-2">.xlsx · .xls · .txt</p>
             </div>
           )}
         </div>
@@ -93,18 +122,26 @@ export default function ImportForm() {
         <button
           type="submit"
           disabled={!file || loading}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+          className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1"
+          aria-busy={loading}
         >
+          {loading && <Spinner size="sm" label="" className="text-white" />}
           {loading ? "Import en cours…" : "Importer le planning"}
         </button>
       </form>
 
       {/* Result */}
       {result && (
-        <div className={`mt-6 rounded-xl p-5 border ${result.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+        <div
+          role="alert"
+          aria-live="polite"
+          className={`mt-6 rounded-xl p-5 border ${result.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}
+        >
           {result.success ? (
             <div>
-              <p className="font-semibold text-green-800 mb-1">✅ Import réussi</p>
+              <p className="font-semibold text-green-800 mb-1 flex items-center gap-1.5">
+                <span aria-hidden="true">✅</span> Import réussi
+              </p>
               <p className="text-sm text-green-700">{result.nbLignes} lignes importées — {result.nbAgents} agents</p>
               {result.fileType && (
                 <p className="text-xs text-green-600 mt-0.5">
@@ -112,23 +149,33 @@ export default function ImportForm() {
                 </p>
               )}
               {result.erreurs.length > 0 && (
-                <p className="text-sm text-yellow-700 mt-1">{result.erreurs.length} avertissement(s)</p>
+                <p className="text-sm text-amber-700 mt-1">
+                  {result.erreurs.length} avertissement(s) — voir ci-dessous
+                </p>
               )}
+              <p className="text-xs text-green-600 mt-2 animate-pulse">Redirection vers les agents…</p>
             </div>
           ) : (
             <div>
-              <p className="font-semibold text-red-800 mb-2">❌ Échec de l&apos;import</p>
+              <p className="font-semibold text-red-800 mb-2 flex items-center gap-1.5">
+                <span aria-hidden="true">❌</span> Échec de l&apos;import
+              </p>
               <p className="text-sm text-red-700">{result.error}</p>
             </div>
           )}
           {result.erreurs.length > 0 && (
-            <div className="mt-3 max-h-40 overflow-y-auto space-y-1">
-              {result.erreurs.map((e, i) => (
-                <div key={i} className="text-xs text-yellow-800 bg-yellow-50 rounded px-2 py-1">
-                  Ligne {e.ligne}{e.champ ? ` [${e.champ}]` : ""} — {e.message}
-                </div>
-              ))}
-            </div>
+            <details className="mt-3">
+              <summary className="text-xs font-semibold text-amber-800 cursor-pointer hover:text-amber-900 select-none">
+                {result.erreurs.length} avertissement(s) — cliquer pour afficher
+              </summary>
+              <div className="mt-2 max-h-48 overflow-y-auto space-y-1 pr-1">
+                {result.erreurs.map((e, i) => (
+                  <div key={i} className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded px-2 py-1">
+                    Ligne {e.ligne}{e.champ ? ` [${e.champ}]` : ""} — {e.message}
+                  </div>
+                ))}
+              </div>
+            </details>
           )}
         </div>
       )}

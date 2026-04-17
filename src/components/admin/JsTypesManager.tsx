@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { IconMoon } from "@/components/icons/Icons";
 
 type FlexibiliteJs = "OBLIGATOIRE" | "DERNIER_RECOURS";
 
@@ -339,8 +340,9 @@ export default function JsTypesManager() {
                     <td className="px-4 py-3">
                       <span className="font-mono font-bold text-gray-800">{t.code}</span>
                       {t.estNuit && (
-                        <span className="ml-2 text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-semibold">
-                          🌙 Nuit
+                        <span className="ml-2 inline-flex items-center gap-1 text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-semibold">
+                          <IconMoon className="w-3 h-3" aria-hidden="true" />
+                          Nuit
                         </span>
                       )}
                       {t.regime && (

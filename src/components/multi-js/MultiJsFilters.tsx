@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import type { JsTimeline } from "@/types/multi-js-simulation";
+import { IconMoon } from "@/components/icons/Icons";
 
 export interface FiltersState {
   dateDebut: string;
@@ -167,7 +168,10 @@ export default function MultiJsFilters({
             onChange={(e) => set({ nuitSeulement: e.target.checked })}
             className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600"
           />
-          <span className="text-xs text-slate-600">Nuit uniquement 🌙</span>
+          <span className="text-xs text-slate-600 inline-flex items-center gap-1">
+            Nuit uniquement
+            <IconMoon className="w-3.5 h-3.5 text-indigo-600" aria-hidden="true" />
+          </span>
         </label>
         <label className="flex items-center gap-1.5 cursor-pointer select-none">
           <input

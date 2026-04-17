@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { IconZap } from "@/components/icons/Icons";
 
 interface PlanningImport {
   id: string;
@@ -183,7 +184,14 @@ export default function SimulationForm() {
         disabled={loading || !form.importId}
         className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
       >
-        {loading ? "Analyse en cours…" : "Lancer la simulation ⚡"}
+        {loading ? (
+          "Analyse en cours…"
+        ) : (
+          <span className="inline-flex items-center justify-center gap-1.5">
+            Lancer la simulation
+            <IconZap className="w-4 h-4" aria-hidden="true" />
+          </span>
+        )}
       </button>
     </form>
   );

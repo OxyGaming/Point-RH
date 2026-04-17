@@ -5,6 +5,11 @@ import Link from "next/link";
 import { minutesToTime } from "@/lib/utils";
 import type { CandidatResult } from "@/types/js-simulation";
 import DetailRegles from "@/components/js-simulation/DetailRegles";
+import {
+  IconAlertTriangle,
+  IconChevronDown,
+  IconChevronUp,
+} from "@/components/icons/Icons";
 
 // ─── Statuts ─────────────────────────────────────────────────────────────────
 
@@ -125,7 +130,7 @@ export default function CandidatCard({ candidat }: { candidat: CandidatResult })
           <div className="mt-2 space-y-1">
             {(detail.pointsVigilance ?? []).map((pv, i) => (
               <div key={i} className="text-xs bg-yellow-50 border border-yellow-200 text-yellow-800 px-2 py-1 rounded flex items-start gap-1.5">
-                <span className="shrink-0">⚠️</span>
+                <IconAlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
                 <span>{pv}</span>
               </div>
             ))}
@@ -136,8 +141,9 @@ export default function CandidatCard({ candidat }: { candidat: CandidatResult })
         {candidat.conflitsInduits.length > 0 && (
           <div className="mt-2 space-y-1">
             {candidat.conflitsInduits.slice(0, 2).map((c, i) => (
-              <div key={i} className="text-xs bg-orange-50 text-orange-700 px-2 py-1 rounded">
-                ⚠ {c.description}
+              <div key={i} className="text-xs bg-orange-50 text-orange-700 px-2 py-1 rounded inline-flex items-center gap-1.5 w-full">
+                <IconAlertTriangle className="w-3 h-3 shrink-0" aria-hidden="true" />
+                {c.description}
               </div>
             ))}
           </div>
@@ -146,9 +152,13 @@ export default function CandidatCard({ candidat }: { candidat: CandidatResult })
         {/* Bouton détails */}
         <button
           onClick={() => setOpen(!open)}
-          className="text-xs text-blue-600 hover:text-blue-800 mt-2 font-medium"
+          className="text-xs text-blue-600 hover:text-blue-800 mt-2 font-medium inline-flex items-center gap-1"
         >
-          {open ? "Masquer les détails ↑" : "Voir les détails ↓"}
+          {open ? (
+            <>Masquer les détails <IconChevronUp className="w-3 h-3" aria-hidden="true" /></>
+          ) : (
+            <>Voir les détails <IconChevronDown className="w-3 h-3" aria-hidden="true" /></>
+          )}
         </button>
       </div>
 

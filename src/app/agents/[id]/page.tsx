@@ -7,6 +7,7 @@ import AgentEditForm from "./AgentEditForm";
 import PlanningWithAnalysis from "./PlanningWithAnalysis";
 import AdminAgentActions from "@/components/agents/AdminAgentActions";
 import { getSession } from "@/lib/session";
+import { IconZap } from "@/components/icons/Icons";
 
 async function getAgent(id: string) {
   const activeImport = await prisma.planningImport.findFirst({
@@ -177,8 +178,9 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
                   Planning ({lignes.length} événements · {nbJs} JS)
                 </h2>
                 {nbJs > 0 && (
-                  <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded self-start sm:self-auto">
-                    ⚡ Cliquez sur une JS pour analyser
+                  <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded self-start sm:self-auto">
+                    <IconZap className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                    Cliquez sur une JS pour analyser
                   </span>
                 )}
               </div>

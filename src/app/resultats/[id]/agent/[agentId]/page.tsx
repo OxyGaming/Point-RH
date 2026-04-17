@@ -5,6 +5,7 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 import StatutBadge from "@/components/ui/StatutBadge";
 import { minutesToTime } from "@/lib/utils";
 import type { DetailCalcul, StatutAgent } from "@/types/simulation";
+import { IconAlertTriangle } from "@/components/icons/Icons";
 
 async function getResultat(simulationId: string, agentId: string) {
   return prisma.resultatAgent.findFirst({
@@ -114,7 +115,7 @@ export default async function AgentResultatPage({
               <CardBody className="space-y-2">
                 {(detail.pointsVigilance ?? []).map((pv, i) => (
                   <div key={i} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm flex items-start gap-2">
-                    <span className="text-yellow-500 shrink-0 mt-0.5">⚠️</span>
+                    <IconAlertTriangle className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" aria-hidden="true" />
                     <p className="text-yellow-800">{pv}</p>
                   </div>
                 ))}

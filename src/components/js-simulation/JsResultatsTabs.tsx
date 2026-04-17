@@ -1,9 +1,16 @@
 "use client";
 
+import type { ComponentType, SVGProps } from "react";
 import { useState } from "react";
 import CandidatCard from "./CandidatCard";
 import ScenarioCard from "./ScenarioCard";
 import type { JsSimulationResultatDouble, JsSimulationResultat } from "@/types/js-simulation";
+import {
+  IconCheckCircle,
+  IconAlertTriangle,
+  IconBan,
+  IconClipboard,
+} from "@/components/icons/Icons";
 
 type Tab = "candidats" | "vigilance" | "refuses" | "scenarios";
 type Mode = "sans" | "avec";
@@ -70,7 +77,7 @@ function ResultPanel({ resultat }: { resultat: JsSimulationResultat }) {
         {activeTab === "candidats" && (
           <>
             {resultat.directsUtilisables.length === 0 ? (
-              <EmptyState icon="✅" text="Aucun agent directement mobilisable" />
+              <EmptyState Icon={IconCheckCircle} text="Aucun agent directement mobilisable" />
             ) : (
               resultat.directsUtilisables.map((c) => (
                 <CandidatCard key={c.agentId} candidat={c} />
@@ -82,7 +89,7 @@ function ResultPanel({ resultat }: { resultat: JsSimulationResultat }) {
         {activeTab === "vigilance" && (
           <>
             {resultat.vigilance.length === 0 ? (
-              <EmptyState icon="⚠️" text="Aucun agent en zone de vigilance" />
+              <EmptyState Icon={IconAlertTriangle} text="Aucun agent en zone de vigilance" />
             ) : (
               resultat.vigilance.map((c) => (
                 <CandidatCard key={c.agentId} candidat={c} />
@@ -94,7 +101,7 @@ function ResultPanel({ resultat }: { resultat: JsSimulationResultat }) {
         {activeTab === "refuses" && (
           <>
             {resultat.refuses.length === 0 ? (
-              <EmptyState icon="🚫" text="Aucun agent refusé" />
+              <EmptyState Icon={IconBan} text="Aucun agent refusé" />
             ) : (
               <div className="space-y-2">
                 {resultat.refuses.map((c) => (
@@ -124,7 +131,7 @@ function ResultPanel({ resultat }: { resultat: JsSimulationResultat }) {
         {activeTab === "scenarios" && (
           <>
             {resultat.scenarios.length === 0 ? (
-              <EmptyState icon="📋" text="Aucun scénario de réorganisation disponible" />
+              <EmptyState Icon={IconClipboard} text="Aucun scénario de réorganisation disponible" />
             ) : (
               resultat.scenarios.map((s, i) => (
                 <ScenarioCard key={s.id} scenario={s} index={i} />
@@ -197,10 +204,10 @@ export default function JsResultatsTabs({ resultat }: { resultat: JsSimulationRe
   );
 }
 
-function EmptyState({ icon, text }: { icon: string; text: string }) {
+function EmptyState({ Icon, text }: { Icon: ComponentType<SVGProps<SVGSVGElement>>; text: string }) {
   return (
     <div className="text-center py-8 text-gray-400">
-      <p className="text-2xl mb-2">{icon}</p>
+      <Icon className="w-8 h-8 mx-auto mb-2" aria-hidden="true" />
       <p className="text-sm">{text}</p>
     </div>
   );

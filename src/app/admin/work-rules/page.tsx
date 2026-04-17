@@ -1,7 +1,19 @@
 "use client";
 
+import type { ComponentType, SVGProps } from "react";
 import { useEffect, useState, useCallback } from "react";
 import { CATEGORY_LABELS, type RuleMetadata } from "@/lib/rules/workRules";
+import {
+  IconClock,
+  IconBriefcase,
+  IconMoon,
+  IconCalendar,
+  IconCoffee,
+  IconBarChart,
+  IconSunset,
+  IconSettings,
+  IconAlertTriangle,
+} from "@/components/icons/Icons";
 
 interface RulesResponse {
   values: Record<string, number>;
@@ -19,14 +31,14 @@ const CATEGORY_ORDER = [
 ];
 
 /** Icône par catégorie */
-const CATEGORY_ICON: Record<string, string> = {
-  amplitude: "⏱️",
-  travailEffectif: "💼",
-  reposJournalier: "🌙",
-  reposPeriodique: "📅",
-  pause: "☕",
-  gpt: "📊",
-  periodeNocturne: "🌃",
+const CATEGORY_ICON: Record<string, ComponentType<SVGProps<SVGSVGElement>>> = {
+  amplitude: IconClock,
+  travailEffectif: IconBriefcase,
+  reposJournalier: IconMoon,
+  reposPeriodique: IconCalendar,
+  pause: IconCoffee,
+  gpt: IconBarChart,
+  periodeNocturne: IconSunset,
 };
 
 /** Vérifie la cohérence inter-règles et retourne les avertissements */
@@ -204,8 +216,9 @@ export default function WorkRulesPage() {
       {/* Avertissements de cohérence */}
       {coherenceWarnings.length > 0 && (
         <div className="mb-6 px-4 py-3 rounded-lg bg-orange-50 border border-orange-200">
-          <p className="text-sm font-semibold text-orange-800 mb-1">
-            ⚠️ Incohérences détectées entre règles liées
+          <p className="text-sm font-semibold text-orange-800 mb-1 flex items-center gap-2">
+            <IconAlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
+            Incohérences détectées entre règles liées
           </p>
           <ul className="list-disc list-inside space-y-0.5">
             {coherenceWarnings.map((w, i) => (
@@ -229,7 +242,10 @@ export default function WorkRulesPage() {
         {CATEGORY_ORDER.filter((cat) => grouped[cat]).map((cat) => (
           <section key={cat} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
             <div className="px-5 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-              <span className="text-lg">{CATEGORY_ICON[cat] ?? "⚙️"}</span>
+              {(() => {
+                const Icon = CATEGORY_ICON[cat] ?? IconSettings;
+                return <Icon className="w-5 h-5 shrink-0 text-slate-600" aria-hidden="true" />;
+              })()}
               <h2 className="font-semibold text-slate-700 text-sm uppercase tracking-wide">
                 {CATEGORY_LABELS[cat] ?? cat}
               </h2>

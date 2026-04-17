@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { IconDownload, IconCheckCircle } from "@/components/icons/Icons";
 
 interface ImportResult {
   success: boolean;
@@ -76,7 +77,7 @@ export default function ImportForm() {
             className="hidden"
             onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
           />
-          <div className="text-4xl mb-3">📥</div>
+          <IconDownload className="w-10 h-10 mb-3 mx-auto text-slate-500" aria-hidden="true" />
           {file ? (
             <div>
               <p className="font-semibold text-gray-800">{file.name}</p>
@@ -104,7 +105,10 @@ export default function ImportForm() {
         <div className={`mt-6 rounded-xl p-5 border ${result.success ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
           {result.success ? (
             <div>
-              <p className="font-semibold text-green-800 mb-1">✅ Import réussi</p>
+              <p className="font-semibold text-green-800 mb-1 inline-flex items-center gap-1.5">
+                <IconCheckCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                Import réussi
+              </p>
               <p className="text-sm text-green-700">{result.nbLignes} lignes importées — {result.nbAgents} agents</p>
               {result.fileType && (
                 <p className="text-xs text-green-600 mt-0.5">

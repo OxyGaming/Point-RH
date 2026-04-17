@@ -13,6 +13,18 @@ import type {
 import type { ModificationPlanning, ImpactCascade } from "@/types/js-simulation";
 import AgentLink from "@/components/ui/AgentLink";
 import DetailReglesShared from "@/components/js-simulation/DetailRegles";
+import {
+  IconLock,
+  IconShield,
+  IconUsers,
+  IconLink as IconLinkIcon,
+  IconCheckCircle,
+  IconBan,
+  IconAlertTriangle,
+  IconInfo,
+  IconClipboard,
+  IconXCircle,
+} from "@/components/icons/Icons";
 
 interface Props {
   resultat: MultiJsSimulationResultat;
@@ -104,7 +116,7 @@ function FigeageBadge({ justification }: { justification: string }) {
   return (
     <div className="mt-1.5 rounded border border-amber-200 bg-amber-50 px-2 py-1">
       <p className="text-[10px] font-semibold text-amber-700 flex items-center gap-1 mb-0.5">
-        <span>🔒</span>
+        <IconLock className="w-3 h-3 shrink-0" aria-hidden="true" />
         <span>JS figée — DERNIER RECOURS</span>
       </p>
       <p className="text-[10px] text-amber-800">{justification}</p>
@@ -120,7 +132,11 @@ function ScopeBadge({ scope }: { scope: string }) {
         ? "bg-violet-100 text-violet-700"
         : "bg-blue-100 text-blue-700"
     )}>
-      {scope === "reserve_only" ? "🛡️ Réserve" : "👥 Tous agents"}
+      {scope === "reserve_only" ? (
+        <><IconShield className="w-3 h-3" aria-hidden="true" /> Réserve</>
+      ) : (
+        <><IconUsers className="w-3 h-3" aria-hidden="true" /> Tous agents</>
+      )}
     </span>
   );
 }
@@ -131,17 +147,17 @@ const DetailRegles = DetailReglesShared;
 // ─── Situation initiale de l'agent ────────────────────────────────────────────
 
 function JsOriginaleBadge({ jsOrigine }: { jsOrigine: JsOriginaleAgent }) {
-  const config: Record<string, { icon: string; color: string }> = {
-    LIBRE:   { icon: "○", color: "text-slate-400" },
-    RESERVE: { icon: "🛡", color: "text-violet-600" },
-    JS_Z:    { icon: "Z", color: "text-sky-600"    },
-    JS:      { icon: "📋", color: "text-orange-600" },
+  const config: Record<string, { label: React.ReactNode; color: string }> = {
+    LIBRE:   { label: <span className="font-bold">○</span>,                                                 color: "text-slate-400"  },
+    RESERVE: { label: <IconShield className="w-3 h-3" aria-hidden="true" />,                                 color: "text-violet-600" },
+    JS_Z:    { label: <span className="font-bold">Z</span>,                                                 color: "text-sky-600"    },
+    JS:      { label: <IconClipboard className="w-3 h-3" aria-hidden="true" />,                              color: "text-orange-600" },
   };
-  const { icon, color } = config[jsOrigine.type] ?? { icon: "?", color: "text-slate-400" };
+  const { label, color } = config[jsOrigine.type] ?? { label: <span className="font-bold">?</span>, color: "text-slate-400" };
 
   return (
     <span className={cn("inline-flex items-center gap-1 text-[10px]", color)}>
-      <span className="font-bold">{icon}</span>
+      {label}
       <span>{jsOrigine.description}</span>
     </span>
   );
@@ -162,7 +178,7 @@ function CascadeChain({
     <div className="mt-2 rounded-md border border-teal-200 bg-teal-50 px-2.5 py-2 space-y-1">
       {/* En-tête */}
       <p className="text-[10px] font-semibold text-teal-700 flex items-center gap-1">
-        <span>🔗</span>
+        <IconLinkIcon className="w-3 h-3 shrink-0" aria-hidden="true" />
         <span>
           Cascade résolue — {modifications.length} agent{modifications.length > 1 ? "s" : ""} mobilisé{modifications.length > 1 ? "s" : ""}
         </span>
@@ -261,7 +277,10 @@ function ScenarioResume({ scenario }: { scenario: MultiJsScenario }) {
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-teal-50 border border-teal-200 rounded-lg p-2.5 text-center">
             <p className="text-xl font-bold text-teal-700">{scenario.nbCascadesResolues}</p>
-            <p className="text-[10px] text-teal-600 mt-0.5">🔗 Conflits résolus en cascade</p>
+            <p className="text-[10px] text-teal-600 mt-0.5 inline-flex items-center gap-1 justify-center w-full">
+              <IconLinkIcon className="w-3 h-3" aria-hidden="true" />
+              Conflits résolus en cascade
+            </p>
           </div>
           <div className={cn(
             "rounded-lg border p-2.5 text-center",
@@ -275,7 +294,10 @@ function ScenarioResume({ scenario }: { scenario: MultiJsScenario }) {
             )}>
               {scenario.nbCascadesNonResolues}
             </p>
-            <p className="text-[10px] text-slate-500 mt-0.5">⚠ Conflits non résolus</p>
+            <p className="text-[10px] text-slate-500 mt-0.5 inline-flex items-center gap-1 justify-center w-full">
+              <IconAlertTriangle className="w-3 h-3" aria-hidden="true" />
+              Conflits non résolus
+            </p>
           </div>
         </div>
       )}
@@ -513,7 +535,7 @@ function ExclusionsPanel({ exclusionsParJs }: { exclusionsParJs: ExclusionsParJs
   if (avecExclusions.length === 0) {
     return (
       <div className="py-6 text-center">
-        <p className="text-2xl mb-1">✅</p>
+        <IconCheckCircle className="w-7 h-7 mx-auto mb-1 text-emerald-500" aria-hidden="true" />
         <p className="text-sm font-semibold text-emerald-600">
           Aucune exclusion enregistrée pour ce scénario
         </p>
@@ -590,7 +612,7 @@ function ExclusionsPanel({ exclusionsParJs }: { exclusionsParJs: ExclusionsParJs
                     <div className="space-y-1 pl-2 border-l-2 border-slate-100">
                       {agents.map((excl) => (
                         <div key={excl.agentId} className="flex items-start gap-2 text-xs">
-                          <span className="text-slate-400 shrink-0 mt-0.5">⛔</span>
+                          <IconBan className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" aria-hidden="true" />
                           <div className="min-w-0">
                             <span className="font-semibold text-slate-700">
                               {excl.agentNom} {excl.agentPrenom}
@@ -618,17 +640,28 @@ function ExclusionsPanel({ exclusionsParJs }: { exclusionsParJs: ExclusionsParJs
 
 type ScenarioKey = "reserveDirect" | "reserveFigeage" | "tousDirect" | "tousFigeage";
 
+function ScenarioIcon({ cfgKey }: { cfgKey: ScenarioKey }) {
+  const shieldCls = "w-3.5 h-3.5";
+  const usersCls = "w-3.5 h-3.5";
+  const lockCls = "w-3 h-3 -ml-0.5";
+  switch (cfgKey) {
+    case "reserveDirect":  return <IconShield className={shieldCls} aria-hidden="true" />;
+    case "reserveFigeage": return (<span className="inline-flex items-center"><IconShield className={shieldCls} aria-hidden="true" /><IconLock className={lockCls} aria-hidden="true" /></span>);
+    case "tousDirect":     return <IconUsers className={usersCls} aria-hidden="true" />;
+    case "tousFigeage":    return (<span className="inline-flex items-center"><IconUsers className={usersCls} aria-hidden="true" /><IconLock className={lockCls} aria-hidden="true" /></span>);
+  }
+}
+
 const SCENARIO_CONFIG: {
   key: ScenarioKey;
   label: string;
-  icon: string;
   figeage: boolean;
   scope: "reserve_only" | "all_agents";
 }[] = [
-  { key: "reserveDirect",  label: "Réserve — Direct",          icon: "🛡️",    figeage: false, scope: "reserve_only" },
-  { key: "reserveFigeage", label: "Réserve + Figeage",         icon: "🛡️🔒",  figeage: true,  scope: "reserve_only" },
-  { key: "tousDirect",     label: "Tous agents — Direct",      icon: "👥",    figeage: false, scope: "all_agents"   },
-  { key: "tousFigeage",    label: "Tous agents + Figeage",     icon: "👥🔒",  figeage: true,  scope: "all_agents"   },
+  { key: "reserveDirect",  label: "Réserve — Direct",      figeage: false, scope: "reserve_only" },
+  { key: "reserveFigeage", label: "Réserve + Figeage",     figeage: true,  scope: "reserve_only" },
+  { key: "tousDirect",     label: "Tous agents — Direct",  figeage: false, scope: "all_agents"   },
+  { key: "tousFigeage",    label: "Tous agents + Figeage", figeage: true,  scope: "all_agents"   },
 ];
 
 export default function MultiJsResultsPanel({ resultat }: Props) {
@@ -685,7 +718,7 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
               )}
             >
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-sm">{cfg.icon}</span>
+                <ScenarioIcon cfgKey={cfg.key} />
                 {cfg.figeage && (
                   <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1 py-0.5 rounded">
                     CASCADE
@@ -773,7 +806,7 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
             <div className="space-y-2">
               {scenario.jsNonCouvertes.length === 0 ? (
                 <div className="py-6 text-center">
-                  <p className="text-2xl mb-1">✅</p>
+                  <IconCheckCircle className="w-7 h-7 mx-auto mb-1 text-emerald-500" aria-hidden="true" />
                   <p className="text-sm font-semibold text-emerald-600">
                     Toutes les JS sont couvertes
                   </p>
@@ -793,9 +826,11 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
                           : "bg-red-50 border-red-200"
                       )}
                     >
-                      <span className={cn("text-lg", js.flexibilite === "DERNIER_RECOURS" ? "text-amber-400" : "text-red-400")}>
-                        {js.flexibilite === "DERNIER_RECOURS" ? "⚠️" : "⛔"}
-                      </span>
+                      {js.flexibilite === "DERNIER_RECOURS" ? (
+                        <IconAlertTriangle className="w-5 h-5 text-amber-500 shrink-0" aria-hidden="true" />
+                      ) : (
+                        <IconBan className="w-5 h-5 text-red-500 shrink-0" aria-hidden="true" />
+                      )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-xs font-bold text-slate-800">
@@ -832,7 +867,7 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
             <div className="space-y-2">
               {scenario.conflitsDetectes.length === 0 ? (
                 <div className="py-6 text-center">
-                  <p className="text-2xl mb-1">✅</p>
+                  <IconCheckCircle className="w-7 h-7 mx-auto mb-1 text-emerald-500" aria-hidden="true" />
                   <p className="text-sm font-semibold text-emerald-600">
                     Aucun conflit détecté
                   </p>
@@ -850,9 +885,13 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
                         : "bg-blue-50 border-blue-200"
                     )}
                   >
-                    <span className="text-sm shrink-0 mt-0.5">
-                      {c.severity === "BLOQUANT" ? "⛔" : c.severity === "AVERTISSEMENT" ? "⚠️" : "ℹ️"}
-                    </span>
+                    {c.severity === "BLOQUANT" ? (
+                      <IconXCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" aria-hidden="true" />
+                    ) : c.severity === "AVERTISSEMENT" ? (
+                      <IconAlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
+                    ) : (
+                      <IconInfo className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" aria-hidden="true" />
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-0.5">
                         <SeveriteBadge severity={c.severity} />

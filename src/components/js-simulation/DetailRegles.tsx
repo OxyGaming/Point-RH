@@ -3,6 +3,15 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { DetailCalcul } from "@/types/simulation";
+import {
+  IconMoon,
+  IconClock,
+  IconCalendar,
+  IconCheck,
+  IconX,
+  IconChevronDown,
+  IconChevronRight,
+} from "@/components/icons/Icons";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -29,7 +38,7 @@ function RuleRow({
   ok,
   detail,
 }: {
-  label: string;
+  label: React.ReactNode;
   valeur: string;
   limite?: string;
   ok: boolean;
@@ -38,11 +47,13 @@ function RuleRow({
   return (
     <div className={cn("rounded border px-2 py-1.5", ok ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200")}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-slate-600 font-medium">{label}</span>
-        <span className={cn("font-mono font-bold shrink-0", ok ? "text-emerald-700" : "text-red-700")}>
+        <span className="text-slate-600 font-medium inline-flex items-center gap-1">{label}</span>
+        <span className={cn("font-mono font-bold shrink-0 inline-flex items-center gap-1", ok ? "text-emerald-700" : "text-red-700")}>
           {valeur}
           {limite && <span className="font-normal text-slate-400 ml-1">/ {limite}</span>}
-          <span className="ml-1">{ok ? "✓" : "✗"}</span>
+          {ok
+            ? <IconCheck className="w-3 h-3 ml-0.5" aria-hidden="true" />
+            : <IconX className="w-3 h-3 ml-0.5" aria-hidden="true" />}
         </span>
       </div>
       {detail && <div className="mt-1">{detail}</div>}
@@ -68,7 +79,9 @@ function TeGptBreakdown({ detail }: { detail: DetailCalcul }) {
           {teGptViolation?.limite && (
             <span className="font-normal text-slate-400 ml-1">/ {teGptViolation.limite}</span>
           )}
-          <span className="ml-1">{teGptOk ? "✓" : "✗"}</span>
+          {teGptOk
+            ? <IconCheck className="w-3 h-3 ml-0.5 inline" aria-hidden="true" />
+            : <IconX className="w-3 h-3 ml-0.5 inline" aria-hidden="true" />}
         </span>
       </div>
 
@@ -120,7 +133,9 @@ export default function DetailRegles({ detail }: { detail: DetailCalcul }) {
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 hover:text-blue-600 transition-colors"
       >
-        <span className="text-slate-400 text-[8px]">{open ? "▼" : "▶"}</span>
+        {open
+          ? <IconChevronDown className="w-3 h-3 text-slate-400" aria-hidden="true" />
+          : <IconChevronRight className="w-3 h-3 text-slate-400" aria-hidden="true" />}
         <span>Détail des règles</span>
         {hasViolations && (
           <span className="px-1 py-0.5 rounded bg-red-100 text-red-600 text-[9px] font-bold">
@@ -139,7 +154,7 @@ export default function DetailRegles({ detail }: { detail: DetailCalcul }) {
 
           {/* ── Repos journalier ── */}
           <RuleRow
-            label="🌙 Repos journalier"
+            label={<><IconMoon className="w-3 h-3" aria-hidden="true" /> Repos journalier</>}
             valeur={
               detail.reposJournalierDisponible !== null
                 ? fmtMin(detail.reposJournalierDisponible)
@@ -165,7 +180,7 @@ export default function DetailRegles({ detail }: { detail: DetailCalcul }) {
 
           {/* ── Amplitude ── */}
           <RuleRow
-            label="⏱️ Amplitude"
+            label={<><IconClock className="w-3 h-3" aria-hidden="true" /> Amplitude</>}
             valeur={fmtMin(detail.amplitudeImprevu)}
             limite={`${fmtMin(detail.amplitudeMaxAutorisee)} max`}
             ok={amplitudeOk}
@@ -181,7 +196,7 @@ export default function DetailRegles({ detail }: { detail: DetailCalcul }) {
 
           {/* ── Longueur GPT ── */}
           <RuleRow
-            label="📅 Longueur GPT"
+            label={<><IconCalendar className="w-3 h-3" aria-hidden="true" /> Longueur GPT</>}
             valeur={`${detail.gptActuel}j`}
             limite={`${detail.gptMax}j max`}
             ok={gptOk}
@@ -191,7 +206,10 @@ export default function DetailRegles({ detail }: { detail: DetailCalcul }) {
           {detail.gptRpAnalyse && (
             <div className="rounded border bg-indigo-50 border-indigo-200 px-2 py-1.5 space-y-1">
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-indigo-700">📆 Repos périodiques GPT</span>
+                <span className="font-semibold text-indigo-700 inline-flex items-center gap-1">
+                  <IconCalendar className="w-3 h-3" aria-hidden="true" />
+                  Repos périodiques GPT
+                </span>
                 <span className="text-[9px] text-indigo-500 font-mono">
                   {detail.gptRpAnalyse.premierJsDate} → {detail.gptRpAnalyse.dernierJsDate}
                   <span className="ml-1 text-indigo-400">({detail.gptRpAnalyse.gptLength}j)</span>

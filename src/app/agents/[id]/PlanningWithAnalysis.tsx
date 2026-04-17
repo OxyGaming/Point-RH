@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import PlanningTimeline from "@/components/js-simulation/PlanningTimeline";
 import JsAnalysisPanel from "@/components/js-simulation/JsAnalysisPanel";
 import type { JsCible, FlexibiliteJs } from "@/types/js-simulation";
+import { IconLightbulb, IconZap } from "@/components/icons/Icons";
 
 interface PlanningLigne {
   id: string;
@@ -65,13 +66,17 @@ export default function PlanningWithAnalysis({
       {/* Planning timeline — toujours pleine largeur */}
       <div>
         {hasJsLines && !selectedJs && (
-          <div className="mx-5 mb-2 text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2">
-            💡 Cliquez sur une ligne <strong>JS</strong> pour analyser un imprévu
+          <div className="mx-5 mb-2 text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2 inline-flex items-center gap-1.5">
+            <IconLightbulb className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+            <span>Cliquez sur une ligne <strong>JS</strong> pour analyser un imprévu</span>
           </div>
         )}
         {selectedJs && (
           <div className="mx-5 mb-2 text-xs text-blue-700 bg-blue-100 rounded-lg px-3 py-2 flex items-center justify-between">
-            <span>⚡ JS sélectionnée — {selectedJs.date} {selectedJs.heureDebut}→{selectedJs.heureFin}</span>
+            <span className="inline-flex items-center gap-1.5">
+              <IconZap className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              JS sélectionnée — {selectedJs.date} {selectedJs.heureDebut}→{selectedJs.heureFin}
+            </span>
             <button
               onClick={handleClose}
               className="text-blue-500 hover:text-blue-700 font-semibold ml-3 text-sm leading-none"

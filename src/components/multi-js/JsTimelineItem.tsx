@@ -3,6 +3,7 @@
 import { cn } from "@/lib/utils";
 import type { JsTimeline } from "@/types/multi-js-simulation";
 import AgentLink from "@/components/ui/AgentLink";
+import { IconMoon } from "@/components/icons/Icons";
 
 interface Props {
   js: JsTimeline;
@@ -116,8 +117,9 @@ export default function JsTimelineItem({ js, selected, onToggle }: Props) {
       {/* ─── Badges ───────────────────────────────────────────────────── */}
       <div className="flex flex-col items-end justify-center gap-1 shrink-0">
         {js.isNuit && (
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-700">
-            🌙 Nuit
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-700">
+            <IconMoon className="w-3 h-3" aria-hidden="true" />
+            Nuit
           </span>
         )}
         {js.isZ && (

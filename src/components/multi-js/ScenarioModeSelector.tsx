@@ -1,25 +1,27 @@
 "use client";
 
+import type { ComponentType, SVGProps } from "react";
 import { cn } from "@/lib/utils";
 import type { CandidateScope } from "@/types/multi-js-simulation";
+import { IconShield, IconUsers } from "@/components/icons/Icons";
 
 interface Props {
   value: CandidateScope;
   onChange: (v: CandidateScope) => void;
 }
 
-const OPTIONS: { value: CandidateScope; label: string; desc: string; icon: string }[] = [
+const OPTIONS: { value: CandidateScope; label: string; desc: string; Icon: ComponentType<SVGProps<SVGSVGElement>> }[] = [
   {
     value: "reserve_only",
     label: "Réserve uniquement",
     desc: "Simule la couverture avec le seul vivier d'agents de réserve",
-    icon: "🛡️",
+    Icon: IconShield,
   },
   {
     value: "all_agents",
     label: "Tous les agents",
     desc: "Ouvre la recherche à l'ensemble des agents éligibles",
-    icon: "👥",
+    Icon: IconUsers,
   },
 ];
 
@@ -44,7 +46,7 @@ export default function ScenarioModeSelector({ value, onChange }: Props) {
                   : "border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50"
               )}
             >
-              <span className="text-lg shrink-0 mt-0.5">{opt.icon}</span>
+              <opt.Icon className={cn("w-5 h-5 shrink-0 mt-0.5", active ? "text-blue-600" : "text-slate-500")} aria-hidden="true" />
               <div className="min-w-0">
                 <p
                   className={cn(

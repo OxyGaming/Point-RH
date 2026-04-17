@@ -10,6 +10,7 @@
  */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { IconAlertTriangle } from "@/components/icons/Icons";
 
 interface Props {
   agentId: string;
@@ -68,7 +69,7 @@ export default function DeleteAgentModal({
             {/* En-tête */}
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <span className="text-red-600 text-lg">⚠️</span>
+                <IconAlertTriangle className="w-5 h-5 text-red-600" aria-hidden="true" />
               </div>
               <div>
                 <h2 className="font-semibold text-gray-900">Supprimer un agent</h2>

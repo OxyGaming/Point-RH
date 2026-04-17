@@ -2,6 +2,7 @@ import Link from "next/link";
 import StatutBadge from "@/components/ui/StatutBadge";
 import { minutesToTime } from "@/lib/utils";
 import type { ResultatAgentDetail } from "@/types/simulation";
+import { IconAlertTriangle } from "@/components/icons/Icons";
 
 export default function ResultatCard({
   resultat,
@@ -53,7 +54,7 @@ export default function ResultatCard({
         <div className="space-y-1">
           {(detail.pointsVigilance ?? []).map((pv, i) => (
             <div key={i} className="text-xs bg-yellow-50 border border-yellow-200 text-yellow-800 px-2 py-1.5 rounded flex items-start gap-1.5">
-              <span className="shrink-0">⚠️</span>
+              <IconAlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
               <span>{pv}</span>
             </div>
           ))}

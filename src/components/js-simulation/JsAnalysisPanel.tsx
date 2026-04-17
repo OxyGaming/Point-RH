@@ -5,6 +5,7 @@ import { minutesToTime } from "@/lib/utils";
 import type { JsCible, ImpreuvuConfig, JsSimulationResultatDouble } from "@/types/js-simulation";
 import JsResultatsTabs from "./JsResultatsTabs";
 import AgentLink from "@/components/ui/AgentLink";
+import { IconMoon, IconZap } from "@/components/icons/Icons";
 
 interface JsAnalysisPanelProps {
   jsCible: JsCible;
@@ -103,8 +104,9 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
             ))}
             {jsCible.isNuit && (
               <div className="col-span-2">
-                <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-medium">
-                  🌙 Poste de nuit
+                <span className="inline-flex items-center gap-1 text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded font-medium">
+                  <IconMoon className="w-3 h-3" aria-hidden="true" />
+                  Poste de nuit
                 </span>
               </div>
             )}
@@ -192,7 +194,14 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
             disabled={loading}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition-colors"
           >
-            {loading ? "Analyse en cours…" : "⚡ Analyser l'imprévu"}
+            {loading ? (
+              "Analyse en cours…"
+            ) : (
+              <span className="inline-flex items-center justify-center gap-1.5">
+                <IconZap className="w-4 h-4" aria-hidden="true" />
+                Analyser l&apos;imprévu
+              </span>
+            )}
           </button>
         </div>
 

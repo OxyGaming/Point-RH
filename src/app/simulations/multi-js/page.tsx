@@ -12,6 +12,7 @@ import MultiJsResultsPanel from "@/components/multi-js/MultiJsResultsPanel";
 import type { JsTimeline, MultiJsSimulationResultat } from "@/types/multi-js-simulation";
 import type { JsCible } from "@/types/js-simulation";
 import { isJsDeNuit } from "@/lib/utils";
+import { IconZap } from "@/components/icons/Icons";
 
 interface PlanningImport {
   id: string;
@@ -411,7 +412,7 @@ export default function MultiJsPage() {
                   Analyse en cours…
                 </>
               ) : (
-                <>⚡ Analyser {nbSelected} JS</>
+                <><IconZap className="w-4 h-4" aria-hidden="true" />Analyser {nbSelected} JS</>
               )}
             </button>
           )}
@@ -446,7 +447,7 @@ export default function MultiJsPage() {
                   Analyse en cours…
                 </>
               ) : (
-                <>⚡ Analyser {nbSelected} JS</>
+                <><IconZap className="w-4 h-4" aria-hidden="true" />Analyser {nbSelected} JS</>
               )}
             </button>
           </div>

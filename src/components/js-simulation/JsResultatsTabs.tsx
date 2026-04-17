@@ -3,18 +3,26 @@
 import { useState } from "react";
 import CandidatCard from "./CandidatCard";
 import ScenarioCard from "./ScenarioCard";
-import type { JsSimulationResultat } from "@/types/js-simulation";
+import type { JsSimulationResultatDouble, JsSimulationResultat } from "@/types/js-simulation";
 
 type Tab = "candidats" | "vigilance" | "refuses" | "scenarios";
+type Mode = "sans" | "avec";
 
-const TABS: { id: Tab; label: string; colorEmpty?: string }[] = [
+const TABS: { id: Tab; label: string }[] = [
   { id: "candidats", label: "Mobilisables" },
   { id: "vigilance", label: "Vigilance" },
   { id: "refuses", label: "Non utilisables" },
   { id: "scenarios", label: "Scénarios" },
 ];
 
-export default function JsResultatsTabs({ resultat }: { resultat: JsSimulationResultat }) {
+const TAB_BADGE: Record<Tab, string> = {
+  candidats: "bg-green-100 text-green-700",
+  vigilance: "bg-yellow-100 text-yellow-700",
+  refuses: "bg-red-100 text-red-700",
+  scenarios: "bg-blue-100 text-blue-700",
+};
+
+function ResultPanel({ resultat }: { resultat: JsSimulationResultat }) {
   const [activeTab, setActiveTab] = useState<Tab>("candidats");
 
   const counts: Record<Tab, number> = {
@@ -24,15 +32,8 @@ export default function JsResultatsTabs({ resultat }: { resultat: JsSimulationRe
     scenarios: resultat.scenarios.length,
   };
 
-  const TAB_BADGE: Record<Tab, string> = {
-    candidats: "bg-green-100 text-green-700",
-    vigilance: "bg-yellow-100 text-yellow-700",
-    refuses: "bg-red-100 text-red-700",
-    scenarios: "bg-blue-100 text-blue-700",
-  };
-
   return (
-    <div className="border-t border-gray-200">
+    <>
       {/* Summary bar */}
       <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap gap-x-3 gap-y-1 text-xs">
         <span className="text-gray-500">{resultat.nbAgentsAnalyses} agents analysés</span>
@@ -132,6 +133,66 @@ export default function JsResultatsTabs({ resultat }: { resultat: JsSimulationRe
           </>
         )}
       </div>
+    </>
+  );
+}
+
+export default function JsResultatsTabs({ resultat }: { resultat: JsSimulationResultatDouble }) {
+  const [mode, setMode] = useState<Mode>("sans");
+
+  const current = mode === "sans" ? resultat.sansFigeage : resultat.avecFigeage;
+
+  const diffMobilisables =
+    resultat.avecFigeage.directsUtilisables.length - resultat.sansFigeage.directsUtilisables.length;
+
+  return (
+    <div className="border-t border-gray-200">
+      {/* Mode toggle */}
+      <div className="px-5 pt-4 pb-3">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          Mode de recherche
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setMode("sans")}
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold border transition-colors ${
+              mode === "sans"
+                ? "bg-blue-600 text-white border-blue-600"
+                : "bg-white text-gray-600 border-gray-200 hover:border-blue-300"
+            }`}
+          >
+            Sans figeage
+            <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${mode === "sans" ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}>
+              {resultat.sansFigeage.directsUtilisables.length}
+            </span>
+          </button>
+          <button
+            onClick={() => setMode("avec")}
+            className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold border transition-colors ${
+              mode === "avec"
+                ? "bg-amber-600 text-white border-amber-600"
+                : "bg-white text-gray-600 border-gray-200 hover:border-amber-300"
+            }`}
+          >
+            Avec figeage
+            <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${mode === "avec" ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-600"}`}>
+              {resultat.avecFigeage.directsUtilisables.length}
+            </span>
+          </button>
+        </div>
+        {diffMobilisables > 0 && (
+          <p className="text-xs text-amber-700 mt-2 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+            +{diffMobilisables} agent{diffMobilisables > 1 ? "s" : ""} supplémentaire{diffMobilisables > 1 ? "s" : ""} disponible{diffMobilisables > 1 ? "s" : ""} avec figeage (JS DERNIER_RECOURS)
+          </p>
+        )}
+        {diffMobilisables === 0 && (
+          <p className="text-xs text-gray-400 mt-2">
+            Le figeage n&apos;apporte pas d&apos;agents supplémentaires.
+          </p>
+        )}
+      </div>
+
+      <ResultPanel resultat={current} />
     </div>
   );
 }

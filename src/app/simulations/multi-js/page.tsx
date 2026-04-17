@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
 import JsTimelineItem from "@/components/multi-js/JsTimelineItem";
 import MultiJsFilters, {
@@ -8,9 +8,8 @@ import MultiJsFilters, {
   emptyFilters,
   applyFilters,
 } from "@/components/multi-js/MultiJsFilters";
-import ScenarioModeSelector from "@/components/multi-js/ScenarioModeSelector";
 import MultiJsResultsPanel from "@/components/multi-js/MultiJsResultsPanel";
-import type { JsTimeline, CandidateScope, MultiJsSimulationResultat } from "@/types/multi-js-simulation";
+import type { JsTimeline, MultiJsSimulationResultat } from "@/types/multi-js-simulation";
 import type { JsCible } from "@/types/js-simulation";
 import { isJsDeNuit } from "@/lib/utils";
 
@@ -41,6 +40,8 @@ function groupByDate(jsList: JsTimeline[]): [string, JsTimeline[]][] {
   return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
 }
 
+const SS_KEY = "pointrh_multiJs_resultat";
+
 export default function MultiJsPage() {
   // ─── Import sélectionné ───────────────────────────────────────────────────
   const [imports, setImports] = useState<PlanningImport[]>([]);
@@ -56,14 +57,29 @@ export default function MultiJsPage() {
   // ─── Sélection ────────────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // ─── Mode simulation ──────────────────────────────────────────────────────
-  const [candidateScope, setCandidateScope] = useState<CandidateScope>("reserve_only");
-
   // ─── Simulation ───────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
   const [resultat, setResultat] = useState<MultiJsSimulationResultat | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [autoriserFigeage, setAutoriserFigeage] = useState(false);
+
+  // Ref pour détecter si c'est le premier chargement de l'import
+  const prevImportId = useRef<string>("");
+
+  // ─── Restaurer le résultat depuis sessionStorage au montage ──────────────
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(SS_KEY);
+      if (raw) setResultat(JSON.parse(raw) as MultiJsSimulationResultat);
+    } catch {}
+  }, []);
+
+  // ─── Persister le résultat dans sessionStorage ────────────────────────────
+  useEffect(() => {
+    try {
+      if (resultat) sessionStorage.setItem(SS_KEY, JSON.stringify(resultat));
+      else sessionStorage.removeItem(SS_KEY);
+    } catch {}
+  }, [resultat]);
 
   // ─── Charger les imports disponibles ─────────────────────────────────────
   useEffect(() => {
@@ -83,8 +99,13 @@ export default function MultiJsPage() {
     setLoadingJs(true);
     setAllJs([]);
     setSelectedIds(new Set());
-    setResultat(null);
     setError(null);
+
+    // Effacer le résultat seulement si l'utilisateur change d'import (pas au 1er chargement)
+    if (prevImportId.current && prevImportId.current !== importId) {
+      setResultat(null);
+    }
+    prevImportId.current = importId;
 
     fetch(`/api/multi-js-simulation/js-list?importId=${importId}`)
       .then((r) => r.json())
@@ -157,10 +178,8 @@ export default function MultiJsPage() {
         body: JSON.stringify({
           importId,
           jsSelectionnees,
-          candidateScope,
           remplacement: true,
           deplacement: false,
-          autoriserFigeage,
         }),
       });
 
@@ -234,213 +253,72 @@ export default function MultiJsPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* ═══ Colonne gauche : timeline + filtres ══════════════════════ */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Filtres */}
-            <MultiJsFilters
-              filters={filters}
-              onChange={setFilters}
-              allJs={allJs}
-              nbVisible={filteredJs.length}
-              nbTotal={allJs.length}
-              onSelectAll={selectAll}
-              onDeselectAll={deselectAll}
-              nbSelected={nbSelected}
-            />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:pr-80">
+        {/* ─── Contenu principal ───────────────────────────────────────── */}
+        <div className="space-y-4">
+          {/* Filtres */}
+          <MultiJsFilters
+            filters={filters}
+            onChange={setFilters}
+            allJs={allJs}
+            nbVisible={filteredJs.length}
+            nbTotal={allJs.length}
+            onSelectAll={selectAll}
+            onDeselectAll={deselectAll}
+            nbSelected={nbSelected}
+          />
 
-            {/* Timeline */}
-            {loadingJs ? (
-              <div className="flex items-center justify-center py-16 bg-white rounded-xl border border-slate-200">
-                <div className="flex items-center gap-3 text-slate-500">
-                  <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm">Chargement des journées de service…</span>
-                </div>
-              </div>
-            ) : filteredJs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 bg-white rounded-xl border border-slate-200 text-center">
-                <p className="text-3xl mb-2">📭</p>
-                <p className="text-sm font-medium text-slate-600">Aucune JS trouvée</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  {allJs.length > 0
-                    ? "Essayez de modifier les filtres"
-                    : "Sélectionnez un planning contenant des JS"}
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {grouped.map(([date, jsList]) => (
-                  <div key={date}>
-                    {/* En-tête de groupe par date */}
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="h-px flex-1 bg-slate-200" />
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wide px-2">
-                        {new Date(date).toLocaleDateString("fr-FR", {
-                          weekday: "long",
-                          day: "2-digit",
-                          month: "long",
-                        })}
-                      </span>
-                      <div className="h-px flex-1 bg-slate-200" />
-                    </div>
-
-                    {/* Fil d'Ariane vertical */}
-                    <div className="relative pl-4">
-                      {/* Ligne verticale */}
-                      <div className="absolute left-0 top-2 bottom-2 w-px bg-slate-200" />
-
-                      <div className="space-y-1.5">
-                        {jsList.map((js) => (
-                          <JsTimelineItem
-                            key={js.planningLigneId}
-                            js={js}
-                            selected={selectedIds.has(js.planningLigneId)}
-                            onToggle={toggleJs}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ═══ Colonne droite : panneau de contrôle ═════════════════════ */}
-          <div className="space-y-4">
-            {/* Compteur + bouton sticky */}
-            <div className="sticky top-4 space-y-4">
-              {/* Sélection */}
-              <div
-                className={cn(
-                  "rounded-xl border p-4 transition-all",
-                  nbSelected > 0
-                    ? "bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200"
-                    : "bg-white border-slate-200"
-                )}
-              >
-                <div className="text-center mb-3">
-                  <p
-                    className={cn(
-                      "text-4xl font-bold",
-                      nbSelected > 0 ? "text-white" : "text-slate-300"
-                    )}
-                  >
-                    {nbSelected}
-                  </p>
-                  <p
-                    className={cn(
-                      "text-sm font-medium mt-0.5",
-                      nbSelected > 0 ? "text-blue-100" : "text-slate-400"
-                    )}
-                  >
-                    JS sélectionnée{nbSelected > 1 ? "s" : ""}
-                  </p>
-                </div>
-
-                {/* Liste des JS sélectionnées (résumé) */}
-                {nbSelected > 0 && nbSelected <= 8 && (
-                  <div className="space-y-1 mb-3 max-h-40 overflow-y-auto">
-                    {jsSelectionnees.map((js) => (
-                      <div
-                        key={js.planningLigneId}
-                        className="flex items-center justify-between text-xs bg-blue-500/40 rounded px-2 py-1"
-                      >
-                        <span className="font-mono font-bold truncate">
-                          {js.codeJs ?? "JS"}
-                        </span>
-                        <span className="text-blue-200 shrink-0 ml-2">
-                          {formatDateFr(js.date)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => toggleJs(js.planningLigneId)}
-                          className="ml-2 text-blue-200 hover:text-white shrink-0"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {nbSelected > 8 && (
-                  <p className="text-xs text-blue-200 text-center mb-3">
-                    {nbSelected} JS sélectionnées
-                  </p>
-                )}
-              </div>
-
-              {/* Mode simulation */}
-              <div className="bg-white border border-slate-200 rounded-xl p-4">
-                <ScenarioModeSelector
-                  value={candidateScope}
-                  onChange={setCandidateScope}
-                />
-              </div>
-
-              {/* Figeage DERNIER_RECOURS */}
-              <div className="bg-white border border-slate-200 rounded-xl p-4">
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={autoriserFigeage}
-                    onChange={(e) => setAutoriserFigeage(e.target.checked)}
-                    className="w-4 h-4 text-amber-600 rounded mt-0.5 shrink-0"
-                  />
-                  <div>
-                    <p className="text-sm font-medium text-slate-700">
-                      Autoriser le figeage
-                    </p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      Libère les agents dont la JS conflictuelle est marquée{" "}
-                      <span className="font-mono text-amber-600">DERNIER_RECOURS</span>.
-                    </p>
-                  </div>
-                </label>
-              </div>
-
-              {/* Bouton analyser */}
-              <button
-                type="button"
-                disabled={nbSelected === 0 || loading}
-                onClick={lancerSimulation}
-                className={cn(
-                  "w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl font-semibold text-sm transition-all",
-                  nbSelected === 0
-                    ? "bg-slate-100 text-slate-400 cursor-not-allowed"
-                    : loading
-                    ? "bg-blue-400 text-white cursor-wait"
-                    : "bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200 hover:shadow-xl active:scale-95"
-                )}
-              >
-                {loading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Analyse en cours…
-                  </>
-                ) : (
-                  <>
-                    ⚡ Analyser {nbSelected > 0 ? `${nbSelected} JS` : "la sélection"}
-                  </>
-                )}
-              </button>
-
-              {nbSelected === 0 && (
-                <p className="text-xs text-center text-slate-400">
-                  Sélectionnez au moins une JS dans la timeline pour lancer l&apos;analyse.
-                </p>
-              )}
-
-              {/* Info mode */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
-                <p className="text-[10px] text-slate-500 leading-relaxed">
-                  <strong>Règle clé :</strong> un même agent peut être affecté à plusieurs JS
-                  si ses horaires cumulés restent conformes aux règles RH (amplitude, TE, repos, GPT…).
-                </p>
+          {/* Timeline */}
+          {loadingJs ? (
+            <div className="flex items-center justify-center py-16 bg-white rounded-xl border border-slate-200">
+              <div className="flex items-center gap-3 text-slate-500">
+                <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm">Chargement des journées de service…</span>
               </div>
             </div>
-          </div>
+          ) : filteredJs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 bg-white rounded-xl border border-slate-200 text-center">
+              <p className="text-3xl mb-2">📭</p>
+              <p className="text-sm font-medium text-slate-600">Aucune JS trouvée</p>
+              <p className="text-xs text-slate-400 mt-1">
+                {allJs.length > 0
+                  ? "Essayez de modifier les filtres"
+                  : "Sélectionnez un planning contenant des JS"}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {grouped.map(([date, jsList]) => (
+                <div key={date}>
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="h-px flex-1 bg-slate-200" />
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide px-2">
+                      {new Date(date).toLocaleDateString("fr-FR", {
+                        weekday: "long",
+                        day: "2-digit",
+                        month: "long",
+                      })}
+                    </span>
+                    <div className="h-px flex-1 bg-slate-200" />
+                  </div>
+
+                  <div className="relative pl-4">
+                    <div className="absolute left-0 top-2 bottom-2 w-px bg-slate-200" />
+                    <div className="space-y-1.5">
+                      {jsList.map((js) => (
+                        <JsTimelineItem
+                          key={js.planningLigneId}
+                          js={js}
+                          selected={selectedIds.has(js.planningLigneId)}
+                          onToggle={toggleJs}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ─── Zone résultats ────────────────────────────────────────────── */}
@@ -465,6 +343,115 @@ export default function MultiJsPage() {
           </div>
         )}
       </div>
+
+      {/* ─── Panneau sélection flottant (droite) ────────────────────────────── */}
+      <div className="fixed top-24 right-4 z-40 w-64 space-y-2 hidden lg:block">
+        <div
+          className={cn(
+            "rounded-xl border p-4 shadow-lg transition-all",
+            nbSelected > 0
+              ? "bg-blue-600 border-blue-600 text-white shadow-blue-200"
+              : "bg-white border-slate-200"
+          )}
+        >
+          <div className="text-center mb-3">
+            <p className={cn("text-4xl font-bold", nbSelected > 0 ? "text-white" : "text-slate-300")}>
+              {nbSelected}
+            </p>
+            <p className={cn("text-sm font-medium mt-0.5", nbSelected > 0 ? "text-blue-100" : "text-slate-400")}>
+              JS sélectionnée{nbSelected > 1 ? "s" : ""}
+            </p>
+          </div>
+
+          {nbSelected > 0 && nbSelected <= 8 && (
+            <div className="space-y-1 mb-1 max-h-48 overflow-y-auto">
+              {jsSelectionnees.map((js) => (
+                <div
+                  key={js.planningLigneId}
+                  className="flex items-center justify-between text-xs bg-blue-500/40 rounded px-2 py-1"
+                >
+                  <span className="font-mono font-bold truncate">{js.codeJs ?? "JS"}</span>
+                  <span className="text-blue-200 shrink-0 ml-2">{formatDateFr(js.date)}</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleJs(js.planningLigneId)}
+                    className="ml-2 text-blue-200 hover:text-white shrink-0"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {nbSelected > 8 && (
+            <p className="text-xs text-blue-200 text-center mb-1">{nbSelected} JS sélectionnées</p>
+          )}
+          {nbSelected === 0 && (
+            <p className="text-xs text-center text-slate-400">
+              Sélectionnez au moins une JS dans la timeline.
+            </p>
+          )}
+
+          {/* Bouton Analyser intégré dans le panneau */}
+          {nbSelected > 0 && (
+            <button
+              type="button"
+              disabled={loading}
+              onClick={lancerSimulation}
+              className={cn(
+                "mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all",
+                loading
+                  ? "bg-white/20 text-blue-100 cursor-wait"
+                  : "bg-white text-blue-600 hover:bg-blue-50 active:scale-95"
+              )}
+            >
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-blue-200 border-t-transparent rounded-full animate-spin" />
+                  Analyse en cours…
+                </>
+              ) : (
+                <>⚡ Analyser {nbSelected} JS</>
+              )}
+            </button>
+          )}
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+          <p className="text-[10px] text-slate-500 leading-relaxed">
+            <strong>Règle clé :</strong> un même agent peut être affecté à plusieurs JS
+            si ses horaires cumulés restent conformes aux règles RH (amplitude, TE, repos, GPT…).
+          </p>
+        </div>
+      </div>
+
+      {/* ─── Barre flottante bas (mobile uniquement) ─────────────────────────── */}
+      {nbSelected > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none lg:hidden">
+          <div className="px-4 pb-4 flex justify-end pointer-events-none">
+            <button
+              type="button"
+              disabled={loading}
+              onClick={lancerSimulation}
+              className={cn(
+                "pointer-events-auto flex items-center gap-2.5 px-5 py-3 rounded-xl font-semibold text-sm shadow-2xl transition-all",
+                loading
+                  ? "bg-blue-400 text-white cursor-wait"
+                  : "bg-blue-600 text-white hover:bg-blue-700 active:scale-95"
+              )}
+            >
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Analyse en cours…
+                </>
+              ) : (
+                <>⚡ Analyser {nbSelected} JS</>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -23,15 +23,26 @@ interface Props {
   nbSelected: number;
 }
 
-export function emptyFilters(): FiltersState {
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+export function defaultFilters(): FiltersState {
+  const today = new Date();
+  const j10 = new Date(today);
+  j10.setDate(today.getDate() + 10);
   return {
-    dateDebut: "",
-    dateFin: "",
+    dateDebut: toIsoDate(today),
+    dateFin: toIsoDate(j10),
     prefixe: "",
     agent: "",
     nuitSeulement: false,
-    zExclu: false,
+    zExclu: true,
   };
+}
+
+export function emptyFilters(): FiltersState {
+  return defaultFilters();
 }
 
 export function applyFilters(js: JsTimeline[], f: FiltersState): JsTimeline[] {

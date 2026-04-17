@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { minutesToTime } from "@/lib/utils";
-import type { JsCible, ImpreuvuConfig, JsSimulationResultat } from "@/types/js-simulation";
+import type { JsCible, ImpreuvuConfig, JsSimulationResultatDouble } from "@/types/js-simulation";
 import JsResultatsTabs from "./JsResultatsTabs";
 import AgentLink from "@/components/ui/AgentLink";
 
@@ -13,9 +13,8 @@ interface JsAnalysisPanelProps {
 
 export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelProps) {
   const [loading, setLoading] = useState(false);
-  const [resultat, setResultat] = useState<JsSimulationResultat | null>(null);
+  const [resultat, setResultat] = useState<JsSimulationResultatDouble | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [autoriserFigeage, setAutoriserFigeage] = useState(false);
   const [imprevu, setImprevu] = useState<ImpreuvuConfig>({
     partiel: false,
     // Priorité aux horaires standard du JsType : ils ne contiennent pas le trajet de l'agent initial.
@@ -36,14 +35,14 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
       const res = await fetch("/api/js-simulation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsCible, imprevu, autoriserFigeage }),
+        body: JSON.stringify({ jsCible, imprevu }),
       });
       if (!res.ok) {
         const data = await res.json();
         setError(data.error ?? "Erreur serveur");
         return;
       }
-      const data: JsSimulationResultat = await res.json();
+      const data: JsSimulationResultatDouble = await res.json();
       setResultat(data);
     } catch {
       setError("Erreur réseau");
@@ -171,22 +170,6 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
                 Configurez les LPA dans <a href="/lpa" className="underline font-medium">Gestion LPA</a>.
               </p>
             </div>
-
-            {/* Figeage DERNIER_RECOURS */}
-            <label className="flex items-start gap-2 cursor-pointer text-sm">
-              <input
-                type="checkbox"
-                checked={autoriserFigeage}
-                onChange={(e) => setAutoriserFigeage(e.target.checked)}
-                className="w-4 h-4 text-amber-600 rounded mt-0.5 shrink-0"
-              />
-              <span className="text-gray-700">
-                Autoriser le figeage{" "}
-                <span className="text-xs text-amber-700 font-medium">
-                  (libère les agents en JS DERNIER_RECOURS)
-                </span>
-              </span>
-            </label>
 
             {/* Commentaire */}
             <div>

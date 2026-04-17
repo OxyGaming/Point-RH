@@ -231,6 +231,7 @@ export function allouerJsMultiple(
           ajustement: jsSourceFigeeAff ? "FIGEAGE_DIRECT" : "AUCUN",
         },
         jsSourceFigee: jsSourceFigeeAff,
+        detail: candidat.detail,
       });
 
       if (jsSourceFigeeAff) {
@@ -375,6 +376,7 @@ export function allouerJsMultiple(
         // Phase 1 — valeurs neutres ; la logique de figeage sera implémentée en Phase 2
         solution: { nature: "CASCADE", ajustement: "AUCUN" },
         jsSourceFigee: null,
+        detail: affExistante.detail,
       });
 
       // 2. Réaffecter l'agent remplaçant → jsAffectee
@@ -413,6 +415,7 @@ export function allouerJsMultiple(
         // Phase 1 — valeurs neutres ; la logique de figeage sera implémentée en Phase 2
         solution: { nature: "DIRECTE", ajustement: "AUCUN" },
         jsSourceFigee: null,
+        detail: candidatRemplagant?.detail,
       });
 
       // 3. Mettre à jour agentAssignments

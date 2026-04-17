@@ -5,6 +5,7 @@
 import type { JsCible, ConflitInduit, ModificationPlanning, ImpactCascade, SolutionJs, JsSourceFigee, FlexibiliteJs } from "./js-simulation";
 import type { Exclusion } from "@/engine/ruleTypes";
 import type { LogEntry } from "@/engine/logger";
+import type { DetailCalcul } from "./simulation";
 
 // ─── Mode de simulation ───────────────────────────────────────────────────────
 
@@ -39,6 +40,8 @@ export interface CandidatMultiJs {
   statut: "DIRECT" | "VIGILANCE";
   motif: string;
   conflitsInduits: ConflitInduit[];
+  /** Détail des règles évaluées lors de l'analyse de mobilisabilité */
+  detail?: DetailCalcul;
   /**
    * Renseigné si l'agent est libéré par figeage de sa JS source DERNIER_RECOURS.
    * null si l'agent était libre ou sur JS Z — aucun figeage appliqué.
@@ -93,6 +96,8 @@ export interface AffectationJs {
    * null si ajustement === 'AUCUN' (aucun figeage).
    */
   jsSourceFigee: JsSourceFigee | null;
+  /** Détail complet des règles évaluées lors de l'analyse de mobilisabilité */
+  detail?: DetailCalcul;
 }
 
 // ─── Conflit détecté dans le scénario global ─────────────────────────────────
@@ -196,10 +201,14 @@ export interface MultiJsSimulationResultat {
   scenarios: MultiJsScenario[];
   /** Meilleur scénario (score le plus élevé) */
   scenarioMeilleur: MultiJsScenario | null;
-  /** Scénario réserve uniquement (disponible si le mode était "all_agents") */
+  /** Scénario réserve uniquement, sans figeage */
   scenarioReserveOnly: MultiJsScenario | null;
-  /** Scénario tous agents (disponible si le mode était "reserve_only") */
+  /** Scénario réserve uniquement, avec figeage DERNIER_RECOURS */
+  scenarioReserveOnlyFigeage: MultiJsScenario | null;
+  /** Scénario tous agents, sans figeage */
   scenarioTousAgents: MultiJsScenario | null;
+  /** Scénario tous agents, avec figeage DERNIER_RECOURS */
+  scenarioTousAgentsFigeage: MultiJsScenario | null;
   /** Nombre total d'agents analysés */
   nbAgentsAnalyses: number;
   /**

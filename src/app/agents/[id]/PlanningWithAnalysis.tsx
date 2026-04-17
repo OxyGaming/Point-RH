@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PlanningTimeline from "@/components/js-simulation/PlanningTimeline";
 import JsAnalysisPanel from "@/components/js-simulation/JsAnalysisPanel";
 import type { JsCible, FlexibiliteJs } from "@/types/js-simulation";
@@ -10,7 +10,6 @@ interface PlanningLigne {
   dateDebutPop: string;
   heureDebutPop: string;
   heureFinPop: string;
-  /** Horaires standard du JsType (indépendants du trajet de l'agent) */
   heureDebutJsType?: string;
   heureFinJsType?: string;
   jsNpo: string;
@@ -18,7 +17,6 @@ interface PlanningLigne {
   amplitudeHHMM: string | null;
   typeJs: string | null;
   amplitudeCentesimal: number | null;
-  /** Propagé depuis JsType.flexibilite — défaut OBLIGATOIRE */
   flexibilite?: FlexibiliteJs;
 }
 
@@ -40,22 +38,47 @@ export default function PlanningWithAnalysis({
   importId,
 }: Props) {
   const [selectedJs, setSelectedJs] = useState<JsCible | null>(null);
+  // Contrôle l'animation d'entrée du drawer
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (selectedJs) {
+      // Micro-delay pour laisser le DOM monter avant de déclencher la transition
+      const t = setTimeout(() => setVisible(true), 10);
+      return () => clearTimeout(t);
+    } else {
+      setVisible(false);
+    }
+  }, [selectedJs]);
+
+  const handleClose = () => {
+    setVisible(false);
+    // Attendre la fin de l'animation avant de démonter
+    setTimeout(() => setSelectedJs(null), 300);
+  };
 
   const hasJsLines = lignes.some((l) => l.jsNpo === "JS");
   const resolvedImportId = importId ?? "";
 
   return (
-    <div className={`flex flex-col xl:flex-row gap-0 transition-all ${selectedJs ? "xl:gap-6" : ""}`}>
-      {/* Planning timeline */}
-      <div className={`flex-1 min-w-0 transition-all ${selectedJs ? "xl:max-w-[55%]" : ""}`}>
+    <div className="relative">
+      {/* Planning timeline — toujours pleine largeur */}
+      <div>
         {hasJsLines && !selectedJs && (
           <div className="mx-5 mb-2 text-xs text-blue-600 bg-blue-50 rounded-lg px-3 py-2">
             💡 Cliquez sur une ligne <strong>JS</strong> pour analyser un imprévu
           </div>
         )}
         {selectedJs && (
-          <div className="mx-5 mb-2 text-xs text-blue-700 bg-blue-100 rounded-lg px-3 py-2">
-            ⚡ JS sélectionnée — {selectedJs.date} {selectedJs.heureDebut}→{selectedJs.heureFin}
+          <div className="mx-5 mb-2 text-xs text-blue-700 bg-blue-100 rounded-lg px-3 py-2 flex items-center justify-between">
+            <span>⚡ JS sélectionnée — {selectedJs.date} {selectedJs.heureDebut}→{selectedJs.heureFin}</span>
+            <button
+              onClick={handleClose}
+              className="text-blue-500 hover:text-blue-700 font-semibold ml-3 text-sm leading-none"
+              aria-label="Fermer l'analyse"
+            >
+              ×
+            </button>
           </div>
         )}
         <PlanningTimeline
@@ -70,13 +93,29 @@ export default function PlanningWithAnalysis({
         />
       </div>
 
-      {/* Panel d'analyse — slide-in */}
+      {/* Overlay semi-transparent */}
       {selectedJs && (
-        <div className="w-full xl:w-[45%] min-w-0 border-t xl:border-t-0 xl:border-l border-gray-200 bg-white flex flex-col xl:max-h-[700px] xl:overflow-hidden">
-          <JsAnalysisPanel
-            jsCible={selectedJs}
-            onClose={() => setSelectedJs(null)}
-          />
+        <div
+          className={`fixed inset-0 bg-black/20 z-30 transition-opacity duration-300 ${
+            visible ? "opacity-100" : "opacity-0"
+          }`}
+          onClick={handleClose}
+        />
+      )}
+
+      {/* Drawer d'analyse — glisse depuis la droite */}
+      {selectedJs && (
+        <div
+          className={`fixed top-0 right-0 h-full w-full sm:w-[480px] lg:w-[520px] z-40 bg-white shadow-2xl flex flex-col transition-transform duration-300 ease-out ${
+            visible ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="flex-1 overflow-y-auto">
+            <JsAnalysisPanel
+              jsCible={selectedJs}
+              onClose={handleClose}
+            />
+          </div>
         </div>
       )}
     </div>

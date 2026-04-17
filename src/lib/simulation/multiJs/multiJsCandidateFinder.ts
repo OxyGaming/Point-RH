@@ -274,6 +274,7 @@ export function trouverCandidatsPourJs(
       statut,
       motif: resultat.motifPrincipal,
       conflitsInduits,
+      detail: resultat.detail,
       jsSourceFigee: jsSourceFigeeCandidat,
     });
   }

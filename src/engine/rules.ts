@@ -48,6 +48,13 @@ export interface PlanningEvent {
   typeJs: string | null;
   /** ID de la ligne de planning source — optionnel, renseigné par les routes API pour le figeage. */
   planningLigneId?: string;
+  /**
+   * Horaires standard du JsType (indépendants des trajets de l'agent).
+   * Utilisés pour évaluer les remplaçants en cascade — toujours repartir du JsType,
+   * pas des horaires personnels de l'agent initial (qui incluent ses déplacements).
+   */
+  heureDebutJsType?: string;
+  heureFinJsType?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -484,13 +491,23 @@ export function evaluerMobilisabilite(
   const detail: DetailCalcul = {
     amplitudeMaxAutorisee: amplitudeMax,
     amplitudeImprevu,
+    amplitudeRaison,
     dureeEffectiveMax: teMax,
     reposJournalierMin,
     dernierPosteDebut: dernierPoste ? dernierPoste.heureDebut : null,
     dernierPosteFin: dernierPoste ? dernierPoste.heureFin : null,
+    dernierPosteDate: dernierPoste ? dernierPoste.dateDebut.toISOString().slice(0, 10) : null,
     reposJournalierDisponible: reposDisponible,
     gptActuel: joursGPTApres,
     gptMax: maxGPT,
+    teGptCumulAvant: cumulTE,
+    teGptLignes: joursGPTArr.map((e) => ({
+      date: e.dateDebut.toISOString().slice(0, 10),
+      heureDebut: e.heureDebut,
+      heureFin: e.heureFin,
+      codeJs: e.codeJs,
+      dureeMin: e.dureeEffectiveMin ?? e.amplitudeMin,
+    })),
     reposPeriodiqueProchain: null,
     violations,
     respectees,

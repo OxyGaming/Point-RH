@@ -76,16 +76,33 @@ export interface GptRpAnalyse {
   transitionImpactee: "AVANT" | "APRES" | "LES_DEUX" | "AUCUNE";
 }
 
+/** Une JS individuelle dans la GPT courante, pour le décomposé TE GPT */
+export interface TeGptLigne {
+  date: string;           // "YYYY-MM-DD"
+  heureDebut: string;
+  heureFin: string;
+  codeJs: string | null;
+  dureeMin: number;
+}
+
 export interface DetailCalcul {
   amplitudeMaxAutorisee: number;
   amplitudeImprevu: number;
+  /** Raison de l'amplitude max (ex: "agent en déplacement", "poste de nuit") */
+  amplitudeRaison: string;
   dureeEffectiveMax: number;
   reposJournalierMin: number;
   dernierPosteDebut: string | null;
   dernierPosteFin: string | null;
+  /** Date calendaire du dernier poste (YYYY-MM-DD) */
+  dernierPosteDate: string | null;
   reposJournalierDisponible: number | null;
   gptActuel: number;
   gptMax: number;
+  /** TE cumulé dans la GPT avant la JS simulée (en minutes) */
+  teGptCumulAvant: number;
+  /** Détail des JS de la GPT courante (avant la JS simulée), pour le décomposé */
+  teGptLignes: TeGptLigne[];
   reposPeriodiqueProchain: string | null;
   violations: RegleViolation[];
   respectees: RegleRespectee[];

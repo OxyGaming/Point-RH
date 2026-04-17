@@ -12,6 +12,7 @@ import type {
 } from "@/types/multi-js-simulation";
 import type { ModificationPlanning, ImpactCascade } from "@/types/js-simulation";
 import AgentLink from "@/components/ui/AgentLink";
+import DetailReglesShared from "@/components/js-simulation/DetailRegles";
 
 interface Props {
   resultat: MultiJsSimulationResultat;
@@ -123,6 +124,9 @@ function ScopeBadge({ scope }: { scope: string }) {
     </span>
   );
 }
+
+// ─── Détail des règles : composant partagé importé ───────────────────────────
+const DetailRegles = DetailReglesShared;
 
 // ─── Situation initiale de l'agent ────────────────────────────────────────────
 
@@ -366,6 +370,9 @@ function AffectationsTable({ affectations }: { affectations: AffectationJs[] }) 
             {aff.jsSourceFigee && (
               <FigeageBadge justification={aff.jsSourceFigee.justification} />
             )}
+
+            {/* Détail des règles */}
+            {aff.detail && <DetailRegles detail={aff.detail} />}
           </div>
         );
       })}
@@ -467,6 +474,9 @@ function AgentCard({ agent }: { agent: AffectationsParAgent }) {
                 {aff.jsSourceFigee && (
                   <FigeageBadge justification={aff.jsSourceFigee.justification} />
                 )}
+
+                {/* Détail des règles */}
+                {aff.detail && <DetailRegles detail={aff.detail} />}
               </div>
             );
           })}
@@ -606,11 +616,33 @@ function ExclusionsPanel({ exclusionsParJs }: { exclusionsParJs: ExclusionsParJs
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 
+type ScenarioKey = "reserveDirect" | "reserveFigeage" | "tousDirect" | "tousFigeage";
+
+const SCENARIO_CONFIG: {
+  key: ScenarioKey;
+  label: string;
+  icon: string;
+  figeage: boolean;
+  scope: "reserve_only" | "all_agents";
+}[] = [
+  { key: "reserveDirect",  label: "Réserve — Direct",          icon: "🛡️",    figeage: false, scope: "reserve_only" },
+  { key: "reserveFigeage", label: "Réserve + Figeage",         icon: "🛡️🔒",  figeage: true,  scope: "reserve_only" },
+  { key: "tousDirect",     label: "Tous agents — Direct",      icon: "👥",    figeage: false, scope: "all_agents"   },
+  { key: "tousFigeage",    label: "Tous agents + Figeage",     icon: "👥🔒",  figeage: true,  scope: "all_agents"   },
+];
+
 export default function MultiJsResultsPanel({ resultat }: Props) {
-  const [activeScenarioIdx, setActiveScenarioIdx] = useState(0);
+  const [activeKey, setActiveKey] = useState<ScenarioKey>("reserveDirect");
   const [activeTab, setActiveTab] = useState<Tab>("resume");
 
-  const scenario = resultat.scenarios[activeScenarioIdx];
+  const scenarioByKey: Record<ScenarioKey, typeof resultat.scenarioReserveOnly> = {
+    reserveDirect:  resultat.scenarioReserveOnly,
+    reserveFigeage: resultat.scenarioReserveOnlyFigeage,
+    tousDirect:     resultat.scenarioTousAgents,
+    tousFigeage:    resultat.scenarioTousAgentsFigeage,
+  };
+
+  const scenario = scenarioByKey[activeKey];
   if (!scenario) return null;
 
   const nbExclusions = scenario.exclusionsParJs.reduce(
@@ -628,55 +660,55 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* ─── Comparaison réserve / tous agents ──────────────────────── */}
-      {resultat.scenarioReserveOnly && resultat.scenarioTousAgents && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <p className="text-xs font-semibold text-blue-800 mb-3">
-            Comparaison des scénarios
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { s: resultat.scenarioReserveOnly, label: "🛡️ Réserve uniquement" },
-              { s: resultat.scenarioTousAgents, label: "👥 Tous agents" },
-            ].map(({ s, label }) => (
-              <div key={s.id} className="bg-white rounded-lg p-3 border border-blue-100">
-                <p className="text-[10px] font-semibold text-slate-600 mb-2">{label}</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-2xl font-bold text-slate-800">{s.tauxCouverture}%</span>
-                  <ScoreBadge score={s.score} />
-                </div>
-                <p className="text-[10px] text-slate-500 mt-1">
-                  {s.nbJsCouvertes}/{s.nbJsCouvertes + s.nbJsNonCouvertes} JS · {s.nbAgentsMobilises} agents
-                </p>
-                <RobustesseBadge robustesse={s.robustesse} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* ─── Sélecteur de scénario ────────────────────────────────────── */}
-      {resultat.scenarios.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {resultat.scenarios.map((s, idx) => (
+      {/* ─── Sélecteur 4 scénarios ───────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {SCENARIO_CONFIG.map((cfg) => {
+          const s = scenarioByKey[cfg.key];
+          const isActive = activeKey === cfg.key;
+          if (!s) return null;
+          const coverageColor =
+            s.tauxCouverture === 100
+              ? "text-emerald-600"
+              : s.tauxCouverture >= 70
+              ? "text-amber-600"
+              : "text-red-600";
+          return (
             <button
-              key={s.id}
+              key={cfg.key}
               type="button"
-              onClick={() => { setActiveScenarioIdx(idx); setActiveTab("resume"); }}
+              onClick={() => { setActiveKey(cfg.key); setActiveTab("resume"); }}
               className={cn(
-                "shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all",
-                activeScenarioIdx === idx
-                  ? "border-blue-400 bg-blue-50 text-blue-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-blue-300"
+                "rounded-xl border p-3 text-left transition-all",
+                isActive
+                  ? "border-blue-500 bg-blue-50 shadow-sm"
+                  : "border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50"
               )}
             >
-              <ScopeBadge scope={s.candidateScope} />
-              <span className="font-mono">{s.tauxCouverture}%</span>
-              <ScoreBadge score={s.score} />
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm">{cfg.icon}</span>
+                {cfg.figeage && (
+                  <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1 py-0.5 rounded">
+                    CASCADE
+                  </span>
+                )}
+              </div>
+              <p className={cn("text-xl font-bold", coverageColor)}>
+                {s.tauxCouverture}%
+              </p>
+              <p className="text-[10px] font-semibold text-slate-600 leading-tight mt-0.5">
+                {cfg.label}
+              </p>
+              <p className="text-[9px] text-slate-400 mt-1">
+                {s.nbJsCouvertes}/{s.nbJsCouvertes + s.nbJsNonCouvertes} JS · {s.nbAgentsMobilises} agents
+              </p>
+              <div className="mt-1.5 flex items-center justify-between">
+                <RobustesseBadge robustesse={s.robustesse} />
+                <ScoreBadge score={s.score} />
+              </div>
             </button>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
       {/* ─── Onglets ──────────────────────────────────────────────────── */}
       <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">

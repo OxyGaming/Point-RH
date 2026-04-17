@@ -1,28 +1,78 @@
 @import "tailwindcss";
 
 :root {
-  /* Surface colors */
-  --background: #f1f5f9;   /* slate-100 — fond de page, donne de la profondeur aux cards */
-  --foreground: #0f172a;   /* slate-900 */
+  /* ── Palette principale ─────────────────────────────────── */
+  --navy:        #1a3070;
+  --navy-mid:    #1e3a8a;
+  --navy-light:  #2952be;
+  --accent:      #2563eb;
+  --accent-dark: #1d4ed8;
+  --accent-glow: rgba(37, 99, 235, 0.14);
 
-  /* Semantic colors */
-  --color-js: #2563eb;       /* blue-600 */
-  --color-js-bg: #eff6ff;    /* blue-50 */
-  --color-npo-bg: #f8fafc;   /* slate-50 */
-  --color-conforme: #16a34a; /* green-600 */
-  --color-vigilance: #d97706; /* amber-600 */
-  --color-non-conforme: #dc2626; /* red-600 */
+  /* ── Surfaces & fond ────────────────────────────────────── */
+  --bg:        #f4f6fb;
+  --surface:   #ffffff;
+  --surface-2: #f8f9fd;
+  --border:    #e2e8f5;
+
+  /* ── Texte ──────────────────────────────────────────────── */
+  --text-1: #0f1b4c;
+  --text-2: #4a5580;
+  --text-3: #8b93b8;
+
+  /* ── Statuts sémantiques ────────────────────────────────── */
+  --color-conforme:     #059669;
+  --color-conforme-bg:  #ecfdf5;
+  --color-vigilance:    #d97706;
+  --color-vigilance-bg: #fffbeb;
+  --color-non-conforme:     #dc2626;
+  --color-non-conforme-bg:  #fef2f2;
+
+  /* ── JS & NPO (héritage) ────────────────────────────────── */
+  --color-js:    #2563eb;
+  --color-js-bg: #eff6ff;
+  --color-npo-bg: #f8f9fd;
+
+  /* ── Tokens layout ──────────────────────────────────────── */
+  --background: var(--bg);
+  --foreground: var(--text-1);
+
+  /* ── Ombres ─────────────────────────────────────────────── */
+  --shadow-sm: 0 1px 3px rgba(15, 27, 76, 0.07), 0 1px 2px rgba(15, 27, 76, 0.04);
+  --shadow-md: 0 4px 16px rgba(15, 27, 76, 0.09), 0 2px 6px rgba(15, 27, 76, 0.05);
+  --shadow-lg: 0 8px 32px rgba(15, 27, 76, 0.12), 0 4px 12px rgba(15, 27, 76, 0.07);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sora);
+  --font-mono: var(--font-mono-ibm);
+}
+
+/* ── Base ───────────────────────────────────────────────────── */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text-1);
+}
+
+/* ── Scrollbar discrète ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+/* ── Utilitaires globaux ────────────────────────────────────── */
+.font-mono {
+  font-family: var(--font-mono-ibm), 'IBM Plex Mono', monospace;
+}
+
+/* ── Transitions douces ─────────────────────────────────────── */
+* {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }

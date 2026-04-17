@@ -3,17 +3,18 @@ import { Card, CardHeader, CardBody } from "@/components/ui/Card";
 
 export default function SimulationPage() {
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Nouvelle simulation</h1>
-        <p className="text-gray-500 mt-1">
+    <div className="p-5 sm:p-7 lg:p-8 max-w-3xl">
+      <div className="mb-7">
+        <p className="text-[10px] font-[700] uppercase tracking-[0.12em] text-[#2563eb] mb-1">Outils RH</p>
+        <h1 className="text-[26px] font-[800] text-[#0f1b4c] tracking-tight leading-none">Nouvelle simulation</h1>
+        <p className="text-[13px] text-[#4a5580] mt-2">
           Définissez l&apos;imprévu et lancez l&apos;analyse de mobilisabilité des agents.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <h2 className="font-semibold text-gray-800">Paramètres de l&apos;imprévu</h2>
+          <h2 className="text-[13px] font-[700] text-[#0f1b4c]">Paramètres de l&apos;imprévu</h2>
         </CardHeader>
         <CardBody>
           <SimulationForm />

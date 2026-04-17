@@ -4,9 +4,9 @@ export const metadata = { title: "Gestion LPA — Point RH" };
 
 export default function LpaPage() {
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-5 sm:p-7 lg:p-8 max-w-6xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Gestion des LPA</h1>
+        <p className="text-[10px] font-[700] uppercase tracking-[0.12em] text-[#2563eb] mb-1">Administration</p><h1 className="text-[26px] font-[800] text-[#0f1b4c] tracking-tight leading-none">LPA &amp; Types JS</h1>
         <p className="text-sm text-gray-500 mt-1">
           Configurez les Lieux de Prise d&apos;Attachement et leurs Journées de Service compatibles.
           Cette configuration détermine automatiquement si un agent est en déplacement lors d&apos;une simulation.

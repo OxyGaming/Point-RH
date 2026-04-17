@@ -17,7 +17,7 @@ import { loadNpoExclusionCodes } from "./npoExclusionLoader";
 import { loadLpaContext } from "@/lib/deplacement/loadLpaContext";
 import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
-import type { JsSimulationRequest, JsSimulationResultat, CandidatResult, StatutCandidat } from "@/types/js-simulation";
+import type { JsSimulationRequest, JsSimulationResultat, JsSimulationResultatDouble, CandidatResult, StatutCandidat } from "@/types/js-simulation";
 import { createLogger } from "@/engine/logger";
 import type { LogEntry } from "@/engine/logger";
 
@@ -29,7 +29,7 @@ export interface AgentDataForSimulation {
 export async function executerSimulationJS(
   request: JsSimulationRequest,
   agents: AgentDataForSimulation[]
-): Promise<JsSimulationResultat> {
+): Promise<JsSimulationResultatDouble> {
   const { jsCible, imprevu } = request;
   const logger = createLogger();
 
@@ -63,8 +63,10 @@ export async function executerSimulationJS(
       {
         codeJs: jsCible.codeJs,
         typeJs: jsCible.typeJs,
-        heureDebut: jsCible.heureDebut,
-        heureFin: jsCible.heureFin,
+        // Partir des horaires standard du JsType — pas de ceux de l'agent initial
+        // (qui incluent ses trajets propres). Chaque candidat applique ensuite ses propres trajets.
+        heureDebut: jsCible.heureDebutJsType ?? jsCible.heureDebut,
+        heureFin:   jsCible.heureFinJsType   ?? jsCible.heureFin,
         estNuit: jsCible.isNuit,
       },
       lpaContext,
@@ -211,130 +213,106 @@ export async function executerSimulationJS(
     candidats.push({ ...candidatPartiel, scorePertinence: scoreBreakdown.total, scoreBreakdown });
   }
 
-  // ─── Étape 2bis : candidats libérés par figeage (DERNIER_RECOURS) ───────────
-  // Uniquement si autoriserFigeage est activé. Ces agents étaient exclus pour
-  // "Déjà en service" mais leur JS conflictuelle est DERNIER_RECOURS → on peut
-  // la figer pour les libérer vers la JS cible.
-  const agentsEvaluesViaFigeage = new Set<string>();
+  // ─── Étape 2bis : candidats libérés par figeage (DERNIER_RECOURS) ─────────────
+  // Toujours calculé (pour les deux résultats sansFigeage / avecFigeage).
+  const jsTypeFlexibiliteMap = await loadJsTypeFlexibiliteMap();
+  const candidatsFigeage = trouverCandidatsParFigeage(exclus, jsCible, imprevu, jsTypeFlexibiliteMap);
 
-  const nbExclusDejaEnService = exclus.filter(
-    ({ raison }) => raison === "Déjà en service pendant l'imprévu"
-  ).length;
-  logger.info("FIGEAGE_FLAG_STATE", {
-    data: {
-      autoriserFigeage: request.autoriserFigeage ?? false,
-      nbExclusTotal: exclus.length,
-      nbExclusDejaEnService,
-    },
+  logger.info("FIGEAGE_CANDIDATS", {
+    data: { nbCandidatsFigeage: candidatsFigeage.length },
   });
 
-  if (request.autoriserFigeage) {
-    const jsTypeFlexibiliteMap = await loadJsTypeFlexibiliteMap();
-    const candidatsFigeage = trouverCandidatsParFigeage(exclus, jsCible, imprevu, jsTypeFlexibiliteMap);
+  const candidatsFigeageEvalues: CandidatResult[] = [];
+  const agentsEvaluesViaFigeage = new Set<string>();
 
-    logger.info("FIGEAGE_CANDIDATS", {
-      data: { nbCandidatsFigeage: candidatsFigeage.length },
-    });
+  for (const { agent: { context }, eventsAvecFigeage, jsSourceFigee } of candidatsFigeage) {
+    const jsZOrigine = eventsAvecFigeage.find(
+      (e) =>
+        e.jsNpo === "JS" &&
+        isZeroLoadJs(e.codeJs) &&
+        e.dateDebut < finImprevu &&
+        e.dateFin > debutImprevu
+    ) ?? null;
+    const surJsZ = jsZOrigine !== null;
 
-    for (const { agent: { context }, eventsAvecFigeage, jsSourceFigee } of candidatsFigeage) {
-      const jsZOrigine = eventsAvecFigeage.find(
-        (e) =>
-          e.jsNpo === "JS" &&
-          isZeroLoadJs(e.codeJs) &&
-          e.dateDebut < finImprevu &&
-          e.dateFin > debutImprevu
-      ) ?? null;
-      const surJsZ = jsZOrigine !== null;
+    const effectiveService = effectiveServiceMap.get(context.id) ?? null;
+    const heureDebutSim = effectiveService ? effectiveService.heureDebutEffective : imprevu.heureDebutReel;
+    const heureFinSim   = effectiveService ? effectiveService.heureFinEffective   : imprevu.heureFinEstimee;
+    const deplacementEffectif =
+      effectiveService && effectiveService.estEnDeplacement !== null
+        ? effectiveService.estEnDeplacement
+        : imprevu.deplacement;
 
-      const effectiveService = effectiveServiceMap.get(context.id) ?? null;
-      const heureDebutSim = effectiveService ? effectiveService.heureDebutEffective : imprevu.heureDebutReel;
-      const heureFinSim   = effectiveService ? effectiveService.heureFinEffective   : imprevu.heureFinEstimee;
-      const deplacementEffectif =
-        effectiveService && effectiveService.estEnDeplacement !== null
-          ? effectiveService.estEnDeplacement
-          : imprevu.deplacement;
+    const simulationInput = {
+      importId: jsCible.importId,
+      dateDebut: jsCible.date,
+      dateFin: getDateFinJs(jsCible.date, heureDebutSim, heureFinSim),
+      heureDebut: heureDebutSim,
+      heureFin: heureFinSim,
+      poste: jsCible.codeJs ?? "JS",
+      codeJs: jsCible.codeJs,
+      remplacement: imprevu.remplacement,
+      deplacement: deplacementEffectif,
+      posteNuit: isNuitImprevu || jsCible.isNuit,
+    };
 
-      const simulationInput = {
-        importId: jsCible.importId,
-        dateDebut: jsCible.date,
-        dateFin: getDateFinJs(jsCible.date, heureDebutSim, heureFinSim),
-        heureDebut: heureDebutSim,
-        heureFin: heureFinSim,
-        poste: jsCible.codeJs ?? "JS",
-        codeJs: jsCible.codeJs,
-        remplacement: imprevu.remplacement,
-        deplacement: deplacementEffectif,
-        posteNuit: isNuitImprevu || jsCible.isNuit,
-      };
+    const eventsEffectifs = surJsZ
+      ? eventsAvecFigeage.filter((e) => e !== jsZOrigine)
+      : eventsAvecFigeage;
 
-      const eventsEffectifs = surJsZ
-        ? eventsAvecFigeage.filter((e) => e !== jsZOrigine)
-        : eventsAvecFigeage;
+    const resultat = evaluerMobilisabilite(context, eventsEffectifs, simulationInput, rules, effectiveService);
 
-      const resultat = evaluerMobilisabilite(context, eventsEffectifs, simulationInput, rules, effectiveService);
+    const eventsAvecJs = injecterJsDansPlanning(eventsEffectifs, jsCible, imprevu);
+    const conflitsInduits = detecterConflitsInduits(
+      eventsAvecJs,
+      finImprevu,
+      context.agentReserve,
+      imprevu.remplacement,
+      rules
+    );
 
-      const eventsAvecJs = injecterJsDansPlanning(eventsEffectifs, jsCible, imprevu);
-      const conflitsInduits = detecterConflitsInduits(
-        eventsAvecJs,
-        finImprevu,
-        context.agentReserve,
-        imprevu.remplacement,
-        rules
-      );
+    const statut: StatutCandidat =
+      resultat.statut === "NON_CONFORME"
+        ? "REFUSE"
+        : resultat.statut === "VIGILANCE" || conflitsInduits.length > 0
+        ? "VIGILANCE"
+        : "DIRECT";
 
-      const statut: StatutCandidat =
-        resultat.statut === "NON_CONFORME"
-          ? "REFUSE"
-          : resultat.statut === "VIGILANCE" || conflitsInduits.length > 0
-          ? "VIGILANCE"
-          : "DIRECT";
+    const motifPrincipal =
+      statut === "REFUSE"
+        ? resultat.motifPrincipal
+        : conflitsInduits.length > 0
+        ? conflitsInduits[0].description
+        : resultat.motifPrincipal;
 
-      logger[statut === "REFUSE" ? "warn" : "info"](`AGENT_FIGEAGE_EVALUE_${statut}`, {
-        agentId: context.id,
-        data: { statut, jsSourceFigee: jsSourceFigee.codeJs },
-      });
+    const candidatPartiel = {
+      agentId: context.id,
+      nom: context.nom,
+      prenom: context.prenom,
+      matricule: context.matricule,
+      posteAffectation: context.posteAffectation,
+      agentReserve: context.agentReserve,
+      surJsZ,
+      codeJsZOrigine: jsZOrigine?.codeJs ?? null,
+      statut,
+      motifPrincipal,
+      detail: resultat.detail,
+      conflitsInduits,
+      nbConflits: conflitsInduits.length,
+      jsSourceFigee,
+    };
 
-      const motifPrincipal =
-        statut === "REFUSE"
-          ? resultat.motifPrincipal
-          : conflitsInduits.length > 0
-          ? conflitsInduits[0].description
-          : resultat.motifPrincipal;
-
-      const candidatPartiel = {
-        agentId: context.id,
-        nom: context.nom,
-        prenom: context.prenom,
-        matricule: context.matricule,
-        posteAffectation: context.posteAffectation,
-        agentReserve: context.agentReserve,
-        surJsZ,
-        codeJsZOrigine: jsZOrigine?.codeJs ?? null,
-        statut,
-        motifPrincipal,
-        detail: resultat.detail,
-        conflitsInduits,
-        nbConflits: conflitsInduits.length,
-        jsSourceFigee,
-      };
-
-      const scoreBreakdown = scorerCandidatDetail(candidatPartiel);
-      candidats.push({ ...candidatPartiel, scorePertinence: scoreBreakdown.total, scoreBreakdown });
-      agentsEvaluesViaFigeage.add(context.id);
-    }
+    const scoreBreakdown = scorerCandidatDetail(candidatPartiel);
+    candidatsFigeageEvalues.push({ ...candidatPartiel, scorePertinence: scoreBreakdown.total, scoreBreakdown });
+    agentsEvaluesViaFigeage.add(context.id);
   }
 
-  // Ajouter les exclus comme refusés
+  // ─── Ajouter les exclus comme refusés ────────────────────────────────────────
+  const exclusRefuses: CandidatResult[] = [];
   for (const { agent, raison } of exclus) {
-    // Ne pas doubler un agent déjà évalué via figeage
-    if (agentsEvaluesViaFigeage.has(agent.context.id)) continue;
     const effectiveService = effectiveServiceMap.get(agent.context.id) ?? null;
-    const heureDebutSim = effectiveService
-      ? effectiveService.heureDebutEffective
-      : imprevu.heureDebutReel;
-    const heureFinSim = effectiveService
-      ? effectiveService.heureFinEffective
-      : imprevu.heureFinEstimee;
+    const heureDebutSim = effectiveService ? effectiveService.heureDebutEffective : imprevu.heureDebutReel;
+    const heureFinSim   = effectiveService ? effectiveService.heureFinEffective   : imprevu.heureFinEstimee;
 
     const simulationInput = {
       importId: jsCible.importId,
@@ -350,7 +328,7 @@ export async function executerSimulationJS(
     };
     const resultat = evaluerMobilisabilite(agent.context, agent.events, simulationInput, rules, effectiveService);
 
-    candidats.push({
+    exclusRefuses.push({
       agentId: agent.context.id,
       nom: agent.context.nom,
       prenom: agent.context.prenom,
@@ -369,40 +347,60 @@ export async function executerSimulationJS(
     });
   }
 
-  // ─── Étape 4+5 : scénarios de réorganisation ─────────────────────────────────
-  const scenarios = construireScenarios(
-    candidats.filter((c) => c.statut !== "REFUSE"),
-    jsCible,
-    imprevu,
-    agents.filter((a) => a.context.id !== agentInitialId),
-    lpaContext,
-    rules
+  // ─── Helper : construire un JsSimulationResultat ──────────────────────────────
+  function buildResultat(allCandidats: CandidatResult[]): JsSimulationResultat {
+    const sorted = [...allCandidats].sort((a, b) => b.scorePertinence - a.scorePertinence);
+    const directs   = sorted.filter((c) => c.statut === "DIRECT");
+    const vigilants = sorted.filter((c) => c.statut === "VIGILANCE");
+    const refuses   = sorted.filter((c) => c.statut === "REFUSE");
+
+    const scenarios = construireScenarios(
+      sorted.filter((c) => c.statut !== "REFUSE"),
+      jsCible,
+      imprevu,
+      agents.filter((a) => a.context.id !== agentInitialId),
+      lpaContext,
+      rules
+    );
+
+    return {
+      jsCible,
+      imprevu,
+      directsUtilisables: directs,
+      vigilance: vigilants,
+      refuses,
+      scenarios,
+      nbAgentsAnalyses: agents.length - 1,
+      auditLog: logger.all(),
+    };
+  }
+
+  // ─── Résultat sans figeage ────────────────────────────────────────────────────
+  const candidatsSans = [
+    ...candidats,
+    ...exclusRefuses,
+  ];
+
+  // ─── Résultat avec figeage ────────────────────────────────────────────────────
+  // Les exclus libérés par figeage remplacent leur entrée "refusé" dans les exclus
+  const exclusRefusesRestants = exclusRefuses.filter(
+    (r) => !agentsEvaluesViaFigeage.has(r.agentId)
   );
-
-  // ─── Tri final ─────────────────────────────────────────────────────────────────
-  candidats.sort((a, b) => b.scorePertinence - a.scorePertinence);
-
-  const directs  = candidats.filter((c) => c.statut === "DIRECT");
-  const vigilants = candidats.filter((c) => c.statut === "VIGILANCE");
-  const refuses  = candidats.filter((c) => c.statut === "REFUSE");
+  const candidatsAvec = [
+    ...candidats,
+    ...candidatsFigeageEvalues,
+    ...exclusRefusesRestants,
+  ];
 
   logger.info("SIMULATION_END", {
     data: {
-      nbDirect: directs.length,
-      nbVigilance: vigilants.length,
-      nbRefuse: refuses.length,
-      nbScenarios: scenarios.length,
+      nbSansFigeage: candidatsSans.length,
+      nbAvecFigeage: candidatsAvec.length,
     },
   });
 
   return {
-    jsCible,
-    imprevu,
-    directsUtilisables: directs,
-    vigilance: vigilants,
-    refuses,
-    scenarios,
-    nbAgentsAnalyses: agents.length - 1, // exclut l'agent initial
-    auditLog: logger.all(),
+    sansFigeage: buildResultat(candidatsSans),
+    avecFigeage: buildResultat(candidatsAvec),
   };
 }

@@ -81,12 +81,20 @@ npx prisma db push --skip-generate
 echo "🏗️ Build..."
 npm run build
 
+# ── Copie des fichiers statiques dans le dossier standalone ───────────────────
+# Requis avec output: "standalone" — Next.js ne les copie pas automatiquement
+echo "📂 Copie des fichiers statiques..."
+mkdir -p .next/standalone/public
+mkdir -p .next/standalone/.next/static
+cp -r public/. .next/standalone/public/
+cp -r .next/static/. .next/standalone/.next/static/
+
 # ── Redémarrage PM2 ───────────────────────────────────────────────────────────
 # Désactiver le trap avant le redémarrage (PM2 peut retourner des codes non-0)
 trap - ERR
 echo "🔄 Redémarrage PM2..."
 pm2 restart pointrh --update-env || \
-  PORT=3001 DATABASE_URL="$DATABASE_URL" JWT_SECRET="$JWT_SECRET" pm2 start npm --name pointrh -- start
+  PORT=3001 DATABASE_URL="$DATABASE_URL" JWT_SECRET="$JWT_SECRET" pm2 start node --name pointrh -- .next/standalone/server.js
 
 echo "💾 Sauvegarde configuration PM2..."
 pm2 save

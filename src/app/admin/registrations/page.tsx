@@ -101,11 +101,11 @@ export default function RegistrationsAdminPage() {
   const pendingUsers = users.filter((u) => u.registrationStatus === "PENDING");
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl">
+    <div className="p-5 sm:p-7 lg:p-8 max-w-5xl">
       {/* En-tête */}
       <div className="mb-6">
         <div className="flex items-center gap-3 mb-1">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Demandes d&apos;inscription</h1>
+          <p className="text-[10px] font-[700] uppercase tracking-[0.12em] text-[#2563eb] mb-1">Administration</p><h1 className="text-[26px] font-[800] text-[#0f1b4c] tracking-tight leading-none">Demandes d'inscription</h1>
           {pendingCount > 0 && (
             <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-bold bg-amber-500 text-white rounded-full">
               {pendingCount}

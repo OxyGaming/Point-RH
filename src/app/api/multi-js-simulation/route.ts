@@ -25,22 +25,40 @@ export async function POST(req: NextRequest) {
     const {
       importId,
       jsSelectionnees,
-      candidateScope,
       deplacement = false,
       remplacement = true,
-      autoriserFigeage = false,
     } = body;
 
-    if (!importId || !jsSelectionnees?.length || !candidateScope) {
+    if (!importId || !jsSelectionnees?.length) {
       return NextResponse.json({ error: "Paramètres manquants" }, { status: 400 });
     }
 
     // ─── Charger tous les agents + leur planning pour cet import ─────────────────
-    const lignes = await prisma.planningLigne.findMany({
-      where: { importId },
-      include: { agent: true },
-      orderBy: { dateDebutPop: "asc" },
-    });
+    const [lignes, jsTypes] = await Promise.all([
+      prisma.planningLigne.findMany({
+        where: { importId },
+        include: { agent: true },
+        orderBy: { dateDebutPop: "asc" },
+      }),
+      prisma.jsType.findMany({ select: { code: true, heureDebutStandard: true, heureFinStandard: true } }),
+    ]);
+
+    function resolveJsType(codeJs: string | null, typeJs: string | null) {
+      if (typeJs) {
+        const exact = jsTypes.find((jt) => jt.code === typeJs);
+        if (exact) return exact;
+      }
+      if (codeJs) {
+        const prefixe = codeJs.trim().split(" ")[0] ?? "";
+        const byPrefix = jsTypes.find(
+          (jt) =>
+            prefixe.toUpperCase().startsWith(jt.code.toUpperCase()) ||
+            jt.code.toUpperCase() === prefixe.toUpperCase()
+        );
+        if (byPrefix) return byPrefix;
+      }
+      return null;
+    }
 
     const agentsMap = new Map<
       string,
@@ -89,6 +107,10 @@ export async function POST(req: NextRequest) {
         jsNpo: ligne.jsNpo as "JS" | "NPO",
         codeJs: ligne.codeJs,
         typeJs: ligne.typeJs,
+        ...(() => {
+          const jt = resolveJsType(ligne.codeJs, ligne.typeJs);
+          return jt ? { heureDebutJsType: jt.heureDebutStandard, heureFinJsType: jt.heureFinStandard } : {};
+        })(),
       });
     }
 
@@ -97,10 +119,9 @@ export async function POST(req: NextRequest) {
     const resultat = await executerSimulationMultiJs(
       jsSelectionnees,
       agents,
-      candidateScope,
+      "reserve_only",
       remplacement,
-      deplacement,
-      autoriserFigeage
+      deplacement
     );
 
     return NextResponse.json(resultat, { status: 200 });

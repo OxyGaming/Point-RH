@@ -50,7 +50,7 @@ export function construireScenarios(
     const agentPlanning = tousAgents.find((a) => a.context.id === candidat.agentId);
     if (!agentPlanning) continue;
 
-    const { modifications, impactsCascade, nbResolu } = resoudreTousConflits(
+    const { modifications, impactsCascade, nbResolu, profondeurMax } = resoudreTousConflits(
       conflitsResolvables,
       agentPlanning.events,
       autresAgents,
@@ -70,11 +70,14 @@ export function construireScenarios(
       description: `${candidat.nom} ${candidat.prenom} reprend la JS du ${jsCible.date} ${jsCible.heureDebut}-${jsCible.heureFin}`,
       violations: candidat.detail.violations,
       conforme: candidat.statut === "DIRECT",
+      motif: candidat.statut !== "DIRECT" ? candidat.motifPrincipal : null,
+      detail: candidat.detail,
+      heureDebutEffective: candidat.detail.deplacementInfo?.heureDebutEffective ?? null,
+      heureFinEffective:   candidat.detail.deplacementInfo?.heureFinEffective   ?? null,
     };
 
     const allModifications = [modPrincipale, ...modifications];
-    const profondeur = modifications.length > 0 ? 1 : 0;
-    const score = scorerScenario(conformiteFinale, allModifications.length, profondeur, nbConflitsResidus);
+    const score = scorerScenario(conformiteFinale, allModifications.length, profondeurMax, nbConflitsResidus);
 
     scenarioCounter++;
     const scenario: Scenario = {
@@ -88,7 +91,7 @@ export function construireScenarios(
       impactsCascade,
       conformiteFinale,
       nbModifications: allModifications.length,
-      profondeurCascade: profondeur,
+      profondeurCascade: profondeurMax,
       justification: buildJustification(candidat, nbResolu, nbConflitsResidus),
       solution: {
         nature: modifications.length > 0 ? "CASCADE" : "DIRECTE",
@@ -141,6 +144,9 @@ function buildScenarioDirect(
         description: `${candidat.nom} ${candidat.prenom} reprend la JS du ${jsCible.date} ${jsCible.heureDebut}-${jsCible.heureFin} — aucun impact sur le planning`,
         violations: [],
         conforme: true,
+        detail: candidat.detail,
+        heureDebutEffective: candidat.detail.deplacementInfo?.heureDebutEffective ?? null,
+        heureFinEffective:   candidat.detail.deplacementInfo?.heureFinEffective   ?? null,
       },
     ],
     impactsCascade: [],

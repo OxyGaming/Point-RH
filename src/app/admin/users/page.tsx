@@ -128,11 +128,11 @@ export default function UsersAdminPage() {
   const others = users.filter((u) => u.registrationStatus !== "PENDING");
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl">
+    <div className="p-5 sm:p-7 lg:p-8 max-w-4xl">
       {/* En-tête */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6 sm:mb-8">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Gestion des utilisateurs</h1>
+          <p className="text-[10px] font-[700] uppercase tracking-[0.12em] text-[#2563eb] mb-1">Administration</p><h1 className="text-[26px] font-[800] text-[#0f1b4c] tracking-tight leading-none">Utilisateurs</h1>
           <p className="text-gray-500 text-sm mt-1">Gérez les comptes et validez les demandes d'accès.</p>
         </div>
         <button

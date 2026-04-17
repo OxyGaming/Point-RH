@@ -1,10 +1,20 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
+import { Sora, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/layout/AppShell";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 
-const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
+const sora = Sora({
+  variable: "--font-sora",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  variable: "--font-mono-ibm",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
 
 export const metadata: Metadata = {
   title: "Point RH — Gestion des imprévus ferroviaires",
@@ -14,7 +24,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
-      <body className={`${geist.variable} antialiased bg-gray-50 min-h-screen`}>
+      <body className={`${sora.variable} ${ibmPlexMono.variable} antialiased`}>
         <AuthProvider>
           <AppShell>{children}</AppShell>
         </AuthProvider>

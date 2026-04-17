@@ -1,0 +1,1634 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Point RH — Mode Opératoire</title>
+<style>
+  :root {
+    --primary: #1e3a5f;
+    --primary-light: #2d5a8e;
+    --accent: #e63946;
+    --accent-soft: #ffeaea;
+    --warn: #f4a261;
+    --warn-soft: #fff3e0;
+    --ok: #2a9d8f;
+    --ok-soft: #e8f7f5;
+    --info: #457b9d;
+    --info-soft: #e8f1f8;
+    --purple: #7b2d8b;
+    --purple-soft: #f3e8f7;
+    --bg: #f8fafc;
+    --sidebar-w: 280px;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --text-muted: #64748b;
+    --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    display: flex;
+  }
+
+  /* ── SIDEBAR ──────────────────────────────────────────────── */
+  #sidebar {
+    width: var(--sidebar-w);
+    min-height: 100vh;
+    background: var(--primary);
+    color: #fff;
+    position: fixed;
+    top: 0; left: 0;
+    overflow-y: auto;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-header {
+    padding: 24px 20px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .sidebar-header h1 { font-size: 18px; font-weight: 700; color: #fff; }
+  .sidebar-header p { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+
+  #search-box {
+    margin: 12px 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: none;
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    font-size: 13px;
+    width: calc(100% - 24px);
+    outline: none;
+  }
+  #search-box::placeholder { color: rgba(255,255,255,0.4); }
+  #search-box:focus { background: rgba(255,255,255,0.18); }
+
+  .nav-group { padding: 4px 0; }
+  .nav-group-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    padding: 8px 20px 4px;
+  }
+  .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 20px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.8);
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-left: 3px solid transparent;
+  }
+  .nav-link:hover { background: rgba(255,255,255,0.08); color: #fff; }
+  .nav-link.active { background: rgba(255,255,255,0.12); color: #fff; border-left-color: #60a5fa; }
+  .nav-link .icon { font-size: 14px; width: 18px; text-align: center; }
+
+  /* ── MAIN ─────────────────────────────────────────────────── */
+  #main {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    padding: 32px 40px;
+    max-width: 960px;
+  }
+
+  section { margin-bottom: 60px; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+  }
+  .section-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .section-header h2 { font-size: 22px; font-weight: 700; color: var(--primary); }
+  .section-header p { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+  h3 { font-size: 16px; font-weight: 600; color: var(--primary); margin: 24px 0 10px; }
+  h4 { font-size: 14px; font-weight: 600; color: var(--text); margin: 16px 0 8px; }
+
+  p { font-size: 14px; margin-bottom: 10px; color: var(--text); }
+  ul, ol { font-size: 14px; padding-left: 20px; margin-bottom: 10px; }
+  li { margin-bottom: 4px; }
+
+  /* ── CARDS ────────────────────────────────────────────────── */
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  /* ── TERM DEF ─────────────────────────────────────────────── */
+  .term-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+  .term-card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    border-left: 4px solid var(--primary-light);
+  }
+  .term-card .term { font-weight: 700; font-size: 14px; color: var(--primary); margin-bottom: 4px; }
+  .term-card .abbr { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px; }
+  .term-card .def { font-size: 13px; color: var(--text); line-height: 1.5; }
+  .term-card .example { font-size: 12px; color: var(--info); background: var(--info-soft); padding: 4px 8px; border-radius: 4px; margin-top: 8px; }
+
+  /* ── RULE ROWS ────────────────────────────────────────────── */
+  .rule {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+  .rule-badge {
+    flex-shrink: 0;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .badge-block { background: #fee2e2; color: #b91c1c; }
+  .badge-warn  { background: #fef3c7; color: #92400e; }
+  .badge-ok    { background: #d1fae5; color: #065f46; }
+  .badge-info  { background: var(--info-soft); color: var(--info); }
+
+  .rule-content { flex: 1; }
+  .rule-title { font-weight: 600; font-size: 14px; color: var(--text); margin-bottom: 4px; }
+  .rule-desc { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+  .rule-limit {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin-top: 6px; padding: 3px 10px;
+    background: #f1f5f9; border-radius: 6px;
+    font-size: 12px; font-weight: 600; font-family: monospace; color: var(--text);
+  }
+
+  /* ── TABLES ───────────────────────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-bottom: 16px;
+    background: #fff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  thead th {
+    background: var(--primary);
+    color: #fff;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  tbody tr { border-bottom: 1px solid var(--border); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #f8fafc; }
+  td { padding: 10px 14px; }
+  td.mono { font-family: monospace; font-weight: 600; color: var(--primary); }
+  td.red { color: #b91c1c; font-weight: 600; }
+  td.green { color: #065f46; font-weight: 600; }
+  td.orange { color: #92400e; font-weight: 600; }
+
+  /* ── CALLOUTS ─────────────────────────────────────────────── */
+  .callout {
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin: 14px 0;
+    font-size: 13px;
+    border-left: 4px solid;
+  }
+  .callout-title { font-weight: 700; margin-bottom: 6px; font-size: 13px; }
+  .callout.example { background: var(--info-soft); border-color: var(--info); color: #1e3a5f; }
+  .callout.example .callout-title { color: var(--info); }
+  .callout.warn { background: var(--warn-soft); border-color: var(--warn); }
+  .callout.warn .callout-title { color: #92400e; }
+  .callout.danger { background: var(--accent-soft); border-color: var(--accent); }
+  .callout.danger .callout-title { color: var(--accent); }
+  .callout.ok { background: var(--ok-soft); border-color: var(--ok); }
+  .callout.ok .callout-title { color: var(--ok); }
+  .callout.purple { background: var(--purple-soft); border-color: var(--purple); }
+  .callout.purple .callout-title { color: var(--purple); }
+
+  /* ── WORKFLOW STEPS ───────────────────────────────────────── */
+  .steps { position: relative; padding-left: 32px; }
+  .step {
+    position: relative;
+    margin-bottom: 20px;
+  }
+  .step::before {
+    content: '';
+    position: absolute;
+    left: -22px; top: 14px;
+    width: 2px; height: calc(100% + 6px);
+    background: var(--border);
+  }
+  .step:last-child::before { display: none; }
+  .step-num {
+    position: absolute;
+    left: -32px; top: 6px;
+    width: 22px; height: 22px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-title { font-weight: 600; font-size: 14px; color: var(--primary); margin-bottom: 6px; }
+  .step-body { font-size: 13px; color: var(--text-muted); }
+
+  /* ── CASCADE DIAGRAM ──────────────────────────────────────── */
+  .cascade-diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 20px 0;
+    font-size: 12px;
+  }
+  .cascade-node {
+    border: 2px solid;
+    border-radius: 10px;
+    padding: 12px 20px;
+    width: 320px;
+    position: relative;
+  }
+  .cascade-node.imprevue { border-color: #2563eb; background: #1d4ed8; color: #fff; text-align: center; }
+  .cascade-node.principal { border-color: #eab308; background: #fefce8; }
+  .cascade-node.cascade1 { border-color: #93c5fd; background: #eff6ff; }
+  .cascade-node .cn-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7; }
+  .cascade-node .cn-name { font-weight: 700; font-size: 14px; margin: 4px 0; }
+  .cascade-node .cn-info { font-size: 11px; opacity: 0.8; }
+  .cascade-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 4px 0;
+    color: var(--text-muted);
+    font-size: 10px;
+  }
+  .cascade-arrow::before { content: '▼'; font-size: 12px; }
+
+  /* ── SCORE BARS ───────────────────────────────────────────── */
+  .score-breakdown {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 4px 16px;
+    font-size: 13px;
+    align-items: center;
+  }
+  .score-bar-container {
+    grid-column: 1 / -1;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    margin: 4px 0 12px;
+  }
+  .score-bar { height: 100%; border-radius: 3px; }
+  .score-label { color: var(--text-muted); }
+  .score-val { font-family: monospace; font-weight: 700; color: var(--primary); }
+  .score-val.neg { color: var(--accent); }
+
+  /* ── BADGE INLINE ─────────────────────────────────────────── */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    vertical-align: middle;
+  }
+  .badge-green { background: #d1fae5; color: #065f46; }
+  .badge-yellow { background: #fef3c7; color: #92400e; }
+  .badge-red { background: #fee2e2; color: #b91c1c; }
+  .badge-blue { background: #dbeafe; color: #1e40af; }
+  .badge-gray { background: #f1f5f9; color: #475569; }
+  .badge-purple { background: #ede9fe; color: #5b21b6; }
+  .badge-orange { background: #fed7aa; color: #9a3412; }
+
+  /* ── SEARCH HIGHLIGHT ─────────────────────────────────────── */
+  .highlight { background: #fef08a; border-radius: 2px; }
+
+  /* ── COLLAPSIBLE ──────────────────────────────────────────── */
+  .collapsible { cursor: pointer; user-select: none; }
+  .collapsible-content { display: none; }
+  .collapsible.open + .collapsible-content { display: block; }
+  .collapsible-header {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #f8fafc; border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 16px;
+    font-size: 14px; font-weight: 600; color: var(--primary);
+    margin-bottom: 2px;
+    transition: background 0.15s;
+  }
+  .collapsible-header:hover { background: #eef2ff; }
+  .collapsible-header .chevron { transition: transform 0.2s; }
+  .collapsible.open .collapsible-header .chevron { transform: rotate(90deg); }
+
+  /* ── TOC PROGRESS ─────────────────────────────────────────── */
+  .progress-bar {
+    position: fixed;
+    top: 0; left: var(--sidebar-w);
+    height: 3px;
+    background: linear-gradient(90deg, #60a5fa, #3b82f6);
+    z-index: 200;
+    transition: width 0.1s;
+  }
+
+  /* ── TIMELINE (IMPORT) ────────────────────────────────────── */
+  .timeline {
+    position: relative;
+    padding-left: 24px;
+  }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px; top: 0; bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--primary), var(--ok));
+  }
+  .timeline-item {
+    position: relative;
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: -20px; top: 50%;
+    transform: translateY(-50%);
+    width: 10px; height: 10px;
+    background: var(--primary);
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px var(--primary);
+  }
+
+  /* ── RESPONSIVE ───────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    #sidebar { transform: translateX(-100%); }
+    #main { margin-left: 0; padding: 20px; }
+  }
+
+  /* ── PRINT ────────────────────────────────────────────────── */
+  @media print {
+    #sidebar, .progress-bar { display: none; }
+    #main { margin-left: 0; }
+  }
+
+  code {
+    background: #f1f5f9;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--primary);
+  }
+
+  .divider { height: 1px; background: var(--border); margin: 24px 0; }
+
+  strong { color: var(--primary); }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 640px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progress"></div>
+
+<!-- SIDEBAR -->
+<nav id="sidebar">
+  <div class="sidebar-header">
+    <h1>⚡ Point RH</h1>
+    <p>Mode Opératoire — Guide Complet</p>
+  </div>
+  <input type="text" id="search-box" placeholder="🔍 Rechercher..." oninput="handleSearch(this.value)">
+
+  <div class="nav-group">
+    <div class="nav-group-title">Introduction</div>
+    <a class="nav-link" onclick="scrollTo('intro')"><span class="icon">🏠</span>Présentation</a>
+    <a class="nav-link" onclick="scrollTo('glossaire')"><span class="icon">📖</span>Glossaire</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Règles Métier</div>
+    <a class="nav-link" onclick="scrollTo('regles-reglementaires')"><span class="icon">⚖️</span>Règles réglementaires</a>
+    <a class="nav-link" onclick="scrollTo('seuils')"><span class="icon">📊</span>Seuils & limites</a>
+    <a class="nav-link" onclick="scrollTo('deplacement')"><span class="icon">🚆</span>Déplacement LPA</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Import</div>
+    <a class="nav-link" onclick="scrollTo('import')"><span class="icon">📥</span>Import planning</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Simulation JS Simple</div>
+    <a class="nav-link" onclick="scrollTo('sim-simple-intro')"><span class="icon">🔍</span>Vue d'ensemble</a>
+    <a class="nav-link" onclick="scrollTo('sim-simple-workflow')"><span class="icon">🔄</span>Workflow étape par étape</a>
+    <a class="nav-link" onclick="scrollTo('cascade')"><span class="icon">🔗</span>Résolution en cascade</a>
+    <a class="nav-link" onclick="scrollTo('scenarios')"><span class="icon">📋</span>Scénarios</a>
+    <a class="nav-link" onclick="scrollTo('scoring-candidat')"><span class="icon">🏆</span>Score candidat</a>
+    <a class="nav-link" onclick="scrollTo('figeage')"><span class="icon">🔒</span>Figeage DERNIER RECOURS</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Simulation Multi-JS</div>
+    <a class="nav-link" onclick="scrollTo('multi-js')"><span class="icon">📅</span>Simulation multi-JS</a>
+    <a class="nav-link" onclick="scrollTo('scoring-multi')"><span class="icon">🏅</span>Score scénario multi-JS</a>
+  </div>
+
+  <div class="nav-group">
+    <div class="nav-group-title">Interface</div>
+    <a class="nav-link" onclick="scrollTo('ui-agents')"><span class="icon">👤</span>Fiche agent</a>
+    <a class="nav-link" onclick="scrollTo('ui-sim')"><span class="icon">🖥️</span>Interface simulation</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main id="main">
+
+<!-- ══════════════════════════════════════════ INTRO -->
+<section id="intro">
+  <div class="section-header">
+    <div class="section-icon" style="background:#dbeafe">🏠</div>
+    <div>
+      <h2>Présentation de Point RH</h2>
+      <p>Système de simulation de remplacement pour les journées de service SNCF</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p><strong>Point RH</strong> est un outil d'aide à la décision permettant aux encadrants de trouver rapidement quel agent peut remplacer un collègue absent sur une <strong>Journée de Service (JS)</strong> imprévisible, en vérifiant automatiquement toutes les règles réglementaires (repos, amplitude, GPT, TE…).</p>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <h4>🔍 Simulation JS Simple</h4>
+      <p>Un agent est absent sur une JS précise. Le système identifie qui peut le remplacer, en cascade si nécessaire.</p>
+      <div class="badge badge-green">Mode principal</div>
+    </div>
+    <div class="card">
+      <h4>📅 Simulation Multi-JS</h4>
+      <p>Plusieurs JS sont à couvrir simultanément. Le système propose des répartitions globales optimisées sur plusieurs scénarios.</p>
+      <div class="badge badge-blue">Mode avancé</div>
+    </div>
+    <div class="card">
+      <h4>👤 Fiches agents</h4>
+      <p>Profil complet de chaque agent : habilitations, LPA, régime, règles de déplacement personnalisées.</p>
+    </div>
+    <div class="card">
+      <h4>📥 Import planning</h4>
+      <p>Chargement des plannings depuis un fichier Excel/TXT exporté du système RH source.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ GLOSSAIRE -->
+<section id="glossaire">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f3e8ff">📖</div>
+    <div>
+      <h2>Glossaire — Définitions des termes</h2>
+      <p>Tous les termes utilisés dans Point RH, avec leur définition précise</p>
+    </div>
+  </div>
+
+  <h3>Termes fondamentaux</h3>
+  <div class="term-grid">
+    <div class="term-card">
+      <div class="abbr">JS</div>
+      <div class="term">Journée de Service</div>
+      <div class="def">Un poste de travail planifié, défini par une date, une heure de début, une heure de fin, un code (ex. <code>PEY006R</code>) et un type. C'est l'unité de base du planning.</div>
+      <div class="example">Ex : JS du 17 mars, 21h00–05h00, code GIC004R</div>
+    </div>
+    <div class="term-card">
+      <div class="abbr">NPO</div>
+      <div class="term">Non-Présence Organisée</div>
+      <div class="def">Toute absence planifiée : congés, repos hebdomadaire (RU), repos périodique (RP), maladie, inaptitude. Ces événements figurent dans le planning mais ne sont pas des journées de service.</div>
+      <div class="example">Ex : Congé du 20 au 22 mars, repos périodique le 18 mars</div>
+    </div>
+    <div class="term-card">
+      <div class="abbr">GPT</div>
+      <div class="term">Grande Période de Travail</div>
+      <div class="def">Séquence de journées de service consécutives entre deux <strong>Repos Périodiques (RP)</strong>. Maximum <strong>6 JS</strong> par GPT. Détermine le cumul TE, la nature nuit/jour, et déclenche les vérifications de repos périodiques.</div>
+      <div class="example">Ex : Lundi JS, Mardi JS, Mercredi JS, Jeudi RP → GPT de 3 jours</div>
+    </div>
+    <div class="term-card">
+      <div class="abbr">TE</div>
+      <div class="term">Travail Effectif</div>
+      <div class="def">Durée réelle de travail d'une journée de service, hors temps de trajet. Limite par JS : <strong>10h standard</strong>, <strong>8h30 de nuit</strong>, <strong>12h en remplacement</strong>. Cumul maximum sur une GPT : <strong>48h</strong>.</div>
+      <div class="example">JS de 21h00 à 05h00 = amplitude 8h, TE = 7h30 (si 30min de trajet)</div>
+    </div>
+    <div class="term-card">
+      <div class="abbr">RP</div>
+      <div class="term">Repos Périodique</div>
+      <div class="def">Période de repos réglementaire qui clôture une GPT. Trois niveaux : <strong>simple (36h)</strong>, <strong>double (60h)</strong>, <strong>triple (84h)</strong>. Une GPT > 5 JS doit être suivie d'un RP double minimum.</div>
+      <div class="example">RP simple : partir jeudi soir, reprendre samedi matin (36h gap)</div>
+    </div>
+    <div class="term-card">
+      <div class="abbr">LPA</div>
+      <div class="term">Lieu de Prise d'Attachement</div>
+      <div class="def">La base géographique de référence d'un agent. Si une JS se déroule <em>hors LPA</em>, l'agent est en <strong>déplacement</strong> et des temps de trajet s'ajoutent à son amplitude effective.</div>
+      <div class="example">LPA = Givors. JS à Lyon Part-Dieu → hors LPA → déplacement</div>
+    </div>
+    <div class="term-card">
+      <div class="abbr">Amplitude</div>
+      <div class="term">Amplitude de service</div>
+      <div class="def">Durée totale d'une journée de service, du début effectif à la fin effective. <strong>Inclut les temps de trajet</strong> si l'agent est en déplacement. Limite : <strong>11h standard</strong>, jusqu'à <strong>13h en déplacement + remplacement</strong>.</div>
+      <div class="example">JS 20h00–06h10 = amplitude 10h10. Avec trajet +1h = amplitude effective 11h10</div>
+    </div>
+    <div class="term-card">
+      <div class="abbr">Repos journalier</div>
+      <div class="term">Repos entre deux postes</div>
+      <div class="def">Durée minimale obligatoire entre la fin d'un poste et le début du suivant. Minimum <strong>12h standard</strong>, <strong>14h après un poste de nuit</strong>, <strong>10h pour un agent de réserve (1 fois/GPT)</strong>.</div>
+      <div class="example">Fin JS le 17 mars à 06h10. Prochain poste le 17 mars à 20h00 → repos = 13h50 ✓</div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:28px">Termes de la simulation</h3>
+  <div class="term-grid">
+    <div class="term-card" style="border-left-color:var(--ok)">
+      <div class="term">Conforme</div>
+      <div class="def">Toutes les règles réglementaires sont respectées. L'agent est <strong>mobilisable sans réserve</strong>. Badge vert dans l'interface.</div>
+    </div>
+    <div class="term-card" style="border-left-color:var(--warn)">
+      <div class="term">Vigilance</div>
+      <div class="def">Une règle non-bloquante est proche de son seuil ou légèrement dépassée. L'agent peut être mobilisé <strong>avec réserve</strong>. L'encadrant doit valider manuellement. Badge jaune.</div>
+    </div>
+    <div class="term-card" style="border-left-color:var(--accent)">
+      <div class="term">Non-conforme</div>
+      <div class="def">Une ou plusieurs violations bloquantes existent. L'agent <strong>ne peut pas</strong> prendre ce poste. Badge rouge.</div>
+    </div>
+    <div class="term-card" style="border-left-color:var(--purple)">
+      <div class="term">Cascade</div>
+      <div class="def">Mécanisme de résolution en chaîne. Si l'agent A est bloqué par un conflit repos (sa JS B l'en empêche), on cherche un agent C pour reprendre la JS B, libérant ainsi A. Jusqu'à <strong>10 niveaux</strong>.</div>
+      <div class="example">A doit faire JS1 mais bloqué par JS2 → C reprend JS2 → A libre pour JS1</div>
+    </div>
+    <div class="term-card" style="border-left-color:#f59e0b">
+      <div class="term">Figeage</div>
+      <div class="def">Action de "geler" une JS de type <strong>DERNIER_RECOURS</strong> pour libérer l'agent planifié dessus, afin qu'il puisse prendre un imprévu plus urgent. La JS figée reste non-couverte.</div>
+    </div>
+    <div class="term-card" style="border-left-color:var(--info)">
+      <div class="term">JS Z / JS de type Z</div>
+      <div class="def">Journée de service sans charge réelle (placeholder). Un agent prévu sur une JS Z peut être réaffecté sans avoir besoin de trouver un remplaçant pour cette JS d'origine. <strong>Bonus +15 pts</strong> au score.</div>
+    </div>
+    <div class="term-card" style="border-left-color:#ea580c">
+      <div class="term">JS FO</div>
+      <div class="def">Journée de service de type Formation/Organisation. Identifiée par le préfixe "FO". Peut être réaffectée comme une JS Z si l'agent est mobilisé sur un imprévu.</div>
+    </div>
+    <div class="term-card">
+      <div class="term">JsType</div>
+      <div class="def">Référentiel central d'un type de journée de service. Définit les horaires standards (indépendants des trajets), la durée, si c'est une JS de nuit, le régime, et la flexibilité (OBLIGATOIRE ou DERNIER_RECOURS).</div>
+      <div class="example">JsType "PEY006R" : 21h00–05h00, 8h, estNuit=true, OBLIGATOIRE</div>
+    </div>
+    <div class="term-card" style="border-left-color:#dc2626">
+      <div class="term">OBLIGATOIRE</div>
+      <div class="def">Flexibilité d'un JsType. La JS <strong>doit</strong> être couverte. Pénalité maximale si non-couverte en simulation multi-JS.</div>
+    </div>
+    <div class="term-card" style="border-left-color:#d97706">
+      <div class="term">DERNIER_RECOURS</div>
+      <div class="def">Flexibilité d'un JsType. La JS peut rester non-couverte avec une pénalité réduite. L'agent planifié peut être libéré par figeage pour couvrir une JS OBLIGATOIRE plus urgente.</div>
+    </div>
+    <div class="term-card">
+      <div class="term">Déplacement</div>
+      <div class="def">Situation où une JS se déroule hors du LPA de l'agent. Des temps de trajet (aller/retour) s'ajoutent automatiquement à l'amplitude. Nécessite l'habilitation <code>peutEtreDeplace</code>.</div>
+    </div>
+    <div class="term-card" style="border-left-color:#7c3aed">
+      <div class="term">Régime B / Régime C</div>
+      <div class="def">Régimes réglementaires spéciaux imposant un <strong>Travail Effectif minimum de 5h30</strong> par journée de service. Les agents en Régime B ou C ne peuvent pas prendre de postes trop courts.</div>
+    </div>
+    <div class="term-card" style="border-left-color:#0891b2">
+      <div class="term">Agent de réserve</div>
+      <div class="def">Agent dédié aux remplacements. Bénéficie de règles légèrement assouplies : repos minimum 10h (au lieu de 12h) une fois par GPT, amplitude nuit réduite à 10h30. <strong>Bonus +10 pts</strong> au score.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ REGLES -->
+<section id="regles-reglementaires">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fee2e2">⚖️</div>
+    <div>
+      <h2>Règles réglementaires</h2>
+      <p>Les 10 règles vérifiées automatiquement par le moteur de simulation</p>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <div class="callout-title">⚠ Règles bloquantes vs. vigilance</div>
+    Une règle <span class="badge badge-red">BLOQUANTE</span> empêche la mobilisation. Une règle <span class="badge badge-yellow">VIGILANCE</span> avertit mais permet la mobilisation avec validation encadrant.
+  </div>
+
+  <div class="rule">
+    <div><div class="rule-badge badge-block">Bloquant</div></div>
+    <div class="rule-content">
+      <div class="rule-title">1. AMPLITUDE — Durée totale de la journée</div>
+      <div class="rule-desc">L'amplitude (durée totale du début à la fin, trajet inclus) ne doit pas dépasser le seuil autorisé. La limite varie selon le contexte :</div>
+      <div style="margin-top:8px">
+        <span class="rule-limit">Standard : 11h (660 min)</span>
+        <span class="rule-limit">Nuit : 11h (660 min)</span>
+        <span class="rule-limit">Réserve + nuit : 10h30 (630 min)</span>
+        <span class="rule-limit">Déplacement : 12h (720 min)</span>
+        <span class="rule-limit">Déplacement + remplacement : 13h (780 min)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="rule">
+    <div><div class="rule-badge badge-block">Bloquant</div></div>
+    <div class="rule-content">
+      <div class="rule-title">2. REPOS JOURNALIER — Repos entre deux postes</div>
+      <div class="rule-desc">La durée entre la fin du dernier poste et le début de l'imprévu doit respecter un minimum. Varie selon le contexte du dernier poste :</div>
+      <div style="margin-top:8px">
+        <span class="rule-limit">Standard : 12h (720 min)</span>
+        <span class="rule-limit">Après nuit : 14h (840 min)</span>
+        <span class="rule-limit">Réserve + remplacement (1×/GPT) : 10h (600 min)</span>
+      </div>
+      <div class="rule-desc" style="margin-top:6px">⚠ Si TE > 6h sans coupure interne, <strong>ajouter +20 min</strong> au repos minimum requis.</div>
+    </div>
+  </div>
+
+  <div class="rule">
+    <div><div class="rule-badge badge-block">Bloquant</div></div>
+    <div class="rule-content">
+      <div class="rule-title">3. TRAVAIL EFFECTIF — Durée de travail par JS</div>
+      <div class="rule-desc">Le travail effectif (hors trajet) par journée ne peut pas dépasser :</div>
+      <div style="margin-top:8px">
+        <span class="rule-limit">Standard : 10h (600 min)</span>
+        <span class="rule-limit">Nuit : 8h30 (510 min)</span>
+        <span class="rule-limit">Remplacement : 12h (720 min)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="rule">
+    <div><div class="rule-badge badge-block">Bloquant</div></div>
+    <div class="rule-content">
+      <div class="rule-title">4. TE GPT 48H — Cumul travail effectif sur la GPT</div>
+      <div class="rule-desc">Le cumul des TE de toutes les JS dans la GPT en cours <strong>plus la JS imprévisible</strong> ne doit pas dépasser <strong>48 heures (2880 min)</strong>.</div>
+      <div class="callout example" style="margin-top:8px">
+        <div class="callout-title">💡 Exemple</div>
+        GPT en cours : JS1=8h + JS2=8h30 + JS3=9h = 25h30 cumulés.<br>
+        Imprévu = 8h. Total = 33h30 ✓<br>
+        Si GPT avait déjà 45h cumulés + imprévu 5h = 50h → <span class="badge badge-red">VIOLATION</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="rule">
+    <div><div class="rule-badge badge-block">Bloquant</div></div>
+    <div class="rule-content">
+      <div class="rule-title">5. GPT_MAX — Longueur maximale de la GPT</div>
+      <div class="rule-desc">Une GPT ne peut pas dépasser <strong>6 journées de service consécutives</strong>. Le système injecte la JS simulée dans le planning pour calculer la GPT résultante.</div>
+      <div class="callout example" style="margin-top:8px">
+        <div class="callout-title">💡 Exemple</div>
+        Agent en GPT de 5 JS. Ajouter 1 JS → GPT = 6 ✓<br>
+        Agent en GPT de 6 JS. Ajouter 1 JS → GPT = 7 → <span class="badge badge-red">VIOLATION</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="rule">
+    <div><div class="rule-badge badge-block">Bloquant</div></div>
+    <div class="rule-content">
+      <div class="rule-title">6. HABILITATION NUIT — Autorisation postes de nuit</div>
+      <div class="rule-desc">Si la JS est une JS de nuit (chevauchement ≥ 2h30 avec la plage 21h30–06h30), l'agent doit avoir l'habilitation <code>peutFaireNuit = true</code>.</div>
+    </div>
+  </div>
+
+  <div class="rule">
+    <div><div class="rule-badge badge-block">Bloquant</div></div>
+    <div class="rule-content">
+      <div class="rule-title">7. HABILITATION DÉPLACEMENT — Autorisation hors LPA</div>
+      <div class="rule-desc">Si la JS entraîne un déplacement hors LPA, l'agent doit avoir l'habilitation <code>peutEtreDeplace = true</code>. S'applique uniquement en mode manuel (quand le système LPA ne peut pas calculer automatiquement).</div>
+    </div>
+  </div>
+
+  <div class="rule">
+    <div><div class="rule-badge badge-block">Bloquant</div></div>
+    <div class="rule-content">
+      <div class="rule-title">8. GPT NUIT CONSÉCUTIVES — 2 GPT de nuit de suite</div>
+      <div class="rule-desc">Il est interdit d'avoir 2 GPT de nuit consécutives. Une GPT est "de nuit" si ≥ 50% de ses journées contiennent la plage 00h00–04h00.</div>
+    </div>
+  </div>
+
+  <div class="rule">
+    <div><div class="rule-badge badge-block">Bloquant</div></div>
+    <div class="rule-content">
+      <div class="rule-title">9. RÉGIME B/C — Durée minimum</div>
+      <div class="rule-desc">Pour les agents en Régime B ou C, chaque JS doit avoir un TE minimum de <strong>5h30 (330 min)</strong>. Un poste trop court est refusé.</div>
+    </div>
+  </div>
+
+  <div class="rule">
+    <div><div class="rule-badge badge-block">Bloquant</div></div>
+    <div class="rule-content">
+      <div class="rule-title">10. PRÉFIXE JS — Habilitations par code JS</div>
+      <div class="rule-desc">Si des préfixes JS sont configurés pour un agent, le code de la JS imprévisible doit correspondre à l'un de ces préfixes. Ex. : si l'agent est habilité <code>GIC</code>, il peut prendre <code>GIC004R</code> mais pas <code>PEY006R</code>.</div>
+    </div>
+  </div>
+
+  <h3>Règles de vigilance (non-bloquantes)</h3>
+
+  <div class="rule">
+    <div><div class="rule-badge badge-warn">Vigilance</div></div>
+    <div class="rule-content">
+      <div class="rule-title">GPT_MIN — GPT trop courte</div>
+      <div class="rule-desc">Une GPT doit normalement contenir <strong>minimum 3 JS</strong>. Si la JS simulée crée une GPT plus courte, c'est un point de vigilance (exception possible le dimanche).</div>
+    </div>
+  </div>
+
+  <div class="rule">
+    <div><div class="rule-badge badge-warn">Vigilance</div></div>
+    <div class="rule-content">
+      <div class="rule-title">GPT_MAX_AVANT_RP — GPT > 5 JS</div>
+      <div class="rule-desc">Si la GPT dépasse 5 JS (mais reste ≤ 6), le prochain repos périodique devra être au moins un <strong>RP double (60h)</strong>. Ce n'est pas une violation immédiate mais un avertissement pour la planification.</div>
+    </div>
+  </div>
+
+  <div class="rule">
+    <div><div class="rule-badge badge-warn">Vigilance</div></div>
+    <div class="rule-content">
+      <div class="rule-title">REPOS PÉRIODIQUES GPT — Avant et après</div>
+      <div class="rule-desc">Le système vérifie que le repos périodique <em>avant</em> la GPT et <em>après</em> la GPT sont conformes aux durées requises (simple/double/triple selon la longueur de la GPT).</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ SEUILS -->
+<section id="seuils">
+  <div class="section-header">
+    <div class="section-icon" style="background:#d1fae5">📊</div>
+    <div>
+      <h2>Seuils & Limites — Tableau récapitulatif</h2>
+      <p>Toutes les valeurs numériques des règles</p>
+    </div>
+  </div>
+
+  <h3>Amplitude maximale</h3>
+  <table>
+    <thead><tr><th>Situation</th><th>Limite</th><th>En minutes</th></tr></thead>
+    <tbody>
+      <tr><td>Cas général</td><td class="mono">11h00</td><td class="mono">660 min</td></tr>
+      <tr><td>JS de nuit</td><td class="mono">11h00</td><td class="mono">660 min</td></tr>
+      <tr><td>Agent de réserve + nuit</td><td class="mono">10h30</td><td class="mono">630 min</td></tr>
+      <tr><td>Déplacement hors LPA</td><td class="mono">12h00</td><td class="mono">720 min</td></tr>
+      <tr><td>Déplacement + remplacement</td><td class="mono">13h00</td><td class="mono">780 min</td></tr>
+      <tr><td>Journée isolée + transport commun</td><td class="mono">13h00</td><td class="mono">780 min</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Travail Effectif (TE) maximal par JS</h3>
+  <table>
+    <thead><tr><th>Situation</th><th>Limite</th><th>En minutes</th></tr></thead>
+    <tbody>
+      <tr><td>Standard</td><td class="mono">10h00</td><td class="mono">600 min</td></tr>
+      <tr><td>JS de nuit</td><td class="mono">8h30</td><td class="mono">510 min</td></tr>
+      <tr><td>Remplacement</td><td class="mono">12h00</td><td class="mono">720 min</td></tr>
+      <tr><td><strong>Cumul GPT (TE GPT 48H)</strong></td><td class="mono">48h00</td><td class="mono">2 880 min</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Repos journalier minimum</h3>
+  <table>
+    <thead><tr><th>Situation</th><th>Repos minimum</th><th>En minutes</th></tr></thead>
+    <tbody>
+      <tr><td>Standard</td><td class="mono">12h00</td><td class="mono">720 min</td></tr>
+      <tr><td>Après un poste de nuit</td><td class="mono">14h00</td><td class="mono">840 min</td></tr>
+      <tr><td>Agent réserve + remplacement (1×/GPT)</td><td class="mono">10h00</td><td class="mono">600 min</td></tr>
+      <tr><td>Correction TE > 6h sans coupure</td><td class="mono">+20 min</td><td class="mono">+20 min</td></tr>
+    </tbody>
+  </table>
+
+  <h3>GPT — Taille de la Grande Période de Travail</h3>
+  <table>
+    <thead><tr><th>Règle</th><th>Seuil</th><th>Conséquence</th></tr></thead>
+    <tbody>
+      <tr><td>GPT minimum</td><td class="mono">3 JS</td><td>Vigilance si inférieur</td></tr>
+      <tr><td>GPT avant RP double</td><td class="mono">5 JS</td><td class="orange">Vigilance : RP double requis</td></tr>
+      <tr><td>GPT maximum</td><td class="mono">6 JS</td><td class="red">Violation bloquante</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Repos Périodique (RP)</h3>
+  <table>
+    <thead><tr><th>Type</th><th>Durée</th><th>En minutes</th><th>Déclencheur</th></tr></thead>
+    <tbody>
+      <tr><td>RP Simple</td><td class="mono">36h</td><td class="mono">2 160 min</td><td>Après GPT ≤ 5 JS</td></tr>
+      <tr><td>RP Double</td><td class="mono">60h</td><td class="mono">3 600 min</td><td>Après GPT > 5 JS</td></tr>
+      <tr><td>RP Triple</td><td class="mono">84h</td><td class="mono">5 040 min</td><td>Cas particuliers</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <div class="callout-title">⚠ Congés et RU ne réinitialisent pas la GPT</div>
+    Seuls les écarts ≥ durée du RP simple (36h par défaut) ferment une GPT. Un congé court ou un repos hebdomadaire (RU) entre deux JS <strong>n'interrompt pas</strong> la GPT en cours.
+  </div>
+
+  <h3>Plage nocturne</h3>
+  <table>
+    <thead><tr><th>Définition</th><th>Valeur</th></tr></thead>
+    <tbody>
+      <tr><td>Début de la plage nuit</td><td class="mono">21h30</td></tr>
+      <tr><td>Fin de la plage nuit</td><td class="mono">06h30</td></tr>
+      <tr><td>Seuil de qualification JS de nuit</td><td class="mono">Chevauchement ≥ 2h30 avec la plage</td></tr>
+      <tr><td>Qualification GPT de nuit</td><td class="mono">≥ 50% des JS contiennent la plage 00h–04h</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════════════ DEPLACEMENT -->
+<section id="deplacement">
+  <div class="section-header">
+    <div class="section-icon" style="background:#dbeafe">🚆</div>
+    <div>
+      <h2>Déplacement LPA — Calcul automatique</h2>
+      <p>Comment le système détermine si un agent est en déplacement et calcule ses horaires effectifs</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h4>Principe</h4>
+    <p>Chaque agent a un <strong>LPA (Lieu de Prise d'Attachement)</strong>. Une JS peut être <strong>dans la LPA</strong> (pas de déplacement) ou <strong>hors LPA</strong> (déplacement avec temps de trajet). Le système calcule automatiquement le statut via la table <code>LpaJsType</code>.</p>
+  </div>
+
+  <h3>Algorithme de calcul (computeEffectiveService)</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-title">Résoudre le JsType de la JS</div>
+      <div class="step-body">Cherche d'abord par correspondance exacte (<code>typeJs = JsType.code</code>), puis par préfixe du <code>codeJs</code>.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-title">Vérifier si la JS est dans la LPA de l'agent</div>
+      <div class="step-body">Consulte la table <code>LpaJsType</code> : si le couple (LPA agent, JsType) existe → JS dans la LPA → <strong>pas de déplacement</strong>.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-title">Vérifier les règles individuelles (AgentJsDeplacementRule)</div>
+      <div class="step-body">Un override par agent peut forcer ou interdire le déplacement pour ce JsType précis, avec des temps de trajet spécifiques (aller/retour en minutes).</div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-title">Calculer les horaires effectifs</div>
+      <div class="step-body">
+        <code>heureDebutEffective = heureDebutJsType − tempsAller</code><br>
+        <code>heureFinEffective = heureFinJsType + tempsRetour</code><br>
+        L'amplitude effective inclut ces temps de trajet.
+      </div>
+    </div>
+  </div>
+
+  <div class="callout example">
+    <div class="callout-title">💡 Exemple concret</div>
+    Agent PANEL, LPA = Givors. JS PEY006R standard 21h00–05h00.<br>
+    La JS PEY006R est <em>hors LPA Givors</em> → déplacement activé.<br>
+    Règle de déplacement de PANEL : trajet aller = 30 min, retour = 1h10.<br>
+    → <strong>Horaires effectifs PANEL</strong> : 20h30–06h10 (amplitude = 9h40)<br>
+    → <strong>Horaires effectifs WERNER</strong> (si trajet aller = 60 min, retour = 0) : 20h00–05h00
+  </div>
+
+  <div class="callout warn">
+    <div class="callout-title">⚠ Clé du bug corrigé</div>
+    Quand le système cherche un remplaçant pour la JS de PANEL, il utilise les <strong>horaires standard du JsType</strong> (21h00–05h00) et non les horaires personnels de PANEL (20h30–06h10). Chaque candidat voit ensuite <em>ses propres</em> temps de trajet appliqués à ces horaires standards.
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ IMPORT -->
+<section id="import">
+  <div class="section-header">
+    <div class="section-icon" style="background:#d1fae5">📥</div>
+    <div>
+      <h2>Import planning</h2>
+      <p>Chargement des données de planning depuis le système RH source</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p>L'import charge les <strong>plannings de tous les agents</strong> pour une période donnée. Un import est lié à un <code>importId</code> unique. Seul le dernier import est actif. Les simulations utilisent toujours l'import actif.</p>
+  </div>
+
+  <h3>Formats acceptés</h3>
+  <div class="two-col">
+    <div class="card"><h4>📊 Excel (.xlsx / .xls)</h4><p>Fichier tabulaire avec en-tête. Tolérant aux colonnes dans n'importe quel ordre.</p></div>
+    <div class="card"><h4>📄 TXT tabulé</h4><p>Fichier texte avec tabulations comme séparateurs. Export direct depuis certains systèmes RH.</p></div>
+  </div>
+
+  <h3>Colonnes attendues (24 champs)</h3>
+  <table>
+    <thead><tr><th>Groupe</th><th>Colonnes</th></tr></thead>
+    <tbody>
+      <tr><td>Agent</td><td><code>UCH, CODE UCH, NOM, PRENOM, CODE IMMATRICULATION, CODE APES, GRADE</code></td></tr>
+      <tr><td>Planning</td><td><code>DATE DEBUT POP, HEURE DEBUT POP, HEURE FIN POP, DATE FIN POP</code></td></tr>
+      <tr><td>Durées</td><td><code>AMPLITUDE (100e/h), DUREE EFFECTIVE (HH:MM)</code></td></tr>
+      <tr><td>Type</td><td><code>JS/NPO, CODE JS/NPO, TYPE JS/FAM NPO, VALEUR NPO</code></td></tr>
+      <tr><td>Roulement</td><td><code>UCH JS, CODE ROULEMENT JS, NUMERO JS</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Comportement</h3>
+  <ul>
+    <li>Les <strong>agents sont permanents</strong> : l'import ne supprime jamais un agent existant.</li>
+    <li>Un agent est <strong>identifié par son matricule</strong> (code immatriculation). Si l'agent existe déjà, son profil est mis à jour (upsert).</li>
+    <li>L'import précédent est désactivé, le nouveau devient l'import actif.</li>
+    <li>En cas d'erreur sur une ligne, la ligne est ignorée (les autres sont importées).</li>
+  </ul>
+</section>
+
+<!-- ══════════════════════════════════════════ SIM SIMPLE INTRO -->
+<section id="sim-simple-intro">
+  <div class="section-header">
+    <div class="section-icon" style="background:#dbeafe">🔍</div>
+    <div>
+      <h2>Simulation JS Simple — Vue d'ensemble</h2>
+      <p>Trouver le remplaçant idéal pour une journée de service imprévisible</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p>La simulation simple est déclenchée depuis la <strong>fiche agent</strong> : on clique sur la JS de l'agent absent. Le système analyse automatiquement tous les autres agents et retourne deux groupes de résultats en parallèle :</p>
+    <ul style="margin-top:8px">
+      <li><strong>Sans figeage</strong> : agents disponibles sans modifier aucune JS planifiée</li>
+      <li><strong>Avec figeage</strong> : inclut les agents qu'on peut libérer en figeant une JS DERNIER_RECOURS</li>
+    </ul>
+  </div>
+
+  <h3>Les 4 onglets de résultats</h3>
+  <div class="card-grid">
+    <div class="card" style="border-left:4px solid #16a34a">
+      <h4>✅ Mobilisables</h4>
+      <p>Agents <span class="badge badge-green">CONFORME</span> — toutes les règles sont respectées, aucun conflit induit. Mobilisation sans réserve.</p>
+    </div>
+    <div class="card" style="border-left:4px solid #ca8a04">
+      <h4>⚠ Vigilance</h4>
+      <p>Agents <span class="badge badge-yellow">VIGILANCE</span> — mobilisables mais avec un point d'attention. Validation encadrant requise.</p>
+    </div>
+    <div class="card" style="border-left:4px solid #dc2626">
+      <h4>✗ Non utilisables</h4>
+      <p>Agents <span class="badge badge-red">REFUSÉ</span> — violations bloquantes, ils ne peuvent pas prendre ce poste.</p>
+    </div>
+    <div class="card" style="border-left:4px solid #2563eb">
+      <h4>🔗 Scénarios</h4>
+      <p>Propositions de réorganisation en cascade. Un agent bloqué peut être libéré par réaffectation d'un autre.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ SIM SIMPLE WORKFLOW -->
+<section id="sim-simple-workflow">
+  <div class="section-header">
+    <div class="section-icon" style="background:#ede9fe">🔄</div>
+    <div>
+      <h2>Workflow de la simulation — Étapes détaillées</h2>
+      <p>Ce que le moteur fait de A à Z pour chaque simulation</p>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-title">Pré-filtrage des agents</div>
+      <div class="step-body">
+        <p>Avant même d'appliquer les règles, on exclut les agents inéligibles :</p>
+        <ul>
+          <li>L'agent initialement affecté à la JS (on ne peut pas se remplacer soi-même)</li>
+          <li>Agents en absences inaptitude sur ce créneau</li>
+          <li>Agents déjà en service sur ce créneau (chevauchement horaire)</li>
+          <li>Agents dont les préfixes JS ne correspondent pas au code de la JS cible</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-title">Calcul du service effectif (LPA)</div>
+      <div class="step-body">
+        Pour chaque candidat, le système calcule ses <strong>horaires effectifs</strong> en tenant compte de son déplacement éventuel. Il part toujours des <strong>horaires standards du JsType</strong> (pas des horaires de l'agent absent), puis applique les temps de trajet propres au candidat.
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-title">Évaluation des 10 règles réglementaires</div>
+      <div class="step-body">
+        Pour chaque candidat, le moteur <code>evaluerMobilisabilite()</code> vérifie les 10 règles (amplitude, repos journalier, TE, GPT, etc.) et retourne un statut : CONFORME, VIGILANCE ou NON_CONFORME avec le détail de chaque règle.
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-title">Détection des conflits induits</div>
+      <div class="step-body">
+        Pour les candidats mobilisables, le système vérifie si ajouter cette JS ne crée pas de problèmes sur le planning <em>futur</em> de l'agent. Un conflit induit typique : l'agent serait en repos insuffisant avant sa prochaine JS planifiée.
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-title">Résolution en cascade (si nécessaire)</div>
+      <div class="step-body">
+        Si un candidat a un conflit induit résolvable (repos insuffisant avant une JS future), le système cherche récursivement un autre agent pour reprendre cette JS libératrice. Jusqu'à 10 niveaux de profondeur.
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">6</div>
+      <div class="step-title">Construction des scénarios</div>
+      <div class="step-body">
+        Chaque solution cascade devient un scénario, scoré de 0 à 100. Les scénarios sont triés par score décroissant (maximum 5 propositions).
+      </div>
+    </div>
+  </div>
+
+  <div class="callout example">
+    <div class="callout-title">💡 Exemple complet</div>
+    BELABBAS est absent le 16 mars (JS GIC006R 20h30–04h30).<br>
+    Le système analyse 23 agents → 4 mobilisables directs, 1 vigilance, 19 refusés, 2 scénarios.<br>
+    <br>
+    <strong>Scénario 1</strong> : SEFOUHI reprend directement. Toutes règles OK. Score 92/100.<br>
+    <strong>Scénario 2</strong> : PANEL peut reprendre MAIS sa prochaine JS (17 mars PEY006R) crée un conflit repos.
+    → WERNER reprend la JS du 17 mars de PANEL → PANEL libéré pour le 16 mars. Score 54/100.
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ CASCADE -->
+<section id="cascade">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f3e8ff">🔗</div>
+    <div>
+      <h2>Résolution en cascade</h2>
+      <p>Comment le système libère un agent bloqué par un conflit de repos</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p>La cascade est déclenchée quand un candidat est <strong>bloqué par un conflit de repos journalier</strong> : il pourrait prendre l'imprévu <em>si et seulement si</em> sa prochaine JS planifiée était reprise par quelqu'un d'autre. Le système cherche récursivement ce "quelqu'un d'autre".</p>
+  </div>
+
+  <h3>Visualisation de la chaîne</h3>
+  <div class="cascade-diagram">
+    <div class="cascade-node imprevue">
+      <div class="cn-label">JS Imprévisible</div>
+      <div class="cn-name">16 mars · 20h30–04h30</div>
+      <div class="cn-info">GIC006R · BELABBAS absent</div>
+    </div>
+    <div class="cascade-arrow">Agent principal reprend l'imprévu</div>
+    <div class="cascade-node principal">
+      <div class="cn-label">Agent principal</div>
+      <div class="cn-name">FRÉDÉRIC PANEL</div>
+      <div class="cn-info">⚠ Repos insuffisant avant JS du 17 mars 20h00<br>LIBÈRE → 17 mars 21h00–05h00 · PEY006R</div>
+    </div>
+    <div class="cascade-arrow">Cascade niv. 1 · couvre la JS libérée</div>
+    <div class="cascade-node cascade1">
+      <div class="cn-label">Cascade niv. 1</div>
+      <div class="cn-name">WILLIAM WERNER</div>
+      <div class="cn-info">Prend → 17 mars 21h00–05h00 · PEY006R<br>✓ Conforme</div>
+    </div>
+  </div>
+
+  <h3>Règles de la cascade</h3>
+  <ul>
+    <li><strong>Anti-cycle</strong> : un agent ne peut pas apparaître deux fois dans la même chaîne</li>
+    <li><strong>Profondeur max</strong> : 10 niveaux (CASCADE_MAX_DEPTH = 10)</li>
+    <li><strong>Condition de déclenchement</strong> : uniquement pour les conflits de type REPOS_INSUFFISANT</li>
+    <li><strong>Horaires de référence</strong> : toujours les horaires standards du JsType (pas les horaires personnels de l'agent bloqué)</li>
+  </ul>
+
+  <div class="callout purple">
+    <div class="callout-title">🔮 Cascade profonde (niv. 2+)</div>
+    Si WERNER lui-même est bloqué par un conflit repos sur sa prochaine JS, le système cherche un agent D pour libérer WERNER, qui libère PANEL, qui prend l'imprévu. Et ainsi de suite jusqu'à 10 niveaux.
+  </div>
+
+  <h3>Résultats de la cascade</h3>
+  <div class="card-grid">
+    <div class="card" style="border-left:4px solid var(--ok)">
+      <h4>✓ Résolu</h4>
+      <p>Un remplaçant conforme a été trouvé pour chaque JS bloquante. La chaîne est complète. Le scénario est proposé.</p>
+    </div>
+    <div class="card" style="border-left:4px solid var(--accent)">
+      <h4>✗ Non résolvable</h4>
+      <p>Aucun agent disponible pour couvrir une JS bloquante. L'impact est marqué comme BLOQUANT dans les résultats.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ SCENARIOS -->
+<section id="scenarios">
+  <div class="section-header">
+    <div class="section-icon" style="background:#ecfdf5">📋</div>
+    <div>
+      <h2>Scénarios de réorganisation</h2>
+      <p>Comment lire et interpréter les scénarios proposés</p>
+    </div>
+  </div>
+
+  <h3>Structure d'un scénario</h3>
+  <div class="card">
+    <ul>
+      <li><strong>Conformité finale</strong> : <span class="badge badge-green">CONFORME</span> <span class="badge badge-yellow">VIGILANCE</span> <span class="badge badge-red">NON_CONFORME</span></li>
+      <li><strong>Score</strong> : 0 à 100 (plus c'est haut, mieux c'est)</li>
+      <li><strong>Modifications</strong> : liste des changements à opérer (qui reprend quoi)</li>
+      <li><strong>Profondeur cascade</strong> : nombre de niveaux de réorganisation</li>
+      <li><strong>Impacts en cascade</strong> : avertissements sur les agents de la chaîne</li>
+    </ul>
+  </div>
+
+  <h3>Lecture de la chaîne de réorganisation</h3>
+  <p>Chaque nœud de la chaîne affiche pour chaque agent :</p>
+  <ul>
+    <li><strong>PREND</strong> : la JS qu'il va reprendre (horaires JsType standard → horaires effectifs si déplacement)</li>
+    <li><strong>LIBÈRE</strong> : la JS qu'il cède pour que le niveau suivant puisse se libérer</li>
+    <li>Le <strong>motif de vigilance</strong> si l'agent est en statut jaune</li>
+    <li>Le <strong>Détail des règles</strong> (repos journalier, amplitude, TE GPT, GPT, RP périodiques) — cliquable pour voir tous les calculs</li>
+  </ul>
+
+  <div class="callout ok">
+    <div class="callout-title">✓ Conseil de lecture</div>
+    Un scénario avec <strong>conformité CONFORME + 1 modification</strong> (solution directe) est idéal. Plus le nombre de modifications et la profondeur augmentent, plus la réorganisation est complexe et risquée.
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ SCORING CANDIDAT -->
+<section id="scoring-candidat">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fef9c3">🏆</div>
+    <div>
+      <h2>Score candidat (0–100)</h2>
+      <p>Comment est calculée la pertinence de chaque agent</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p>Le score mesure la <strong>qualité de la mobilisation</strong> d'un agent. Plus il est élevé, plus l'agent est un bon choix : règles respectées, planning peu chargé, agent de réserve, peu de conflits induits.</p>
+  </div>
+
+  <table>
+    <thead><tr><th>Critère</th><th>Impact</th></tr></thead>
+    <tbody>
+      <tr><td>Base</td><td class="green">+100</td></tr>
+      <tr><td>Par violation bloquante</td><td class="red">−25 points</td></tr>
+      <tr><td>Par conflit induit</td><td class="red">−15 points</td></tr>
+      <tr><td>Agent de réserve</td><td class="green">+10 points (bonus)</td></tr>
+      <tr><td>Agent sur JS Z (réaffectation directe)</td><td class="green">+15 points (bonus)</td></tr>
+      <tr><td>Marge repos &lt; 2h</td><td class="orange">−10 points max (progressif)</td></tr>
+      <tr><td>GPT chargé &gt; 80%</td><td class="orange">−10 points</td></tr>
+      <tr><td>GPT chargé &gt; 90%</td><td class="orange">−10 points supplémentaires</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout example">
+    <div class="callout-title">💡 Exemple de calcul</div>
+    Agent SEFOUHI : base 100 − 0 violation − 0 conflit + agent de réserve (+10) − repos marge OK = <strong>Score : 92/100</strong><br><br>
+    Agent PANEL : base 100 − 0 violation + 0 − 1 conflit induit (−15) + resto OK = <strong>Score : 54/100</strong>
+  </div>
+
+  <h3>Score de scénario (cascade)</h3>
+  <table>
+    <thead><tr><th>Critère</th><th>Impact</th></tr></thead>
+    <tbody>
+      <tr><td>Conformité CONFORME</td><td class="green">0 (pas de pénalité)</td></tr>
+      <tr><td>Conformité VIGILANCE</td><td class="orange">−20 points</td></tr>
+      <tr><td>Conformité NON_CONFORME</td><td class="red">−60 points</td></tr>
+      <tr><td>Par modification dans la chaîne</td><td class="orange">−8 points</td></tr>
+      <tr><td>Par niveau de cascade</td><td class="orange">−10 points</td></tr>
+      <tr><td>Par conflit non résolu</td><td class="red">−20 points</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════════════ FIGEAGE -->
+<section id="figeage">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fef3c7">🔒</div>
+    <div>
+      <h2>Figeage — DERNIER RECOURS</h2>
+      <p>Libérer un agent en gelant une JS moins prioritaire</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p>Quand tous les agents disponibles sont insuffisants, on peut <strong>libérer un agent planifié sur une JS DERNIER_RECOURS</strong> en "figeant" cette JS (elle restera non-couverte). Cet agent devient alors disponible pour l'imprévu urgent.</p>
+  </div>
+
+  <h3>Fonctionnement</h3>
+  <div class="two-col">
+    <div class="card" style="border-left:4px solid #d97706">
+      <h4>Sans figeage</h4>
+      <p>Seuls les agents libres ou sur JS Z sont candidats. Les agents sur JS planifiées restent sur leur poste.</p>
+    </div>
+    <div class="card" style="border-left:4px solid #7c3aed">
+      <h4>Avec figeage</h4>
+      <p>Les agents sur JS <span class="badge badge-orange">DERNIER_RECOURS</span> peuvent être libérés. La JS figée reste sans couverture (pénalité réduite).</p>
+    </div>
+  </div>
+
+  <h3>Indicateurs visuels</h3>
+  <ul>
+    <li>Badge <span class="badge badge-orange">🔒 JS figée — DERNIER RECOURS</span> visible sur le scénario</li>
+    <li>L'onglet "Avec figeage" affiche le nombre d'agents supplémentaires disponibles</li>
+    <li>La fiche candidat affiche le champ <code>jsSourceFigee</code> avec la justification</li>
+  </ul>
+
+  <div class="callout warn">
+    <div class="callout-title">⚠ Attention</div>
+    Le figeage signifie qu'une JS DERNIER_RECOURS reste <strong>sans agent</strong>. L'encadrant doit décider si ce compromis est acceptable avant de valider le scénario.
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ MULTI-JS -->
+<section id="multi-js">
+  <div class="section-header">
+    <div class="section-icon" style="background:#dbeafe">📅</div>
+    <div>
+      <h2>Simulation Multi-JS</h2>
+      <p>Couvrir plusieurs JS simultanément avec une vision globale</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <p>La simulation multi-JS permet de sélectionner <strong>plusieurs journées de service</strong> à couvrir en même temps (plusieurs absents, ou un événement exceptionnel). Le système propose 4 scénarios en parallèle selon deux axes :</p>
+    <div class="two-col" style="margin-top:12px">
+      <div><strong>Axe 1 — Périmètre agents :</strong><br><span class="badge badge-blue">Réserve uniquement</span> ou <span class="badge badge-gray">Tous les agents</span></div>
+      <div><strong>Axe 2 — Figeage :</strong><br><span class="badge badge-gray">Sans figeage</span> ou <span class="badge badge-orange">Avec figeage</span></div>
+    </div>
+  </div>
+
+  <h3>Les 4 scénarios générés</h3>
+  <table>
+    <thead><tr><th>#</th><th>Périmètre</th><th>Figeage</th><th>Usage</th></tr></thead>
+    <tbody>
+      <tr><td><strong>1</strong></td><td>Réserve seule</td><td>Non</td><td class="green">Idéal — minimise l'impact</td></tr>
+      <tr><td><strong>2</strong></td><td>Réserve seule</td><td>Oui</td><td class="orange">Réserve + libérations</td></tr>
+      <tr><td><strong>3</strong></td><td>Tous agents</td><td>Non</td><td>Couverture maximale</td></tr>
+      <tr><td><strong>4</strong></td><td>Tous agents</td><td>Oui</td><td>Couverture maximale + libérations</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Workflow multi-JS</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-title">Sélection des JS à couvrir</div>
+      <div class="step-body">L'encadrant coche les JS à couvrir dans la liste des JS de l'import actif. Les JS sélectionnées deviennent les "cibles".</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-title">Calcul du service effectif (LPA)</div>
+      <div class="step-body">Pour chaque couple (agent, JS cible), le système calcule les horaires effectifs basés sur les <strong>horaires standards du JsType</strong> (pas les horaires personnels de l'agent absent). Chaque candidat voit ses propres trajets appliqués.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-title">Évaluation des candidats par JS</div>
+      <div class="step-body">Pour chaque JS cible, le système évalue tous les agents éligibles et attribue un score de pertinence. Même logique que la simulation simple.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-title">Affectation optimale (greedy)</div>
+      <div class="step-body">Le meilleur candidat (score le plus élevé) est affecté à chaque JS. Si un agent est déjà affecté à une autre JS dans la même simulation, il est exclu des suivantes.</div>
+    </div>
+  </div>
+
+  <h3>Lecture des résultats multi-JS</h3>
+  <ul>
+    <li><strong>Taux de couverture</strong> : % des JS couvertes dans le scénario</li>
+    <li><strong>Affectations par agent</strong> : liste des JS attribuées à chaque agent</li>
+    <li><strong>JS non couvertes</strong> : JS restantes sans candidat disponible, avec gravité (OBLIGATOIRE vs DERNIER_RECOURS)</li>
+    <li><strong>Détail des règles</strong> : même niveau de détail que la simulation simple, par affectation</li>
+  </ul>
+</section>
+
+<!-- ══════════════════════════════════════════ SCORING MULTI -->
+<section id="scoring-multi">
+  <div class="section-header">
+    <div class="section-icon" style="background:#d1fae5">🏅</div>
+    <div>
+      <h2>Score scénario multi-JS</h2>
+      <p>Comment sont évalués et comparés les 4 scénarios</p>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Critère</th><th>Impact</th></tr></thead>
+    <tbody>
+      <tr><td>Base (taux de couverture %)</td><td class="green">0–100%</td></tr>
+      <tr><td>Bonus utilisation optimale réserve</td><td class="green">+10 points</td></tr>
+      <tr><td>Par affectation VIGILANCE</td><td class="orange">−5 points</td></tr>
+      <tr><td>Par JS OBLIGATOIRE non couverte</td><td class="red">−10 points</td></tr>
+      <tr><td>Par JS DERNIER_RECOURS non couverte</td><td class="orange">−5 points</td></tr>
+      <tr><td>Par figeage appliqué</td><td class="orange">−3 points</td></tr>
+      <tr><td>Par conflit WARNING</td><td class="orange">−3 points</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout example">
+    <div class="callout-title">💡 Exemple</div>
+    Scénario : 5 JS à couvrir, 5 couvertes (100%) → base 100<br>
+    2 affectations VIGILANCE → −10<br>
+    0 figeage → 0<br>
+    <strong>Score final : 90/100</strong>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ UI AGENTS -->
+<section id="ui-agents">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f0fdf4">👤</div>
+    <div>
+      <h2>Fiche agent</h2>
+      <p>Profil complet et configuration individuelle de chaque agent</p>
+    </div>
+  </div>
+
+  <h3>Informations d'identité</h3>
+  <ul>
+    <li><strong>Matricule</strong> : identifiant unique (code immatriculation)</li>
+    <li><strong>UCH</strong> : Unité de Commandement Hiérarchique</li>
+    <li><strong>Grade</strong> : échelon réglementaire</li>
+    <li><strong>Poste d'affectation</strong> : poste nominatif</li>
+  </ul>
+
+  <h3>Habilitations et statuts</h3>
+  <div class="two-col">
+    <div class="card">
+      <h4>Flags activables</h4>
+      <ul>
+        <li><code>Agent de réserve</code> : seuils assouplis, bonus score +10</li>
+        <li><code>Peut faire nuit</code> : autorisé JS nocturnes</li>
+        <li><code>Peut être déplacé</code> : autorisé hors LPA</li>
+        <li><code>Régime B</code> / <code>Régime C</code> : TE min 5h30/JS</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4>Préfixes JS autorisés</h4>
+      <p>Liste des codes JS que l'agent est habilité à effectuer. Ex : <code>GIC004, GIC005, GIC006, PEY</code>. Si vide = toutes les JS autorisées.</p>
+    </div>
+  </div>
+
+  <h3>LPA et déplacement</h3>
+  <ul>
+    <li><strong>LPA de base</strong> : sélectionnable dans la liste des LPA du référentiel</li>
+    <li><strong>Règles de déplacement spécifiques</strong> : par JsType ou préfixe, définir si la JS est hors LPA (<code>horsLpa</code>) et les temps de trajet aller/retour en minutes</li>
+  </ul>
+
+  <div class="callout example">
+    <div class="callout-title">💡 Exemple de règle de déplacement</div>
+    Agent PANEL · LPA = Givors<br>
+    Règle : JsType <code>PEY006R</code>, horsLpa = Oui, trajet aller = 30 min, trajet retour = 70 min<br>
+    → Quand PANEL prend une JS PEY006R, ses horaires effectifs sont : heureDebut−30min à heureFin+70min
+  </div>
+
+  <h3>Planning de l'agent</h3>
+  <p>Affiche les 100 dernières lignes du planning de l'import actif pour cet agent. Chaque ligne montre :</p>
+  <ul>
+    <li>Date, horaires (début–fin)</li>
+    <li>Amplitude et durée effective</li>
+    <li>Code JS ou code NPO</li>
+    <li>Indicateur JS de nuit / RP / JS sélectionnée pour simulation</li>
+    <li>Position dans la GPT en cours (niv. X/6)</li>
+  </ul>
+</section>
+
+<!-- ══════════════════════════════════════════ UI SIM -->
+<section id="ui-sim">
+  <div class="section-header">
+    <div class="section-icon" style="background:#ede9fe">🖥️</div>
+    <div>
+      <h2>Interface de simulation — Guide d'utilisation</h2>
+      <p>Comment naviguer dans les résultats et interpréter chaque élément</p>
+    </div>
+  </div>
+
+  <h3>Lancer une simulation JS simple</h3>
+  <div class="steps" style="padding-left:32px">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-title">Ouvrir la fiche d'un agent absent</div>
+      <div class="step-body">Depuis <strong>Agents</strong> → cliquer sur l'agent concerné.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-title">Cliquer sur la JS à couvrir dans le planning</div>
+      <div class="step-body">La JS imprévisible s'affiche en surbrillance. Le panneau d'analyse s'ouvre à droite.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-title">Configurer le contexte (optionnel)</div>
+      <div class="step-body">
+        <ul>
+          <li><strong>Imprévu partiel</strong> : si l'absence ne commence pas à l'heure prévue</li>
+          <li><strong>Remplacement</strong> : cocher si l'agent qui vient remplace (seuils TE/repos assouplis)</li>
+          <li><strong>Commentaire</strong> : note libre pour traçabilité</li>
+        </ul>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-title">Cliquer sur "Analyser l'imprévu"</div>
+      <div class="step-body">Le moteur lance l'analyse et affiche les résultats dans les 4 onglets.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">5</div>
+      <div class="step-title">Basculer "Sans figeage / Avec figeage"</div>
+      <div class="step-body">Si le mode "Avec figeage" apporte des agents supplémentaires, un badge "+N agents" l'indique.</div>
+    </div>
+  </div>
+
+  <h3>Carte candidat — Détail des calculs</h3>
+  <p>Cliquer sur <strong>"Détail des règles"</strong> dans une carte candidat ou dans un nœud de cascade pour voir :</p>
+  <div class="card-grid">
+    <div class="card">
+      <h4>🌙 Repos journalier</h4>
+      <p>Durée disponible entre le dernier poste et l'imprévu. Date et horaires du dernier poste affichés.</p>
+    </div>
+    <div class="card">
+      <h4>⏱ Amplitude</h4>
+      <p>Amplitude de la JS imprévisible + raison du seuil appliqué (déplacement, remplacement, nuit…)</p>
+    </div>
+    <div class="card">
+      <h4>📈 TE GPT</h4>
+      <p>Décomposition JS par JS du cumul TE dans la GPT, + la JS simulée, = total GPT.</p>
+    </div>
+    <div class="card">
+      <h4>📅 Longueur GPT</h4>
+      <p>Nombre de JS dans la GPT après injection de l'imprévu. Limite : 6 JS.</p>
+    </div>
+    <div class="card">
+      <h4>📆 Repos périodiques</h4>
+      <p>RP avant et après la GPT simulée. Vérifie la conformité des transitions (simple/double/triple).</p>
+    </div>
+    <div class="card">
+      <h4>✗ Violations bloquantes</h4>
+      <p>Liste des règles en violation avec les valeurs numériques (mesurée vs. limite).</p>
+    </div>
+  </div>
+
+  <h3>Lancer une simulation multi-JS</h3>
+  <div class="steps" style="padding-left:32px">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-title">Aller dans "Simulation multi-JS"</div>
+      <div class="step-body">Dans le menu latéral, cliquer sur "Simulation multi-JS".</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-title">Sélectionner les JS à couvrir</div>
+      <div class="step-body">Cocher chaque JS dans la liste. Filtrer par date, agent, code JS selon les besoins.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-title">Lancer la simulation</div>
+      <div class="step-body">Les 4 scénarios sont calculés simultanément. Le meilleur scénario est pré-sélectionné.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-title">Analyser les scénarios</div>
+      <div class="step-body">Comparer taux de couverture, affectations VIGILANCE, JS non couvertes, figeages. Choisir le scénario le plus adapté au contexte opérationnel.</div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+// ── SCROLL & ACTIVE NAV ────────────────────────────────────────────────────
+
+function scrollTo(id) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+// Track active section
+const sections = document.querySelectorAll('section[id]');
+const navLinks = document.querySelectorAll('.nav-link');
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      navLinks.forEach(l => l.classList.remove('active'));
+      const active = document.querySelector(`.nav-link[onclick="scrollTo('${entry.target.id}')"]`);
+      if (active) active.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+sections.forEach(s => observer.observe(s));
+
+// Progress bar
+window.addEventListener('scroll', () => {
+  const doc = document.documentElement;
+  const scrollTop = doc.scrollTop || document.body.scrollTop;
+  const scrollHeight = doc.scrollHeight - doc.clientHeight;
+  const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+  document.getElementById('progress').style.width = progress + '%';
+});
+
+// ── COLLAPSIBLE ────────────────────────────────────────────────────────────
+
+document.querySelectorAll('.collapsible').forEach(el => {
+  el.addEventListener('click', () => {
+    el.classList.toggle('open');
+  });
+});
+
+// ── SEARCH ────────────────────────────────────────────────────────────────
+
+let searchTimeout;
+function handleSearch(val) {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    // Remove existing highlights
+    document.querySelectorAll('.highlight').forEach(el => {
+      el.outerHTML = el.textContent;
+    });
+
+    if (!val.trim()) return;
+
+    const regex = new RegExp(`(${val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+
+    function highlightNode(node) {
+      if (node.nodeType === 3) { // text node
+        if (regex.test(node.textContent)) {
+          const span = document.createElement('span');
+          span.innerHTML = node.textContent.replace(regex, '<span class="highlight">$1</span>');
+          node.parentNode.replaceChild(span, node);
+        }
+      } else if (node.nodeType === 1 && !['SCRIPT', 'STYLE', 'INPUT'].includes(node.tagName)) {
+        Array.from(node.childNodes).forEach(highlightNode);
+      }
+    }
+
+    // Only search in main content
+    highlightNode(document.getElementById('main'));
+
+    // Scroll to first result
+    const first = document.querySelector('.highlight');
+    if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 300);
+}
+
+// ── KEYBOARD ──────────────────────────────────────────────────────────────
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    document.getElementById('search-box').focus();
+  }
+  if (e.key === 'Escape') {
+    document.getElementById('search-box').value = '';
+    handleSearch('');
+    document.getElementById('search-box').blur();
+  }
+});
+</script>
+
+</body>
+</html>

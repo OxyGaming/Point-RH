@@ -1,4 +1,5 @@
 import type { DetailCalcul, RegleViolation } from "./simulation";
+export type { DetailCalcul };
 import type { ScoreBreakdownCandidat } from "@/lib/simulation/scenarioScorer";
 import type { LogEntry } from "@/engine/logger";
 
@@ -151,6 +152,14 @@ export type ActionPlanning =
   | "DECALER_NPO"       // décaler un repos
   | "RESOUDRE_CONFLIT"; // résolution d'un conflit induit
 
+/** JS reprise par un agent en cascade (la JS qui bloquait l'agent du niveau précédent). */
+export interface JsReprise {
+  date: string;       // "YYYY-MM-DD"
+  heureDebut: string; // "HH:MM"
+  heureFin: string;   // "HH:MM"
+  codeJs: string | null;
+}
+
 export interface ModificationPlanning {
   agentId: string;
   agentNom: string;
@@ -159,6 +168,21 @@ export interface ModificationPlanning {
   description: string;
   violations: RegleViolation[];
   conforme: boolean;
+  /**
+   * Pour les agents en cascade (ECHANGER_JS) : la JS qu'ils reprennent,
+   * c'est-à-dire celle qui bloquait l'agent du niveau précédent.
+   */
+  jsReprise?: JsReprise | null;
+  /** Motif principal expliquant le statut (vigilance, violation…) */
+  motif?: string | null;
+  /** Détail complet du calcul de mobilisabilité pour cet agent (repos, amplitude, GPT, TE…) */
+  detail?: DetailCalcul | null;
+  /**
+   * Horaires effectifs de l'agent après application de ses trajets LPA.
+   * Identiques aux horaires JsType si pas de déplacement.
+   */
+  heureDebutEffective?: string | null;
+  heureFinEffective?: string | null;
 }
 
 // ─── Impact en cascade ─────────────────────────────────────────────────────────
@@ -211,9 +235,14 @@ export interface JsSimulationResultat {
   refuses: CandidatResult[];
   scenarios: Scenario[];
   nbAgentsAnalyses: number;
-  /**
-   * Traces horodatées de toutes les décisions du moteur pour cette simulation.
-   * Utile pour l'audit, le debug et l'explicabilité des résultats.
-   */
   auditLog: LogEntry[];
+}
+
+/**
+ * Les deux scénarios (sans/avec figeage) calculés en un seul appel.
+ * Le figeage n'est plus un paramètre d'entrée mais une dimension du résultat.
+ */
+export interface JsSimulationResultatDouble {
+  sansFigeage: JsSimulationResultat;
+  avecFigeage: JsSimulationResultat;
 }

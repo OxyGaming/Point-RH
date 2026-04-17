@@ -174,13 +174,12 @@ export default function WorkRulesPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto py-4 sm:py-8 px-4 sm:px-6">
-      {/* En-tête */}
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Paramétrage des règles de travail</h1>
-        <p className="mt-1 text-sm text-slate-500">
+    <div className="max-w-3xl mx-auto p-5 sm:p-7 lg:p-8">
+      <div className="mb-7">
+        <p className="text-[10px] font-[700] uppercase tracking-[0.12em] text-[#2563eb] mb-1">Administration</p>
+        <h1 className="text-[26px] font-[800] text-[#0f1b4c] tracking-tight leading-none">Règles de travail</h1>
+        <p className="mt-2 text-[13px] text-[#4a5580]">
           Configurez les seuils réglementaires utilisés par le moteur de simulation.
-          Toutes les modifications sont appliquées immédiatement après sauvegarde.
         </p>
         {modifiedCount > 0 && (
           <p className="mt-2 text-xs text-blue-600 font-medium">

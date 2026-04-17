@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { executerSimulationJS } from "@/lib/simulation";
 import { combineDateTime } from "@/lib/utils";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
-import type { JsSimulationRequest } from "@/types/js-simulation";
+import type { JsSimulationRequest, JsSimulationResultatDouble } from "@/types/js-simulation";
 import { checkAuth } from "@/lib/session";
 
 export const runtime = "nodejs";
@@ -21,11 +21,31 @@ export async function POST(req: NextRequest) {
     }
 
     // Charger tous les agents liés à cet import
-    const lignes = await prisma.planningLigne.findMany({
-      where: { importId: jsCible.importId },
-      include: { agent: true },
-      orderBy: { dateDebutPop: "asc" },
-    });
+    const [lignes, jsTypes] = await Promise.all([
+      prisma.planningLigne.findMany({
+        where: { importId: jsCible.importId },
+        include: { agent: true },
+        orderBy: { dateDebutPop: "asc" },
+      }),
+      prisma.jsType.findMany({ select: { code: true, heureDebutStandard: true, heureFinStandard: true } }),
+    ]);
+    // Résolution JsType : match exact sur typeJs, fallback préfixe sur codeJs (même logique que multi-JS)
+    function resolveJsType(codeJs: string | null, typeJs: string | null) {
+      if (typeJs) {
+        const exact = jsTypes.find((jt) => jt.code === typeJs);
+        if (exact) return exact;
+      }
+      if (codeJs) {
+        const prefixe = codeJs.trim().split(" ")[0] ?? "";
+        const byPrefix = jsTypes.find(
+          (jt) =>
+            prefixe.toUpperCase().startsWith(jt.code.toUpperCase()) ||
+            jt.code.toUpperCase() === prefixe.toUpperCase()
+        );
+        if (byPrefix) return byPrefix;
+      }
+      return null;
+    }
 
     // Grouper par agent
     const agentsMap = new Map<
@@ -74,12 +94,16 @@ export async function POST(req: NextRequest) {
         codeJs: ligne.codeJs,
         typeJs: ligne.typeJs,
         planningLigneId: ligne.id,
+        ...(() => {
+          const jt = resolveJsType(ligne.codeJs, ligne.typeJs);
+          return jt ? { heureDebutJsType: jt.heureDebutStandard, heureFinJsType: jt.heureFinStandard } : {};
+        })(),
       });
     }
 
     const agents = Array.from(agentsMap.values());
 
-    const resultat = await executerSimulationJS(body, agents);
+    const resultat: JsSimulationResultatDouble = await executerSimulationJS(body, agents);
 
     return NextResponse.json(resultat, { status: 200 });
   } catch (err) {

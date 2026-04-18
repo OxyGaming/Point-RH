@@ -66,9 +66,29 @@ Il n'y a jamais deux lignes coexistant pour le même agent le même jour.
 ### Champ `jourPlanning`
 Ajouter un champ dédié sur `PlanningLigne` pour stocker la date sans heure :
 ```prisma
-jourPlanning DateTime  // stocké à minuit UTC : new Date(dateDebutPop.toISOString().slice(0, 10))
+jourPlanning DateTime  // minuit heure locale Europe/Paris du jour de service
 ```
 Ce champ est calculé à l'import depuis `dateDebutPop` et indexé pour les requêtes de cleanup.
+
+**Calcul en heure locale France (Europe/Paris) :**
+`dateDebutPop` peut être stockée en UTC. Extraire le jour calendaire métier en heure locale
+pour éviter les erreurs sur les services de nuit (ex : un créneau démarrant à 23h heure locale
+un lundi doit être affecté au lundi, pas au mardi UTC).
+
+```ts
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
+
+function jourPlanningFromDate(dateDebutPop: Date): Date {
+  const paris = toZonedTime(dateDebutPop, 'Europe/Paris')
+  // On repart de minuit heure locale → stocké en UTC dans la base
+  return fromZonedTime(
+    new Date(paris.getFullYear(), paris.getMonth(), paris.getDate()),
+    'Europe/Paris'
+  )
+}
+```
+
+Dépendance requise : `date-fns-tz` (vérifier si déjà présente, sinon ajouter).
 
 ### Migration Prisma
 ```prisma

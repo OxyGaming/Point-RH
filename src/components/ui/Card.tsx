@@ -24,10 +24,8 @@ export function Card({
       className={cn(
         "bg-white rounded-xl border border-[#e2e8f5] overflow-hidden relative",
         "shadow-[0_1px_3px_rgba(15,27,76,0.07),0_1px_2px_rgba(15,27,76,0.04)]",
-        accent && accent !== "none" && [
-          "before:absolute before:top-0 before:left-0 before:right-0 before:h-[3px]",
-          ACCENT_COLORS[accent],
-        ],
+        accent && accent !== "none" && "before:absolute before:top-0 before:left-0 before:right-0 before:h-[3px]",
+        accent && accent !== "none" && ACCENT_COLORS[accent],
         className
       )}
     >

@@ -148,6 +148,16 @@ export async function importerPlanning(
       }
     }
 
+    // ── Lignes : dédupliquer par (matricule, jourPlanning) ───────────────────
+    // Un fichier peut contenir plusieurs lignes pour le même agent le même jour
+    // (JS + NPO). La dernière occurrence gagne — une affectation par agent/jour.
+    const lignesParJour = new Map<string, typeof lignesRaw[0] & { jourPlanning: Date }>();
+    for (const l of lignesRaw) {
+      const jp = jourPlanningFromDate(l.dateDebutPop);
+      lignesParJour.set(`${l.matricule}|${jp.toISOString()}`, { ...l, jourPlanning: jp });
+    }
+    const lignesAvecJour = [...lignesParJour.values()];
+
     // ── Import record ─────────────────────────────────────────────────────────
     await prisma.planningImport.updateMany({
       where: { isActive: true },
@@ -163,16 +173,6 @@ export async function importerPlanning(
         isActive: true,
       },
     });
-
-    // ── Lignes : upsert par (matricule, jourPlanning) ─────────────────────────
-    // Dédupliquer par clé métier — un fichier peut contenir plusieurs lignes
-    // pour le même agent le même jour (JS + NPO). La dernière occurrence gagne.
-    const lignesParJour = new Map<string, typeof lignesRaw[0] & { jourPlanning: Date }>();
-    for (const l of lignesRaw) {
-      const jp = jourPlanningFromDate(l.dateDebutPop);
-      lignesParJour.set(`${l.matricule}|${jp.toISOString()}`, { ...l, jourPlanning: jp });
-    }
-    const lignesAvecJour = [...lignesParJour.values()];
 
     const existingLignes = await prisma.planningLigne.findMany({
       where: {

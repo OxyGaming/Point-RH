@@ -16,6 +16,15 @@ export default async function AgentsPage() {
   const [agents, session] = await Promise.all([getAgents(), getSession()]);
   const isAdmin = session?.role === "ADMIN";
 
+  const userFilter = session
+    ? await prisma.userAgentFilter.findUnique({ where: { userId: session.id } })
+    : null;
+
+  const initialFilter = {
+    selectedIds: userFilter ? (JSON.parse(userFilter.selectedIds) as string[]) : [],
+    isActive: userFilter?.isActive ?? false,
+  };
+
   const stats = [
     { label: "Total agents",   value: agents.length,                                    color: "blue"  as const },
     { label: "En réserve",     value: agents.filter((a) => a.agentReserve).length,      color: "green" as const },
@@ -77,7 +86,7 @@ export default async function AgentsPage() {
           <CardTitle>Liste des agents actifs</CardTitle>
         </CardHeader>
         <CardBody className="p-0">
-          <AgentTable agents={agents} />
+          <AgentTable agents={agents} initialFilter={initialFilter} />
         </CardBody>
       </Card>
 

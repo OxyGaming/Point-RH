@@ -52,6 +52,20 @@ export default function MultiJsPage() {
   const [allJs, setAllJs] = useState<JsTimeline[]>([]);
   const [loadingJs, setLoadingJs] = useState(false);
 
+  // ─── Filtre personnalisé utilisateur ─────────────────────────────────────
+  const [userFilterIds, setUserFilterIds] = useState<Set<string>>(new Set());
+  const [userFilterActive, setUserFilterActive] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/user-filter")
+      .then((r) => r.json())
+      .then((data: { selectedIds: string[]; isActive: boolean }) => {
+        setUserFilterIds(new Set(data.selectedIds));
+        setUserFilterActive(data.isActive);
+      })
+      .catch(() => {});
+  }, []);
+
   // ─── Filtres ──────────────────────────────────────────────────────────────
   const [filters, setFilters] = useState<FiltersState>(emptyFilters());
 
@@ -66,11 +80,22 @@ export default function MultiJsPage() {
   // Ref pour détecter si c'est le premier chargement de l'import
   const prevImportId = useRef<string>("");
 
-  // ─── Restaurer le résultat depuis sessionStorage au montage ──────────────
+  // IDs présélectionnés depuis la vue planning (via sessionStorage)
+  const preselectRef = useRef<string[] | null>(null);
+
+  // ─── Restaurer le résultat + pré-sélection depuis sessionStorage ─────────
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(SS_KEY);
       if (raw) setResultat(JSON.parse(raw) as MultiJsSimulationResultat);
+    } catch {}
+    try {
+      const pre = sessionStorage.getItem("pointrh_multiJs_preselect");
+      if (pre) {
+        const parsed = JSON.parse(pre) as Array<{ planningLigneId: string }>;
+        preselectRef.current = parsed.map((jc) => jc.planningLigneId);
+        sessionStorage.removeItem("pointrh_multiJs_preselect");
+      }
     } catch {}
   }, []);
 
@@ -88,8 +113,7 @@ export default function MultiJsPage() {
       .then((r) => r.json())
       .then((data: PlanningImport[]) => {
         setImports(data);
-        const active = data.find((d) => d.isActive) ?? data[0];
-        if (active) setImportId(active.id);
+        if (data[0]) setImportId(data[0].id);
       })
       .catch(() => {});
   }, []);
@@ -115,8 +139,23 @@ export default function MultiJsPage() {
       .finally(() => setLoadingJs(false));
   }, [importId]);
 
+  // ─── Appliquer la pré-sélection après chargement des JS ─────────────────
+  useEffect(() => {
+    if (!preselectRef.current || allJs.length === 0) return;
+    const allIds = new Set(allJs.map((js) => js.planningLigneId));
+    const matches = preselectRef.current.filter((id) => allIds.has(id));
+    if (matches.length > 0) setSelectedIds(new Set(matches));
+    preselectRef.current = null;
+  }, [allJs]);
+
   // ─── JS filtrées ─────────────────────────────────────────────────────────
-  const filteredJs = useMemo(() => applyFilters(allJs, filters), [allJs, filters]);
+  const filteredJs = useMemo(() => {
+    let list = allJs;
+    if (userFilterActive && userFilterIds.size > 0) {
+      list = list.filter((js) => js.agentId !== null && userFilterIds.has(js.agentId));
+    }
+    return applyFilters(list, filters);
+  }, [allJs, filters, userFilterActive, userFilterIds]);
 
   // ─── Gestion sélection ────────────────────────────────────────────────────
   function toggleJs(id: string) {
@@ -212,7 +251,7 @@ export default function MultiJsPage() {
       {/* ─── En-tête ─────────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-slate-200 px-4 sm:px-6 lg:px-8 py-5">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex items-start justify-between gap-4 flex-wrap lg:pr-72">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-semibold uppercase tracking-widest text-slate-400">
@@ -232,24 +271,6 @@ export default function MultiJsPage() {
               </p>
             </div>
 
-            {/* Sélecteur d'import */}
-            <div className="shrink-0">
-              <label className="block text-xs font-medium text-slate-500 mb-1">
-                Planning source
-              </label>
-              <select
-                value={importId}
-                onChange={(e) => setImportId(e.target.value)}
-                className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-blue-400 min-w-[200px]"
-              >
-                {imports.map((imp) => (
-                  <option key={imp.id} value={imp.id}>
-                    {imp.filename} ({imp.nbAgents} agents)
-                    {imp.isActive ? " ✓" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
         </div>
       </div>
@@ -268,6 +289,18 @@ export default function MultiJsPage() {
             onDeselectAll={deselectAll}
             nbSelected={nbSelected}
           />
+
+          {/* Badge filtre personnalisé actif */}
+          {userFilterActive && userFilterIds.size > 0 && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#eff6ff] border border-[#bfdbfe] rounded-lg w-fit">
+              <svg className="w-3.5 h-3.5 text-[#1e40af]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+              </svg>
+              <span className="text-[11px] font-[600] text-[#1e40af]">
+                Affichage personnalisé actif — {userFilterIds.size} agent{userFilterIds.size > 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
 
           {/* Timeline */}
           {loadingJs ? (

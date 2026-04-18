@@ -287,6 +287,9 @@ export default function PlanningPage() {
   const [slider,    setSlider]    = useState(0);
   const [visDays,   setVisDays]   = useState(VIS_DEFAULT);
 
+  const [userFilterIds,    setUserFilterIds]    = useState<Set<string>>(new Set());
+  const [userFilterActive, setUserFilterActive] = useState(false);
+
   // Scroll virtualization
   const gridRef  = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -326,6 +329,18 @@ export default function PlanningPage() {
       .finally(() => setLoading(false));
     return () => ctrl.abort();
   }, [importId]);
+
+  // ── Load user agent filter ───────────────────────────────────────────────
+
+  useEffect(() => {
+    fetch("/api/user-filter")
+      .then((r) => r.json())
+      .then((data: { selectedIds: string[]; isActive: boolean }) => {
+        if (Array.isArray(data.selectedIds)) setUserFilterIds(new Set(data.selectedIds));
+        setUserFilterActive(data.isActive === true);
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Track container height ───────────────────────────────────────────────
 
@@ -409,6 +424,10 @@ export default function PlanningPage() {
       shift: dominantShift(key, jsByAgent),
     }));
 
+    if (userFilterActive && userFilterIds.size > 0) {
+      list = list.filter((r) => userFilterIds.has(r.key));
+    }
+
     if (filter) {
       const q = filter.toLowerCase();
       list = list.filter((r) => {
@@ -451,7 +470,7 @@ export default function PlanningPage() {
       });
     }
     return list;
-  }, [groupBy, agents, filter, hideEmpty, visibleDates, jsByAgent, jsByAgentDate]);
+  }, [groupBy, agents, filter, hideEmpty, visibleDates, jsByAgent, jsByAgentDate, userFilterActive, userFilterIds]);
 
 
   // ── Virtual flat item list ───────────────────────────────────────────────
@@ -708,6 +727,20 @@ export default function PlanningPage() {
           />
           <span className="text-[11px] font-[600] text-[#64748b]">Masquer les agents sans JS</span>
         </label>
+
+        {userFilterActive && userFilterIds.size > 0 && (
+          <>
+            <div className="w-px h-5 bg-[#e2e8f0]" />
+            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-[#eff6ff] border border-[#bfdbfe] rounded-md">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3 text-[#2563eb]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+              </svg>
+              <span className="text-[11px] font-[600] text-[#1e40af]">
+                Affichage personnalisé actif — {userFilterIds.size} agent{userFilterIds.size > 1 ? "s" : ""}
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Legend bar ──────────────────────────────────────────────────── */}

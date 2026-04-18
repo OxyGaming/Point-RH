@@ -26,7 +26,8 @@ model User {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  auditLogs AuditLog[]
+  auditLogs   AuditLog[]
+  agentFilter UserAgentFilter?
 }
 
 /// Journal d'audit — trace les actions sensibles (suppression, modification RH, etc.)
@@ -45,6 +46,20 @@ model AuditLog {
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+}
+
+// ─── Affichage personnalisé ────────────────────────────────────────────────
+
+/// Filtre d'agents par utilisateur.
+/// isActive = false → affichage normal (tous les agents visibles).
+model UserAgentFilter {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  selectedIds String   @default("[]") // JSON : tableau d'IDs d'agents
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // ─── Agents ──────────────────────────────────────────────────────────────────

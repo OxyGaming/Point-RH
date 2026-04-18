@@ -74,8 +74,7 @@ echo "🗄️  Base de données : $DATABASE_URL"
 
 # ── Synchronisation schéma Prisma ─────────────────────────────────────────────
 echo "🗄️ Synchronisation du schéma Prisma..."
-# --skip-generate : prisma generate est déjà inclus dans npm run build
-npx prisma db push --skip-generate
+npx prisma db push
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 echo "🏗️ Build..."

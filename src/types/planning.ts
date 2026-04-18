@@ -43,8 +43,10 @@ export interface PlanningLigneRaw {
 export interface ImportResult {
   success: boolean;
   importId?: string;
-  nbLignes: number;
-  nbAgents: number;
+  lignesCreees: number;
+  lignesMisesAJour: number;
+  agentsCreated: number;
+  agentsUpdated: number;
   fileType?: "excel" | "txt";
   erreurs: ImportErreur[];
 }

@@ -138,22 +138,27 @@ model PlanningLigne {
   dureeEffectiveCent  Int?
   dureeEffectiveHHMM  String?
 
-  jsNpo          String
-  codeJs         String?
-  typeJs         String?
-  valeurNpo      Int?
-  uchJs          String?
-  codeUchJs      String?
+  jsNpo           String
+  codeJs          String?
+  typeJs          String?
+  valeurNpo       Int?
+  uchJs           String?
+  codeUchJs       String?
   codeRoulementJs String?
-  numeroJs       String?
+  numeroJs        String?
+
+  jourPlanning DateTime
 
   import PlanningImport @relation(fields: [importId], references: [id], onDelete: Cascade)
   agent  Agent?         @relation(fields: [agentId], references: [id])
 
+  @@unique([matricule, jourPlanning])
   @@index([agentId])
   @@index([importId])
   @@index([matricule])
   @@index([dateDebutPop])
+  @@index([dateFinPop])
+  @@index([jourPlanning])
 }
 
 // ─── Simulations ─────────────────────────────────────────────────────────────

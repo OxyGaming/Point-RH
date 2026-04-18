@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { IconMoon } from "@/components/icons/Icons";
 
@@ -65,6 +65,59 @@ export default function JsTypesManager() {
   // États des lignes
   const [rowStates, setRowStates] = useState<Record<string, SaveState>>({});
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  // Édition inline
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    code: "", libelle: "", heureDebutStandard: "", heureFinStandard: "",
+    dureeStandard: "", estNuit: false, regime: "", flexibilite: "OBLIGATOIRE" as FlexibiliteJs,
+  });
+
+  function startEdit(t: JsType) {
+    setEditingId(t.id);
+    setConfirmDelete(null);
+    setEditForm({
+      code: t.code,
+      libelle: t.libelle,
+      heureDebutStandard: t.heureDebutStandard,
+      heureFinStandard: t.heureFinStandard,
+      dureeStandard: String(t.dureeStandard),
+      estNuit: t.estNuit,
+      regime: t.regime ?? "",
+      flexibilite: t.flexibilite,
+    });
+  }
+
+  async function handleUpdate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingId) return;
+    setRowStates((prev) => ({ ...prev, [editingId]: "saving" }));
+    try {
+      const res = await fetch(`/api/js-types/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: editForm.code,
+          libelle: editForm.libelle,
+          heureDebutStandard: editForm.heureDebutStandard,
+          heureFinStandard: editForm.heureFinStandard,
+          dureeStandard: Number(editForm.dureeStandard),
+          estNuit: editForm.estNuit,
+          regime: editForm.regime.trim() || null,
+          flexibilite: editForm.flexibilite,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const updated: JsType = await res.json();
+      setJsTypes((prev) => prev.map((t) => (t.id === editingId ? { ...updated, _count: t._count } : t)));
+      setRowStates((prev) => ({ ...prev, [editingId]: "saved" }));
+      setTimeout(() => setRowStates((prev) => ({ ...prev, [editingId]: "idle" })), 1500);
+      setEditingId(null);
+    } catch {
+      setRowStates((prev) => ({ ...prev, [editingId]: "error" }));
+      setTimeout(() => setRowStates((prev) => ({ ...prev, [editingId]: "idle" })), 2500);
+    }
+  }
 
   const fetchJsTypes = useCallback(async () => {
     setLoading(true);
@@ -324,18 +377,20 @@ export default function JsTypesManager() {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
-              {jsTypes.length === 0 && (
+            {jsTypes.length === 0 && (
+              <tbody>
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400 italic">
                     Aucun type JS défini.
                   </td>
                 </tr>
-              )}
+              </tbody>
+            )}
               {jsTypes.map((t) => {
                 const state = rowStates[t.id] ?? "idle";
                 return (
-                  <tr key={t.id} className={cn("bg-white hover:bg-gray-50 transition-colors", !t.actif && "opacity-60")}>
+                <tbody key={t.id} className="border-b border-gray-100">
+                  <tr className={cn("bg-white hover:bg-gray-50 transition-colors", !t.actif && "opacity-60")}>
                     {/* Code */}
                     <td className="px-4 py-3">
                       <span className="font-mono font-bold text-gray-800">{t.code}</span>
@@ -415,37 +470,116 @@ export default function JsTypesManager() {
                       {confirmDelete === t.id ? (
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-red-600">Confirmer ?</span>
-                          <button
-                            type="button"
-                            onClick={() => deleteJsType(t.id)}
-                            className="text-xs text-red-600 hover:text-red-800 font-semibold"
-                          >
-                            Oui
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDelete(null)}
-                            className="text-xs text-gray-500 hover:text-gray-700"
-                          >
-                            Non
-                          </button>
+                          <button type="button" onClick={() => deleteJsType(t.id)}
+                            className="text-xs text-red-600 hover:text-red-800 font-semibold">Oui</button>
+                          <button type="button" onClick={() => setConfirmDelete(null)}
+                            className="text-xs text-gray-500 hover:text-gray-700">Non</button>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          disabled={t._count.lpaJsTypes > 0 || state === "saving"}
-                          onClick={() => setConfirmDelete(t.id)}
-                          title={t._count.lpaJsTypes > 0 ? `Utilisé par ${t._count.lpaJsTypes} LPA(s)` : "Supprimer"}
-                          className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-300 disabled:cursor-not-allowed transition-colors"
-                        >
-                          Supprimer
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => editingId === t.id ? setEditingId(null) : startEdit(t)}
+                            className={cn(
+                              "text-xs font-medium transition-colors",
+                              editingId === t.id
+                                ? "text-gray-500 hover:text-gray-700"
+                                : "text-blue-600 hover:text-blue-800"
+                            )}
+                          >
+                            {editingId === t.id ? "Annuler" : "Éditer"}
+                          </button>
+                          <span className="text-gray-200">|</span>
+                          <button
+                            type="button"
+                            disabled={t._count.lpaJsTypes > 0 || state === "saving"}
+                            onClick={() => setConfirmDelete(t.id)}
+                            title={t._count.lpaJsTypes > 0 ? `Utilisé par ${t._count.lpaJsTypes} LPA(s)` : "Supprimer"}
+                            className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-300 disabled:cursor-not-allowed transition-colors"
+                          >
+                            Supprimer
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
+                  {editingId === t.id && (
+                  <tr className="bg-blue-50">
+                      <td colSpan={7} className="px-4 py-4">
+                        <form onSubmit={handleUpdate} className="space-y-3">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div>
+                              <label className="block text-[10px] font-semibold text-gray-500 mb-1">Code *</label>
+                              <input type="text" required value={editForm.code}
+                                onChange={(e) => setEditForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
+                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="block text-[10px] font-semibold text-gray-500 mb-1">Libellé *</label>
+                              <input type="text" required value={editForm.libelle}
+                                onChange={(e) => setEditForm((f) => ({ ...f, libelle: e.target.value }))}
+                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-gray-500 mb-1">Régime</label>
+                              <input type="text" value={editForm.regime}
+                                onChange={(e) => setEditForm((f) => ({ ...f, regime: e.target.value }))}
+                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-gray-500 mb-1">Début *</label>
+                              <input type="time" required value={editForm.heureDebutStandard}
+                                onChange={(e) => setEditForm((f) => ({ ...f, heureDebutStandard: e.target.value }))}
+                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-gray-500 mb-1">Fin *</label>
+                              <input type="time" required value={editForm.heureFinStandard}
+                                onChange={(e) => setEditForm((f) => ({ ...f, heureFinStandard: e.target.value }))}
+                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-gray-500 mb-1">Durée (min) *</label>
+                              <input type="number" required min={1} value={editForm.dureeStandard}
+                                onChange={(e) => setEditForm((f) => ({ ...f, dureeStandard: e.target.value }))}
+                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white" />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-gray-500 mb-1">Flexibilité *</label>
+                              <select value={editForm.flexibilite}
+                                onChange={(e) => setEditForm((f) => ({ ...f, flexibilite: e.target.value as FlexibiliteJs }))}
+                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white">
+                                <option value="OBLIGATOIRE">OBLIGATOIRE</option>
+                                <option value="DERNIER_RECOURS">DERNIER RECOURS</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                              <input type="checkbox" checked={editForm.estNuit}
+                                onChange={(e) => setEditForm((f) => ({ ...f, estNuit: e.target.checked }))}
+                                className="w-3.5 h-3.5 rounded border-gray-300" />
+                              Poste de nuit
+                            </label>
+                            <div className="flex gap-2">
+                              <button type="submit"
+                                disabled={rowStates[t.id] === "saving"}
+                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded transition-colors disabled:opacity-50">
+                                {rowStates[t.id] === "saving" ? "Enregistrement…" : "Enregistrer"}
+                              </button>
+                              <button type="button" onClick={() => setEditingId(null)}
+                                className="px-3 py-1.5 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-semibold rounded transition-colors">
+                                Annuler
+                              </button>
+                            </div>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
                 );
               })}
-            </tbody>
           </table>
         </div>
         {jsTypes.length > 0 && (

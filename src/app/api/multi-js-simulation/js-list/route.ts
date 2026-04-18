@@ -100,6 +100,7 @@ export async function GET(req: NextRequest) {
         numeroJs: ligne.numeroJs,
         prefixeJs,
         flexibilite: jsType?.flexibilite ?? "OBLIGATOIRE",
+        libelle: jsType?.libelle ?? null,
       };
     });
 

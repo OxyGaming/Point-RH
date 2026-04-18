@@ -244,4 +244,6 @@ export interface JsTimeline {
   uch: string | null;
   numeroJs: string | null;
   prefixeJs: string | null;  // ex: "GIV", "GIC", "PEY"
+  /** JsType.libelle résolu — ex: "Garde Itinérante Voie". Null si type inconnu. */
+  libelle: string | null;
 }

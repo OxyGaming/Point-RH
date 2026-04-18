@@ -78,10 +78,19 @@ const IconUsers = () => (
     <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.85"/><path d="M16 3.13a4 4 0 010 7.75"/>
   </svg>
 );
+const IconPlanning = () => (
+  <svg className="w-[17px] h-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <line x1="3" y1="4" x2="3" y2="20"/>
+    <rect x="5" y="5" width="12" height="3" rx="1"/>
+    <rect x="8" y="11" width="11" height="3" rx="1"/>
+    <rect x="5" y="17" width="8" height="3" rx="1"/>
+  </svg>
+);
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
 const NAV = [
+  { href: "/planning",             label: "Vue planning",         Icon: IconPlanning },
   { href: "/import",               label: "Import planning",      Icon: IconImport },
   { href: "/agents",               label: "Agents",               Icon: IconAgents },
   { href: "/simulations/multi-js", label: "Simulation multi-JS",  Icon: IconMultiJs },

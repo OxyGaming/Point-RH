@@ -55,19 +55,33 @@ de nouvelles lignes sans jamais écraser les existantes. Pour avoir de vrais com
 
 ### Clé métier (contrainte unique)
 ```
-matricule + dateDebutPop + heureDebutPop
+matricule + jourPlanning
 ```
-Un agent ne peut pas avoir deux créneaux démarrant à la même heure le même jour.
-Cette triplet est stable entre deux imports du même fichier ou d'un fichier couvrant
-la même période.
+où `jourPlanning` est le **jour calendaire** extrait de `dateDebutPop` (année-mois-jour, sans heure).
+
+Un agent a une seule affectation par jour. Tout changement — qu'il s'agisse de l'heure de début,
+de l'heure de fin, ou du type de service — remplace l'affectation existante pour ce jour.
+Il n'y a jamais deux lignes coexistant pour le même agent le même jour.
+
+### Champ `jourPlanning`
+Ajouter un champ dédié sur `PlanningLigne` pour stocker la date sans heure :
+```prisma
+jourPlanning DateTime  // stocké à minuit UTC : new Date(dateDebutPop.toISOString().slice(0, 10))
+```
+Ce champ est calculé à l'import depuis `dateDebutPop` et indexé pour les requêtes de cleanup.
 
 ### Migration Prisma
-Ajouter sur `PlanningLigne` :
 ```prisma
-@@unique([matricule, dateDebutPop, heureDebutPop])
+model PlanningLigne {
+  // ... champs existants ...
+  jourPlanning DateTime
+
+  @@unique([matricule, jourPlanning])
+  @@index([jourPlanning])
+}
 ```
-Et supprimer `importId` comme seul lien structurant (la ligne garde son `importId` pour
-traçabilité, mais l'unicité ne dépend plus de lui).
+La ligne garde son `importId` pour traçabilité (quel import a produit cette version de la ligne),
+mais l'unicité est portée par `(matricule, jourPlanning)`.
 
 ### Stratégie d'upsert dans le service
 Prisma ne supporte pas le `createMany` avec update des doublons. Stratégie en deux passes :
@@ -147,7 +161,7 @@ affiché dans `ImportForm.tsx` après la réponse de l'API.
 
 | Fichier | Action |
 |---|---|
-| `prisma/schema.prisma` | Ajouter `@@unique([matricule, dateDebutPop, heureDebutPop])` sur `PlanningLigne` |
+| `prisma/schema.prisma` | Ajouter champ `jourPlanning` + `@@unique([matricule, jourPlanning])` sur `PlanningLigne` |
 | `src/services/import.service.ts` | Remplacer `createMany` par upsert en deux passes + enrichir `ImportResult` |
 | `src/app/api/import/route.ts` | Propager tous les nouveaux champs dans la réponse POST |
 | `src/app/import/page.tsx` | Remplacer liste imports par `<ActiveDataBanner />` |

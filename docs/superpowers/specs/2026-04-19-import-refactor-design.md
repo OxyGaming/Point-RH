@@ -14,13 +14,14 @@ De plus, un nettoyage automatique supprime les `PlanningLigne` où `dateFinPop <
 
 1. Remplacer "Imports récents" par un bandeau "Données disponibles" reflétant l'état global du dataset.
 2. Afficher un message de résultat détaillé après chaque import réussi.
+3. Passer les `PlanningLigne` sur une logique d'upsert par clé métier stable.
 
 ---
 
 ## 1. Bandeau "Données disponibles"
 
 ### Données affichées
-- **Nombre d'agents** : `COUNT(DISTINCT agentId)` sur toutes les `PlanningLigne`
+- **Nombre d'agents** : `prisma.agent.count({ where: { deletedAt: null } })` — source de vérité indépendante du planning
 - **Nombre de lignes** : `COUNT` total sur toutes les `PlanningLigne` (live, post-cleanup)
 - **Plage de dates** : `MIN(dateDebutPop)` → `MAX(dateFinPop)` sur toutes les `PlanningLigne`
 - **Mention fixe** : "Seuil de rétention : 3 mois"
@@ -36,7 +37,6 @@ const [stats, agentCount] = await Promise.all([
     _max: { dateFinPop: true },
     _count: { id: true },
   }),
-  // Compte les agents non supprimés — source de vérité indépendante du planning
   prisma.agent.count({ where: { deletedAt: null } }),
 ])
 ```
@@ -46,10 +46,55 @@ const [stats, agentCount] = await Promise.all([
 
 ---
 
-## 2. Message de résultat post-import
+## 2. Upsert des PlanningLigne par clé métier
+
+### Motivation
+Actuellement `importerPlanning()` fait un `createMany` systématique : chaque import produit
+de nouvelles lignes sans jamais écraser les existantes. Pour avoir de vrais compteurs métier
+(lignes créées vs mises à jour), les lignes doivent être upsertées sur une clé stable.
+
+### Clé métier (contrainte unique)
+```
+matricule + dateDebutPop + heureDebutPop
+```
+Un agent ne peut pas avoir deux créneaux démarrant à la même heure le même jour.
+Cette triplet est stable entre deux imports du même fichier ou d'un fichier couvrant
+la même période.
+
+### Migration Prisma
+Ajouter sur `PlanningLigne` :
+```prisma
+@@unique([matricule, dateDebutPop, heureDebutPop])
+```
+Et supprimer `importId` comme seul lien structurant (la ligne garde son `importId` pour
+traçabilité, mais l'unicité ne dépend plus de lui).
+
+### Stratégie d'upsert dans le service
+Prisma ne supporte pas le `createMany` avec update des doublons. Stratégie en deux passes :
+
+1. **Pré-chargement** : récupérer les clés existantes `(matricule, dateDebutPop, heureDebutPop)`
+   pour toutes les lignes du fichier courant (une seule requête `findMany` avec `select` minimal).
+2. **Partition** : séparer les lignes normalisées en deux ensembles :
+   - `toCreate` : clé absente en base
+   - `toUpdate` : clé présente en base
+3. **Écriture** :
+   - `prisma.planningLigne.createMany({ data: toCreate })` — batch
+   - Pour `toUpdate` : `prisma.planningLigne.updateMany` n'accepte pas de valeurs différentes
+     par ligne ; utiliser `prisma.$transaction([...toUpdate.map(l => prisma.planningLigne.update(...))])`.
+     Si le volume est important, envisager un `upsert` natif Prisma par ligne dans la transaction.
+
+### Performance
+Les lignes d'un fichier de planning sont typiquement < 5 000. La transaction individuelle
+par ligne mise à jour reste acceptable. Si un fichier dépasse 10 000 lignes, passer à du
+SQL brut (`INSERT OR REPLACE` sur SQLite).
+
+---
+
+## 3. Message de résultat post-import
 
 ### Données affichées
-- Lignes créées (toujours des créations, les lignes ne sont jamais mises à jour)
+- Lignes créées
+- Lignes mises à jour
 - Agents créés (nouveau matricule)
 - Agents mis à jour (matricule existant)
 - Erreurs ignorées (si > 0)
@@ -69,30 +114,28 @@ type ImportResult = {
 type ImportResult = {
   success: boolean
   importId: string
-  nbLignes: number        // total lignes insérées
-  agentsCreated: number   // nouveaux matricules
-  agentsUpdated: number   // matricules existants mis à jour
+  lignesCreees: number
+  lignesMisesAJour: number
+  agentsCreated: number
+  agentsUpdated: number
   erreurs: string[]
 }
 ```
 
 ### Tracking dans le service
-Dans `importerPlanning()`, lors de l'upsert des agents, compter séparément :
-- agents dont le matricule n'existait pas → `agentsCreated`
-- agents dont le matricule existait déjà → `agentsUpdated`
-
-Stratégie : avant l'upsert, récupérer les matricules déjà présents en base, puis comparer.
+- **Agents** : avant l'upsert, récupérer les matricules déjà présents → comparer avec ceux du fichier.
+- **Lignes** : résulte directement de la partition `toCreate` / `toUpdate` décrite ci-dessus.
 
 ### Composant
 `src/components/import/ImportResultMessage.tsx` — Client Component recevant `ImportResult` en prop,
 affiché dans `ImportForm.tsx` après la réponse de l'API.
 
 ### Évolution de la réponse API
-`POST /api/import` retourne déjà un JSON — enrichir avec `agentsCreated` et `agentsUpdated`.
+`POST /api/import` retourne déjà un JSON — propager tous les nouveaux champs de `ImportResult`.
 
 ---
 
-## 3. Nettoyage
+## 4. Nettoyage
 
 - Supprimer le fetch des 5 derniers imports dans `src/app/import/page.tsx`
 - Vérifier si la route `GET /api/import` est utilisée ailleurs ; si non, la supprimer
@@ -104,9 +147,10 @@ affiché dans `ImportForm.tsx` après la réponse de l'API.
 
 | Fichier | Action |
 |---|---|
+| `prisma/schema.prisma` | Ajouter `@@unique([matricule, dateDebutPop, heureDebutPop])` sur `PlanningLigne` |
+| `src/services/import.service.ts` | Remplacer `createMany` par upsert en deux passes + enrichir `ImportResult` |
+| `src/app/api/import/route.ts` | Propager tous les nouveaux champs dans la réponse POST |
 | `src/app/import/page.tsx` | Remplacer liste imports par `<ActiveDataBanner />` |
-| `src/services/import.service.ts` | Enrichir `ImportResult` + tracking agents créés/mis à jour |
-| `src/app/api/import/route.ts` | Propager `agentsCreated` / `agentsUpdated` dans la réponse POST |
 | `src/components/import/ImportForm.tsx` | Afficher `<ImportResultMessage />` après import |
 | `src/components/import/ActiveDataBanner.tsx` | Nouveau composant (bandeau global) |
 | `src/components/import/ImportResultMessage.tsx` | Nouveau composant (résultat détaillé) |

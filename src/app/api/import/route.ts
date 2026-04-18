@@ -1,6 +1,6 @@
 /**
  * POST /api/import — Import d'un fichier planning (authentifié)
- * GET  /api/import — Liste des imports récents (authentifié)
+ * GET  /api/import — Liste des imports récents (authentifié, utilisé par planning & simulations)
  *
  * RÈGLE DE GESTION — Persistance des agents :
  * Un import ne supprime JAMAIS les agents existants.
@@ -59,7 +59,13 @@ export async function POST(req: NextRequest) {
       await logAudit("IMPORT_PLANNING", "PlanningImport", {
         user: auth.user,
         entityId: result.importId,
-        details: { filename: file.name, nbLignes: result.nbLignes, nbAgents: result.nbAgents },
+        details: {
+          filename: file.name,
+          lignesCreees: result.lignesCreees,
+          lignesMisesAJour: result.lignesMisesAJour,
+          agentsCreated: result.agentsCreated,
+          agentsUpdated: result.agentsUpdated,
+        },
       });
     }
 

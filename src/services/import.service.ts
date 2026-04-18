@@ -157,7 +157,7 @@ export async function importerPlanning(
     const planningImport = await prisma.planningImport.create({
       data: {
         filename,
-        nbLignes: lignesRaw.length,
+        nbLignes: lignesParJour.size,
         nbAgents: matriculesVus.size,
         erreurs: JSON.stringify(erreurs),
         isActive: true,
@@ -165,10 +165,14 @@ export async function importerPlanning(
     });
 
     // ── Lignes : upsert par (matricule, jourPlanning) ─────────────────────────
-    const lignesAvecJour = lignesRaw.map((l) => ({
-      ...l,
-      jourPlanning: jourPlanningFromDate(l.dateDebutPop),
-    }));
+    // Dédupliquer par clé métier — un fichier peut contenir plusieurs lignes
+    // pour le même agent le même jour (JS + NPO). La dernière occurrence gagne.
+    const lignesParJour = new Map<string, typeof lignesRaw[0] & { jourPlanning: Date }>();
+    for (const l of lignesRaw) {
+      const jp = jourPlanningFromDate(l.dateDebutPop);
+      lignesParJour.set(`${l.matricule}|${jp.toISOString()}`, { ...l, jourPlanning: jp });
+    }
+    const lignesAvecJour = [...lignesParJour.values()];
 
     const existingLignes = await prisma.planningLigne.findMany({
       where: {

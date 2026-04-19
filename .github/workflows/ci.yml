@@ -50,7 +50,21 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Unit tests (Jest)
-        run: npm test -- --ci --silent
+        id: jest
+        run: |
+          set +e
+          npm test -- --ci > jest-output.log 2>&1
+          code=$?
+          cat jest-output.log
+          exit $code
+        shell: bash
+
+      - name: Emit Jest output as annotation on failure
+        if: failure() && steps.jest.conclusion == 'failure'
+        run: |
+          content=$(cat jest-output.log | head -c 50000 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"}{print}')
+          printf '::error title=Jest failure::%s\n' "$content"
+        shell: bash
 
       - name: Build (next build)
         run: npm run build

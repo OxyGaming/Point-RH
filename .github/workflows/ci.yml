@@ -50,21 +50,13 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Unit tests (Jest)
-        id: jest
-        run: |
-          set +e
-          npm test -- --ci > jest-output.log 2>&1
-          code=$?
-          cat jest-output.log
-          exit $code
-        shell: bash
+        run: npm test -- --ci
 
-      - name: Emit Jest output as annotation on failure
-        if: failure() && steps.jest.conclusion == 'failure'
-        run: |
-          content=$(cat jest-output.log | head -c 50000 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"}{print}')
-          printf '::error title=Jest failure::%s\n' "$content"
-        shell: bash
+      # `next build` prérend certaines pages (ex. /agents) qui appellent
+      # prisma.*.findMany(). Sans schéma en place sur la DB CI, l'export échoue
+      # avec P2021 "table does not exist". `db push` crée les tables vides.
+      - name: Create SQLite schema
+        run: npx prisma db push --accept-data-loss
 
       - name: Build (next build)
         run: npm run build

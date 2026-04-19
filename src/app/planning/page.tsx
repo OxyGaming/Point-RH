@@ -167,7 +167,7 @@ const JsBar = React.memo(function JsBar({
       style={{
         position: "absolute", left: `${left}px`, width: `${width}px`,
         top: "7px", bottom: "7px", borderRadius: radius,
-        background:    selected ? "#bfdbfe" : color,
+        backgroundColor: selected ? "#bfdbfe" : color,
         backgroundImage: js.flexibilite === "DERNIER_RECOURS"
           ? "repeating-linear-gradient(45deg, rgba(255,255,255,0.22) 0px, rgba(255,255,255,0.22) 3px, transparent 3px, transparent 8px)"
           : undefined,

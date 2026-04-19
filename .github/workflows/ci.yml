@@ -28,10 +28,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: 'npm'
@@ -39,11 +39,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Indispensable : `tsc --noEmit` et Jest dépendent des types générés par Prisma
+      # (sinon les retours de findMany/findUnique sont `any` → erreurs implicit any
+      # sur toutes les callbacks .map/.filter + "PrismaClient has no exported member"
+      # dans prisma/seed.ts).
+      - name: Generate Prisma client
+        run: npx prisma generate
+
       - name: TypeScript typecheck
         run: npx tsc --noEmit
 
       - name: Unit tests (Jest)
         run: npm test -- --ci --silent
 
-      - name: Build (prisma generate + next build)
+      - name: Build (next build)
         run: npm run build

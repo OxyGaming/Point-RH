@@ -759,8 +759,9 @@
   </div>
 
   <div class="nav-group">
-    <div class="nav-group-title">Import</div>
+    <div class="nav-group-title">Import &amp; Planning</div>
     <a class="nav-link" href="#import"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="download" class="lucide"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>Import planning</a>
+    <a class="nav-link" href="#vue-planning"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="calendar" class="lucide"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>Vue planning</a>
   </div>
 
   <div class="nav-group">
@@ -1455,6 +1456,60 @@
   </ul>
 </section>
 
+<!-- ══════════════════════════════════════════ VUE PLANNING -->
+<section id="vue-planning">
+  <div class="section-header">
+    <div class="section-icon" style="background:#dcfce7"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
+    <div>
+      <h2>Vue planning</h2>
+      <p>Calendrier multi-agents — visualiser les affectations de toute l'équipe sur une période glissante</p>
+    </div>
+  </div>
+
+  <a class="try-it" href="/planning" target="_blank">Ouvrir la vue planning</a>
+
+  <p>La vue planning affiche l'ensemble des agents sur une grille temporelle : chaque ligne est un agent, chaque colonne un jour. Les journées de service apparaissent sous forme de blocs colorés selon leur type horaire.</p>
+
+  <h3>Codes couleur</h3>
+  <table>
+    <thead><tr><th>Couleur</th><th>Type</th><th>Plage horaire indicative</th></tr></thead>
+    <tbody>
+      <tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#06b6d4;margin-right:6px"></span>Cyan</td><td><strong>Matin</strong></td><td>Début avant 10h</td></tr>
+      <tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#3b82f6;margin-right:6px"></span>Bleu</td><td><strong>Journée</strong></td><td>Milieu de journée</td></tr>
+      <tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#f97316;margin-right:6px"></span>Orange</td><td><strong>Soir</strong></td><td>Fin après 17h</td></tr>
+      <tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#7c3aed;margin-right:6px"></span>Violet</td><td><strong>Nuit</strong></td><td>JS qualifiée nuit (voir règles nocturnes)</td></tr>
+      <tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#94a3b8;margin-right:6px"></span>Gris</td><td><strong>Autre / NPO</strong></td><td>Absence, repos, formation…</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Filtres et regroupements</h3>
+  <table>
+    <thead><tr><th>Contrôle</th><th>Fonction</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Suffixe JS</strong></td><td>Filtre les agents ayant une JS dont le code contient le suffixe saisi (ex : <code>PEY</code>, <code>GIC</code>)</td></tr>
+      <tr><td><strong>Regrouper par</strong></td><td>Agent A→Z, Agent Z→A, Heure de début, Libellé JS (3 premiers caractères du code)</td></tr>
+      <tr><td><strong>Masquer les ???</strong></td><td>Visible uniquement en mode "Libellé JS" — masque le groupe des agents sans code JS reconnu sur la date de référence</td></tr>
+      <tr><td><strong>Affichage personnalisé</strong></td><td>Filtre persistant par utilisateur — n'affiche que les agents sélectionnés dans les préférences. Indiqué par un badge bleu.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Barre de statistiques</h3>
+  <p>En bas de l'écran, trois compteurs portent sur la <strong>fenêtre de dates visible</strong> :</p>
+  <ul>
+    <li><strong>Lignes</strong> : nombre d'agents affichés (après filtres)</li>
+    <li><strong>JS travaillées</strong> : total des journées de service dans la fenêtre</li>
+    <li><strong>Nuits</strong> : nombre de JS qualifiées de nuit</li>
+  </ul>
+
+  <h3>Fenêtre temporelle</h3>
+  <p>Le curseur "Période" règle le nombre de jours affichés (5 à 28 jours, défaut 10). Les boutons <code>−</code> / <code>+</code> permettent d'ajuster rapidement.</p>
+
+  <div class="callout info">
+    <div class="callout-title">💡 Accès rapide à la simulation</div>
+    La vue planning est en lecture seule. Pour lancer une simulation sur un agent, cliquer sur son nom pour ouvrir sa fiche, puis cliquer sur la JS concernée.
+  </div>
+</section>
+
 <!-- ══════════════════════════════════════════ SIM SIMPLE INTRO -->
 <section id="sim-simple-intro">
   <div class="section-header">
@@ -1765,6 +1820,11 @@
     <div class="callout-title">⚠ Attention</div>
     Le figeage signifie qu'une JS DERNIER_RECOURS reste <strong>sans agent</strong>. L'encadrant doit décider si ce compromis est acceptable avant de valider le scénario.
   </div>
+
+  <div class="callout info">
+    <div class="callout-title">ℹ Restriction importante</div>
+    Seules les JS de type <span class="badge badge-orange">DERNIER_RECOURS</span> peuvent être figées. Les JS <span class="badge badge-red">OBLIGATOIRE</span> ne peuvent jamais être libérées — elles restent prioritaires en toutes circonstances, y compris en simulation multi-JS.
+  </div>
 </section>
 
 <!-- ══════════════════════════════════════════ MULTI-JS -->
@@ -1921,14 +1981,20 @@
   </div>
 
   <h3>Planning de l'agent</h3>
-  <p>Affiche les 100 dernières lignes du planning de l'import actif pour cet agent. Chaque ligne montre :</p>
+  <p>Affiche les lignes de planning consolidées pour cet agent (scroll interne, max 600 px). Chaque ligne montre :</p>
   <ul>
-    <li>Date, horaires (début–fin)</li>
+    <li>Date, horaires de début et fin</li>
     <li>Amplitude et durée effective</li>
     <li>Code JS ou code NPO</li>
-    <li>Indicateur JS de nuit / RP / JS sélectionnée pour simulation</li>
-    <li>Position dans la GPT en cours (niv. X/6)</li>
+    <li>Badges spéciaux : <code>Nuit</code> (JS nocturne), <code>JS FO</code> (force opérationnelle), <code>JS Z</code> (zéro charge)</li>
+    <li>Badge <span class="badge badge-orange">DERNIER RECOURS</span> si la JS est de flexibilité DERNIER_RECOURS</li>
+    <li>Position dans la GPT en cours (niv. X/6) — le symbole <strong>↺</strong> marque le début d'une nouvelle GPT</li>
   </ul>
+
+  <div class="callout info">
+    <div class="callout-title">💡 Lancer une simulation depuis le planning</div>
+    Cliquer sur une ligne <strong>JS</strong> ouvre le panneau d'analyse à droite (layout split 55 %/45 %). Le planning se rétrécit et le panneau de simulation apparaît sans changer de page.
+  </div>
 </section>
 
 <!-- ══════════════════════════════════════════ UI SIM -->
@@ -2635,15 +2701,24 @@
   </table>
 
   <h3>Catégorie 7 — Période nocturne</h3>
+  <p>Ces quatre paramètres sont <strong>entièrement configurables</strong> pour adapter Point RH à votre contexte local (lignes longues, TER, fret…). Toute modification recalcule instantanément les conformités de tous les plannings chargés.</p>
   <table>
     <thead><tr><th>Clé</th><th>Défaut</th><th>Min</th><th>Max</th><th>Impact</th></tr></thead>
     <tbody>
       <tr><td class="mono">periodeNocturne.debutSoir</td><td>21h30</td><td>19h</td><td>23h</td><td>Début de la plage nocturne</td></tr>
       <tr><td class="mono">periodeNocturne.finMatin</td><td>06h30</td><td>04h</td><td>08h</td><td>Fin de la plage nocturne</td></tr>
-      <tr><td class="mono">periodeNocturne.seuilJsNuit</td><td>2h30</td><td>1h</td><td>4h</td><td>Chevauchement min pour qualifier un JS « nuit »</td></tr>
+      <tr><td class="mono">periodeNocturne.seuilJsNuit</td><td>2h30</td><td>1h</td><td>4h</td><td>Chevauchement min pour qualifier une JS « nuit »</td></tr>
       <tr><td class="mono">periodeNocturne.seuilGptNuit</td><td>4h</td><td>2h</td><td>6h</td><td>Fenêtre 00h–04h pour qualifier une GPT « nuit »</td></tr>
     </tbody>
   </table>
+  <div class="callout info" style="margin-top:12px">
+    <div class="callout-title">ℹ Règles impactées par la période nocturne</div>
+    <ul style="margin-left:18px;margin-top:6px">
+      <li>Qualification dynamique des JS comme « nuit » (badge violet dans le planning)</li>
+      <li>Seuil TE maximal : <strong>8h30</strong> pour une JS de nuit vs <strong>10h</strong> en journée</li>
+      <li>Repos journalier renforcé : <strong>14h minimum</strong> après une JS de nuit</li>
+    </ul>
+  </div>
 
   <h3>Validation de cohérence à la sauvegarde</h3>
   <div class="callout ok">

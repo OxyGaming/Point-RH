@@ -244,7 +244,7 @@ function NavLinks({ onClose }: { onClose?: () => void }) {
 
 export function DesktopSidebar() {
   return (
-    <aside className="hidden lg:flex flex-col shrink-0 w-[228px] min-h-screen bg-[#1a3070] relative overflow-hidden">
+    <aside className="hidden lg:flex flex-col shrink-0 w-[228px] h-screen sticky top-0 bg-[#1a3070] relative overflow-hidden">
       {/* Bande de couleur en haut */}
       <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-[#60a5fa] to-[#2563eb]" />
       {/* Motif diagonal subtil */}

@@ -17,11 +17,14 @@ export default async function AgentsPage() {
   const isAdmin = session?.role === "ADMIN";
 
   const userFilter = session
-    ? await prisma.userAgentFilter.findUnique({ where: { userId: session.id } })
+    ? await prisma.userAgentFilter.findUnique({
+        where: { userId: session.id },
+        include: { items: { select: { agentId: true } } },
+      })
     : null;
 
   const initialFilter = {
-    selectedIds: userFilter ? (JSON.parse(userFilter.selectedIds) as string[]) : [],
+    selectedIds: userFilter ? userFilter.items.map((i) => i.agentId) : [],
     isActive: userFilter?.isActive ?? false,
   };
 

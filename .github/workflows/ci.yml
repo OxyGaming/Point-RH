@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Typecheck, tests & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # Valeurs factices réservées à la CI — ne doivent jamais servir en production.
+      # DATABASE_URL : `prisma generate` lit seulement le provider, pas la DB elle-même.
+      # JWT_SECRET   : requis pour que le build n'échoue pas sur la validation de config.
+      DATABASE_URL: file:./dev.db
+      JWT_SECRET: ci-only-jwt-secret-not-used-in-production-64-chars-minimum-xxxxxx
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript typecheck
+        run: npx tsc --noEmit
+
+      - name: Unit tests (Jest)
+        run: npm test -- --ci --silent
+
+      - name: Build (prisma generate + next build)
+        run: npm run build

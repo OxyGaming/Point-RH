@@ -1,14 +1,19 @@
 /**
- * POST /api/admin/cleanup — Nettoyage des données de planning obsolètes
+ * POST /api/admin/cleanup — Purge des données de planning obsolètes.
  *
- * Réservé aux administrateurs. Peut être appelé :
- *   - manuellement depuis l'interface d'administration
- *   - par un cron serveur : curl -s -X POST https://<host>/api/admin/cleanup \
- *       -H "Authorization: Bearer <jwt-admin>"
+ * Sécurité : JWT administrateur requis (checkAdmin).
  *
- * Supprime les lignes de planning dont la date de fin est antérieure à M-3
- * et purge les entrées du journal PlanningImport devenues orphelines.
- * Ne touche jamais aux agents.
+ * Déclencheurs :
+ *   - UI : bouton "Lancer la purge" sur /admin/parametrage (usage courant).
+ *   - Cron (optionnel, non déployé) : appel HTTP authentifié, p.ex.
+ *       curl -s -X POST https://<host>/api/admin/cleanup \
+ *         -H "Authorization: Bearer <jwt-admin>"
+ *
+ * Effets :
+ *   - supprime les PlanningLigne dont dateFinPop < aujourd'hui - 3 mois ;
+ *   - purge les PlanningImport antérieurs au seuil et sans ligne associée ;
+ *   - ne touche jamais aux agents (rémanence garantie) ;
+ *   - idempotent : peut être rejoué sans effet de bord.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { checkAdmin } from "@/lib/session";

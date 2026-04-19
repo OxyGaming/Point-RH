@@ -31,6 +31,15 @@ model User {
 }
 
 /// Journal d'audit — trace les actions sensibles (suppression, modification RH, etc.)
+///
+/// Redondance volontaire userId / userEmail :
+/// - userId       : relation vers User, utile pour joindre (filtrer par compte actif).
+///                 Devient NULL si le compte est supprimé (onDelete: SetNull) afin de
+///                 préserver la ligne d'audit — un journal ne doit jamais être purgé
+///                 par cascade.
+/// - userEmail    : snapshot immuable au moment de l'action. Garantit la traçabilité
+///                 même après suppression du compte ou changement d'email.
+/// Ne jamais supprimer l'un des deux champs sans revoir la politique d'audit.
 model AuditLog {
   id        String   @id @default(cuid())
   userId    String?
@@ -41,7 +50,7 @@ model AuditLog {
   details   String   @default("{}") // JSON
   createdAt DateTime @default(now())
 
-  user User? @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([action])
@@ -52,14 +61,36 @@ model AuditLog {
 
 /// Filtre d'agents par utilisateur.
 /// isActive = false → affichage normal (tous les agents visibles).
+/// Les agents sélectionnés sont stockés dans UserAgentFilterItem (relation items)
+/// pour garantir l'intégrité référentielle et la cascade automatique
+/// (agent supprimé → item retiré automatiquement, plus aucun ID zombie).
 model UserAgentFilter {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  selectedIds String   @default("[]") // JSON : tableau d'IDs d'agents
-  isActive    Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items UserAgentFilterItem[]
+}
+
+/// Items d'un filtre d'agents utilisateur.
+/// Une ligne = un agent sélectionné dans le filtre d'un utilisateur.
+/// Cascade sur UserAgentFilter (filtre supprimé → items supprimés)
+/// et sur Agent (agent supprimé → item automatiquement retiré du filtre).
+model UserAgentFilterItem {
+  id        String   @id @default(cuid())
+  filterId  String
+  agentId   String
+  createdAt DateTime @default(now())
+
+  filter UserAgentFilter @relation(fields: [filterId], references: [id], onDelete: Cascade)
+  agent  Agent           @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([filterId, agentId])
+  @@index([filterId])
+  @@index([agentId])
 }
 
 // ─── Agents ──────────────────────────────────────────────────────────────────
@@ -97,6 +128,7 @@ model Agent {
   planningLignes          PlanningLigne[]
   resultatsAgent          ResultatAgent[]
   agentJsDeplacementRules AgentJsDeplacementRule[]
+  userFilterItems         UserAgentFilterItem[]
 
   @@index([deletedAt])
 }

@@ -473,13 +473,26 @@ export function allouerJsMultiple(
       eventsSimules = injecterJsDansPlanning(eventsSimules, jsAff, imprevuAff);
     }
 
-    // Agents candidats pour la cascade : exclure les agents déjà engagés
-    // dans le scénario, et respecter le scope (reserve_only = réservistes uniquement)
-    const agentsCascade = Array.from(agentsMap.values()).filter(
-      (a) =>
-        !agentAssignments.has(a.context.id) &&
+    // Agents candidats pour la cascade : TOUS les agents sauf l'agent principal,
+    // scope respecté. Les agents déjà assignés dans le scénario sont inclus —
+    // leur JS de scénario est injectée dans leurs events, ce qui permet au check
+    // "dejaPris" de cascadeResolver de les exclure seulement s'il y a un vrai
+    // chevauchement avec l'événement conflictuel.
+    const agentsCascade = Array.from(agentsMap.values())
+      .filter((a) =>
+        a.context.id !== aff.agentId &&
         (candidateScope !== "reserve_only" || a.context.agentReserve)
-    );
+      )
+      .map((a) => {
+        const jsScenario = agentAssignments.get(a.context.id);
+        if (!jsScenario || jsScenario.length === 0) return a;
+        let eventsAvecScenario = [...a.events];
+        for (const jsAff of jsScenario) {
+          const imp = buildImprevu(jsAff, remplacement, deplacement);
+          eventsAvecScenario = injecterJsDansPlanning(eventsAvecScenario, jsAff, imp);
+        }
+        return { ...a, events: eventsAvecScenario };
+      });
 
     const { modifications, impactsCascade, nbResolu } = resoudreTousConflits(
       conflitsResolvables,

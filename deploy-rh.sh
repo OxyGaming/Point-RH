@@ -74,7 +74,26 @@ echo "🗄️  Base de données : $DATABASE_URL"
 
 # ── Synchronisation schéma Prisma ─────────────────────────────────────────────
 echo "🗄️ Synchronisation du schéma Prisma..."
-npx prisma db push
+# Première tentative de push
+PUSH_OUTPUT=$(npx prisma db push 2>&1) && PUSH_OK=true || PUSH_OK=false
+echo "$PUSH_OUTPUT"
+
+if [ "$PUSH_OK" = "false" ] && echo "$PUSH_OUTPUT" | grep -q "cannot be executed"; then
+  echo ""
+  echo "⚠️  Migration bloquée par des données existantes dans les tables de planning."
+  echo "   Ces données sont réimportables depuis l'interface — vidage en cours..."
+  sqlite3 "$DB_FILE" "
+    DELETE FROM ResultatAgent;
+    DELETE FROM Simulation;
+    DELETE FROM PlanningLigne;
+    DELETE FROM PlanningImport;
+  "
+  echo "✅ Tables de planning vidées — nouvelle tentative..."
+  npx prisma db push
+elif [ "$PUSH_OK" = "false" ]; then
+  echo "❌ Échec prisma db push (erreur non liée aux données de planning)"
+  exit 1
+fi
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 echo "🏗️ Build..."

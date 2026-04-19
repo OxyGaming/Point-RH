@@ -82,6 +82,8 @@ export default function MultiJsPage() {
 
   // IDs présélectionnés depuis la vue planning (via sessionStorage)
   const preselectRef = useRef<string[] | null>(null);
+  // Déclencher la simulation automatiquement si on vient de la vue planning
+  const autoRunRef = useRef(false);
 
   // ─── Restaurer le résultat + pré-sélection depuis sessionStorage ─────────
   useEffect(() => {
@@ -94,6 +96,7 @@ export default function MultiJsPage() {
       if (pre) {
         const parsed = JSON.parse(pre) as Array<{ planningLigneId: string }>;
         preselectRef.current = parsed.map((jc) => jc.planningLigneId);
+        autoRunRef.current = true;
         sessionStorage.removeItem("pointrh_multiJs_preselect");
       }
     } catch {}
@@ -203,6 +206,14 @@ export default function MultiJsPage() {
         flexibilite: js.flexibilite ?? "OBLIGATOIRE",
       }));
   }, [allJs, selectedIds, importId]);
+
+  // ─── Auto-lancer la simulation si on vient de la vue planning ────────────
+  useEffect(() => {
+    if (!autoRunRef.current || jsSelectionnees.length === 0) return;
+    autoRunRef.current = false;
+    lancerSimulation();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jsSelectionnees]);
 
   // ─── Lancer la simulation ─────────────────────────────────────────────────
   async function lancerSimulation() {

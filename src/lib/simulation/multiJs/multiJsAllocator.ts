@@ -730,7 +730,9 @@ export function allouerJsMultiple(
           const imprevuAlt = buildImprevu(js, remplacement, deplacement);
           const eventsSimAlt = injecterJsDansPlanning(agentData.events, js, imprevuAlt);
           const agentsCascadeAlt = Array.from(agentsMap.values()).filter(
-            (a) => a.context.id !== candidat.agentId
+            (a) =>
+              a.context.id !== candidat.agentId &&
+              (candidateScope !== "reserve_only" || a.context.agentReserve)
           );
           const { modifications, impactsCascade, nbResolu } = resoudreTousConflits(
             conflitsResolvables,

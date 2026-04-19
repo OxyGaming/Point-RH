@@ -4,6 +4,7 @@ import React, {
   useState, useEffect, useMemo, useCallback, useRef,
 } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { JsTimeline } from "@/types/multi-js-simulation";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -256,15 +257,20 @@ const DayCell = React.memo(function DayCell({
 // ── Left label cell ───────────────────────────────────────────────────────────
 
 const LeftCell = React.memo(function LeftCell({
-  label, sub, rowIndex,
-}: { label: string; sub: string; rowIndex: number }) {
+  label, sub, rowIndex, agentKey,
+}: { label: string; sub: string; rowIndex: number; agentKey: string }) {
   const even = rowIndex % 2 === 0;
   return (
     <div
       className="sticky left-0 z-10 border-r border-b border-[#e2e8f0] flex flex-col justify-center px-3 shrink-0"
       style={{ width: LEFT_W, height: ROW_H, background: even ? "#ffffff" : "#f8fafc" }}
     >
-      <span className="text-[11px] font-[600] text-[#1e293b] truncate leading-tight">{label}</span>
+      <Link
+        href={`/agents/${agentKey}`}
+        className="text-[11px] font-[600] text-[#1e293b] truncate leading-tight hover:text-blue-600 hover:underline transition-colors"
+      >
+        {label}
+      </Link>
       <span className="text-[9px] text-[#94a3b8] font-mono">{sub}</span>
     </div>
   );
@@ -284,8 +290,18 @@ export default function PlanningPage() {
   const [filter,    setFilter]    = useState("");
   const [hideUnknown, setHideUnknown] = useState(false);
   const [selected,  setSelected]  = useState<Set<string>>(new Set());
-  const [slider,    setSlider]    = useState(0);
-  const [visDays,   setVisDays]   = useState(VIS_DEFAULT);
+  const [slider,    setSlider]    = useState(() => {
+    if (typeof window === "undefined") return 0;
+    const v = localStorage.getItem("planning_slider");
+    return v !== null ? Number(v) : 0;
+  });
+  const [visDays,   setVisDays]   = useState(() => {
+    if (typeof window === "undefined") return VIS_DEFAULT;
+    const v = localStorage.getItem("planning_visDays");
+    return v !== null ? Math.max(VIS_MIN, Math.min(VIS_MAX, Number(v))) : VIS_DEFAULT;
+  });
+
+  const prevImportIdRef = useRef<string | null>(null);
 
   const [userFilterIds,    setUserFilterIds]    = useState<Set<string>>(new Set());
   const [userFilterActive, setUserFilterActive] = useState(false);
@@ -319,7 +335,11 @@ export default function PlanningPage() {
     setLoading(true);
     setSelected(new Set());
     setJsData([]);
-    setSlider(0);
+    // Réinitialise le slider uniquement si l'import change (pas au rechargement initial)
+    if (prevImportIdRef.current !== null && prevImportIdRef.current !== importId) {
+      setSlider(0);
+    }
+    prevImportIdRef.current = importId;
     fetch(`/api/multi-js-simulation/js-list?importId=${importId}`, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((data: JsTimeline[]) => {
@@ -573,6 +593,9 @@ export default function PlanningPage() {
     router.push("/simulations/multi-js");
   }, [jsData, selected, router]);
 
+  useEffect(() => { localStorage.setItem("planning_slider",  String(slider));  }, [slider]);
+  useEffect(() => { localStorage.setItem("planning_visDays", String(visDays)); }, [visDays]);
+
   const zoomIn  = useCallback(() => setVisDays((v) => Math.max(VIS_MIN, v - 2)), []);
   const zoomOut = useCallback(() => setVisDays((v) => Math.min(VIS_MAX, v + 2)), []);
   const onSlide = useCallback((e: React.ChangeEvent<HTMLInputElement>) => setSlider(Number(e.target.value)), []);
@@ -587,7 +610,7 @@ export default function PlanningPage() {
       const byDate = jsByAgentDate.get(item.agentKey);
       return (
         <div key={item.id} className="flex">
-          <LeftCell label={item.label} sub={item.sub} rowIndex={item.rowIdx} />
+          <LeftCell label={item.label} sub={item.sub} rowIndex={item.rowIdx} agentKey={item.agentKey} />
           {visibleDates.map((day) => {
             const prevDay = addDaysStr(day, -1);
             const overflowList = (byDate?.get(prevDay) ?? []).filter((js) => {

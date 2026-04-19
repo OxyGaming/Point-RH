@@ -938,16 +938,14 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
             >
               <div className="flex items-center justify-between mb-1.5">
                 <ScenarioIcon cfgKey={cfg.key} />
-                {cfg.figeage && (
-                  <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-amber-100 text-amber-700 px-1 py-0.5 rounded">
-                    CASCADE
-                    {s.nbCascadesResolues > 0 && (
-                      <span className="bg-amber-700 text-amber-100 rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold leading-none">
-                        {s.nbCascadesResolues}
-                      </span>
-                    )}
-                  </span>
-                )}
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-amber-100 text-amber-700 px-1 py-0.5 rounded">
+                  CASCADE
+                  {s.nbCascadesResolues > 0 && (
+                    <span className="bg-amber-700 text-amber-100 rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold leading-none">
+                      {s.nbCascadesResolues}
+                    </span>
+                  )}
+                </span>
               </div>
               <p className={cn("text-xl font-bold", coverageColor)}>
                 {s.tauxCouverture}%

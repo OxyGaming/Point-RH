@@ -95,7 +95,7 @@ export async function executerSimulationJS(
   const candidats: CandidatResult[] = [];
 
   const debutImprevu = combineDateTime(jsCible.date, imprevu.heureDebutReel);
-  const finImprevu = combineDateTime(jsCible.date, imprevu.heureFinEstimee);
+  const finImprevu = combineDateTime(getDateFinJs(jsCible.date, imprevu.heureDebutReel, imprevu.heureFinEstimee), imprevu.heureFinEstimee);
   const amplitudeImprevu = Math.max(0, diffMinutes(debutImprevu, finImprevu));
 
   const isNuitImprevu = isJsDeNuit(imprevu.heureDebutReel, imprevu.heureFinEstimee);

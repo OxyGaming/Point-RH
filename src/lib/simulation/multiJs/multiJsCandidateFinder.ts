@@ -69,7 +69,7 @@ export function trouverCandidatsPourJs(
 ): CandidatsEtExclusions {
   const imprevu = buildImprevu(js, remplacement, deplacement);
   const debutImprevu = combineDateTime(js.date, js.heureDebut);
-  const finImprevu = combineDateTime(js.date, js.heureFin);
+  const finImprevu = combineDateTime(getDateFinJs(js.date, imprevu.heureDebutReel, imprevu.heureFinEstimee), imprevu.heureFinEstimee);
   const isNuitJs = isJsDeNuit(js.heureDebut, js.heureFin);
 
   const candidats: CandidatMultiJs[] = [];

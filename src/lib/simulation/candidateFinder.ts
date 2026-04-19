@@ -3,7 +3,7 @@
  * Filtre les agents pouvant physiquement être mobilisés pour la JS cible.
  */
 
-import { combineDateTime, diffMinutes, timeToMinutes } from "@/lib/utils";
+import { combineDateTime, diffMinutes, timeToMinutes, getDateFinJs } from "@/lib/utils";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { JsCible, ImpreuvuConfig, FlexibiliteJs, JsSourceFigee } from "@/types/js-simulation";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
@@ -39,7 +39,7 @@ export function preFilterCandidats(
   const exclus: { agent: AgentWithPlanning; raison: string }[] = [];
 
   const debutImprevu = combineDateTime(jsCible.date, imprevu.heureDebutReel);
-  const finImprevu = combineDateTime(jsCible.date, imprevu.heureFinEstimee);
+  const finImprevu = combineDateTime(getDateFinJs(jsCible.date, imprevu.heureDebutReel, imprevu.heureFinEstimee), imprevu.heureFinEstimee);
 
   for (const a of agents) {
     // Exclure l'agent initial
@@ -182,7 +182,7 @@ export function trouverCandidatsParFigeage(
   jsTypeFlexibiliteMap: Map<string, FlexibiliteJs>
 ): CandidatFigeage[] {
   const debutImprevu = combineDateTime(jsCible.date, imprevu.heureDebutReel);
-  const finImprevu   = combineDateTime(jsCible.date, imprevu.heureFinEstimee);
+  const finImprevu   = combineDateTime(getDateFinJs(jsCible.date, imprevu.heureDebutReel, imprevu.heureFinEstimee), imprevu.heureFinEstimee);
 
   const result: CandidatFigeage[] = [];
 
@@ -234,7 +234,7 @@ export function injecterJsDansPlanning(
   imprevu: ImpreuvuConfig
 ): PlanningEvent[] {
   const dateDebut = combineDateTime(jsCible.date, imprevu.heureDebutReel);
-  const dateFin = combineDateTime(jsCible.date, imprevu.heureFinEstimee);
+  const dateFin = combineDateTime(getDateFinJs(jsCible.date, imprevu.heureDebutReel, imprevu.heureFinEstimee), imprevu.heureFinEstimee);
   const amplitudeMin = Math.max(0, diffMinutes(dateDebut, dateFin));
 
   const jsInjectee: PlanningEvent = {

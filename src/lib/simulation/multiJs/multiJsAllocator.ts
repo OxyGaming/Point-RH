@@ -28,7 +28,7 @@ import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 import { injecterJsDansPlanning } from "@/lib/simulation/candidateFinder";
 import { resoudreTousConflits } from "@/lib/simulation/cascadeResolver";
 import { buildImprevu } from "./multiJsCandidateFinder";
-import { combineDateTime } from "@/lib/utils";
+import { combineDateTime, getDateFinJs } from "@/lib/utils";
 import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
 import type { EffectiveServiceInfo, LpaContext } from "@/types/deplacement";
 import type { PlanningEvent } from "@/engine/rules";
@@ -182,7 +182,7 @@ export function allouerJsMultiple(
 
       // ─── Calculer les conflits induits pour cette affectation ───────────────
       const imprevu = buildImprevu(js, remplacement, deplacement);
-      const finImprevu = combineDateTime(js.date, js.heureFin);
+      const finImprevu = combineDateTime(getDateFinJs(js.date, imprevu.heureDebutReel, imprevu.heureFinEstimee), imprevu.heureFinEstimee);
 
       // Construire le planning simulé avec les JS déjà affectées
       let eventsSimules = [...agentData.events];
@@ -346,7 +346,7 @@ export function allouerJsMultiple(
       // ─── Swap validé ─────────────────────────────────────────────────────────
       // 1. Réaffecter l'agent existant → jsNonCouverte
       const imprevu = buildImprevu(jsNonCouverte, remplacement, deplacement);
-      const finImprevu = combineDateTime(jsNonCouverte.date, jsNonCouverte.heureFin);
+      const finImprevu = combineDateTime(getDateFinJs(jsNonCouverte.date, imprevu.heureDebutReel, imprevu.heureFinEstimee), imprevu.heureFinEstimee);
       const eventsAvecJs = injecterJsDansPlanning(agentData.events, jsNonCouverte, imprevu);
       const conflitsInduits = detecterConflitsInduits(
         eventsAvecJs,
@@ -382,7 +382,7 @@ export function allouerJsMultiple(
       // 2. Réaffecter l'agent remplaçant → jsAffectee
       const agentRemplacantData = agentsMap.get(agentRemplacant)!;
       const imprevuAff = buildImprevu(jsAffecteeCible, remplacement, deplacement);
-      const finImprevuAff = combineDateTime(jsAffecteeCible.date, jsAffecteeCible.heureFin);
+      const finImprevuAff = combineDateTime(getDateFinJs(jsAffecteeCible.date, imprevuAff.heureDebutReel, imprevuAff.heureFinEstimee), imprevuAff.heureFinEstimee);
       const eventsAvecJsAff = injecterJsDansPlanning(agentRemplacantData.events, jsAffecteeCible, imprevuAff);
       const conflitsInd = detecterConflitsInduits(
         eventsAvecJsAff,

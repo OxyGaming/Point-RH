@@ -7,8 +7,10 @@ import type {
   MultiJsScenario,
   AffectationJs,
   AffectationsParAgent,
+  AlternativesParJs,
   JsOriginaleAgent,
   ExclusionsParJs,
+  TypeSolutionAlternative,
 } from "@/types/multi-js-simulation";
 import type { ModificationPlanning, ImpactCascade } from "@/types/js-simulation";
 import AgentLink from "@/components/ui/AgentLink";
@@ -30,7 +32,7 @@ interface Props {
   resultat: MultiJsSimulationResultat;
 }
 
-type Tab = "resume" | "affectations" | "agents" | "non-couvertes" | "conflits" | "exclusions";
+type Tab = "resume" | "affectations" | "agents" | "non-couvertes" | "conflits" | "exclusions" | "alternatives";
 
 function ScoreBadge({ score }: { score: number }) {
   const color =
@@ -508,6 +510,219 @@ function AgentCard({ agent }: { agent: AffectationsParAgent }) {
   );
 }
 
+// ─── Alternatives non retenues ───────────────────────────────────────────────
+
+const TYPE_SOLUTION_CONFIG: Record<TypeSolutionAlternative, { label: string; color: string; dot: string }> = {
+  DIRECT:    { label: "Valide — Direct",          color: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-400" },
+  CASCADE:   { label: "Valide — Cascade requise", color: "bg-teal-100 text-teal-700",       dot: "bg-teal-400"    },
+  VIGILANCE: { label: "Valide — Vigilance",       color: "bg-amber-100 text-amber-700",     dot: "bg-amber-400"   },
+  FIGEAGE:   { label: "Via figeage",              color: "bg-orange-100 text-orange-700",   dot: "bg-orange-400"  },
+};
+
+const GROUPES_SOLUTION: { key: TypeSolutionAlternative; titre: string; description: string }[] = [
+  { key: "DIRECT",    titre: "Valides directes",          description: "Agents conformes sans contrainte supplémentaire" },
+  { key: "CASCADE",   titre: "Valides via cascade",       description: "Agents conformes mais dont l'affectation génère un conflit résolvable" },
+  { key: "VIGILANCE", titre: "Valides avec vigilance",    description: "Agents conformes avec avertissement RH (amplitude, TE…)" },
+  { key: "FIGEAGE",   titre: "Possibles via figeage",     description: "Agents libérables en figeant leur JS source DERNIER_RECOURS" },
+];
+
+function AlternativesPanel({ alternativesParJs }: { alternativesParJs: AlternativesParJs[] }) {
+  const [openJs, setOpenJs] = useState<string | null>(null);
+
+  const avecAlternatives = alternativesParJs.filter((a) => a.alternatives.length > 0);
+
+  if (avecAlternatives.length === 0) {
+    return (
+      <div className="py-6 text-center">
+        <IconInfo className="w-7 h-7 mx-auto mb-1 text-slate-400" aria-hidden="true" />
+        <p className="text-sm font-semibold text-slate-500">
+          Aucune alternative disponible pour ce scénario
+        </p>
+        <p className="text-xs text-slate-400 mt-1">
+          Soit toutes les JS n'ont qu'un seul candidat, soit aucun candidat supplémentaire n'a été évalué.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-slate-500 mb-3">
+        Candidats valides évalués mais non retenus, par JS. Permet de comprendre les choix de l'algorithme et d'identifier les alternatives disponibles.
+      </p>
+
+      {alternativesParJs.map((jsAlt) => {
+        const isOpen = openJs === jsAlt.jsId;
+        const nbAlternatives = jsAlt.alternatives.length;
+
+        if (nbAlternatives === 0) return null;
+
+        // Regrouper par typeSolution
+        const parType = GROUPES_SOLUTION
+          .map((groupe) => ({
+            ...groupe,
+            agents: jsAlt.alternatives.filter((a) => a.typeSolution === groupe.key),
+          }))
+          .filter((g) => g.agents.length > 0);
+
+        return (
+          <div key={jsAlt.jsId} className="border border-slate-200 rounded-lg overflow-hidden">
+            {/* En-tête JS */}
+            <button
+              type="button"
+              className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition-colors text-left"
+              onClick={() => setOpenJs(isOpen ? null : jsAlt.jsId)}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="font-mono font-bold text-sm text-slate-800">
+                  {jsAlt.codeJs ?? "JS sans code"}
+                </span>
+                <span className="text-[10px] text-slate-500">
+                  {new Date(jsAlt.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
+                  {" · "}{jsAlt.heureDebut}–{jsAlt.heureFin}
+                </span>
+                {jsAlt.agentAffecte && (
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    <IconCheckCircle className="w-3 h-3 shrink-0" aria-hidden="true" />
+                    Retenu : {jsAlt.agentAffecte.prenom} {jsAlt.agentAffecte.nom}
+                    <span className="font-mono ml-0.5">({jsAlt.agentAffecte.score})</span>
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] font-semibold bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
+                  {nbAlternatives} alternative{nbAlternatives > 1 ? "s" : ""}
+                </span>
+                <span className="text-slate-400 text-sm">{isOpen ? "▲" : "▼"}</span>
+              </div>
+            </button>
+
+            {/* Détail alternatives */}
+            {isOpen && (
+              <div className="border-t border-slate-200 bg-white px-4 py-3 space-y-4">
+                {/* Agent retenu — rappel */}
+                {jsAlt.agentAffecte && (
+                  <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200">
+                    <IconCheckCircle className="w-4 h-4 text-emerald-600 shrink-0" aria-hidden="true" />
+                    <div className="text-xs">
+                      <span className="font-semibold text-emerald-700">Retenu</span>
+                      <span className="text-slate-500 ml-1.5">
+                        {jsAlt.agentAffecte.prenom} {jsAlt.agentAffecte.nom}
+                        <span className="font-mono ml-1 text-[10px]">{jsAlt.agentAffecte.matricule}</span>
+                      </span>
+                      <StatutBadge statut={jsAlt.agentAffecte.statut} />
+                      <span className="ml-1.5 font-bold text-emerald-700">Score {jsAlt.agentAffecte.score}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Groupes de solutions */}
+                {parType.map((groupe) => (
+                  <div key={groupe.key}>
+                    {/* En-tête groupe */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={cn("w-2 h-2 rounded-full shrink-0", TYPE_SOLUTION_CONFIG[groupe.key].dot)} />
+                      <span className="text-xs font-semibold text-slate-700">{groupe.titre}</span>
+                      <span className="text-[10px] text-slate-400">{groupe.description}</span>
+                      <span className="ml-auto text-[10px] text-slate-400">
+                        {groupe.agents.length} agent{groupe.agents.length > 1 ? "s" : ""}
+                      </span>
+                    </div>
+
+                    {/* Agents du groupe */}
+                    <div className="space-y-1.5 pl-4 border-l-2 border-slate-100">
+                      {groupe.agents.map((alt) => (
+                        <div
+                          key={alt.agentId}
+                          className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs"
+                        >
+                          {/* Ligne principale */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-500 text-[9px] font-bold flex items-center justify-center shrink-0">
+                              {alt.rang}
+                            </span>
+                            <span className="font-semibold text-slate-700 flex-1 min-w-0">
+                              <AgentLink agentId={alt.agentId} nom={alt.nom} prenom={alt.prenom} />
+                              {alt.agentReserve && (
+                                <span className="ml-1 text-[9px] bg-violet-100 text-violet-600 px-1 py-0.5 rounded font-semibold">
+                                  RES
+                                </span>
+                              )}
+                            </span>
+                            <span className="font-mono text-[10px] text-slate-400">{alt.matricule}</span>
+                            <StatutBadge statut={alt.statut} />
+                            <span className={cn("text-[10px] px-1.5 py-0.5 rounded font-semibold", TYPE_SOLUTION_CONFIG[alt.typeSolution].color)}>
+                              {TYPE_SOLUTION_CONFIG[alt.typeSolution].label}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-500">Score {alt.score}</span>
+                          </div>
+
+                          {/* Raison de non-rétention */}
+                          <p className="mt-1.5 text-[10px] text-slate-500 flex items-start gap-1 pl-6">
+                            <span className="shrink-0 text-slate-400">→</span>
+                            <span className="italic">{alt.raisonNonRetention}</span>
+                          </p>
+
+                          {/* Conflits induits (si cascade) */}
+                          {alt.conflitsInduits.length > 0 && (
+                            <div className="mt-1 pl-6 space-y-0.5">
+                              {alt.conflitsInduits.slice(0, 2).map((c, i) => (
+                                <p key={i} className="text-[10px] text-teal-600 flex items-start gap-1">
+                                  <span className="shrink-0">↳</span>
+                                  <span>{c.description}</span>
+                                </p>
+                              ))}
+                              {alt.conflitsInduits.length > 2 && (
+                                <p className="text-[10px] text-slate-400 pl-3">
+                                  +{alt.conflitsInduits.length - 2} autre{alt.conflitsInduits.length - 2 > 1 ? "s" : ""} conflit{alt.conflitsInduits.length - 2 > 1 ? "s" : ""}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Cascade — chaîne de résolution pré-calculée */}
+                          {alt.cascadeResolution && alt.cascadeResolution.modifications.length > 0 && (
+                            <div className="mt-1.5 pl-6">
+                              <CascadeChain
+                                modifications={alt.cascadeResolution.modifications}
+                                impacts={alt.cascadeResolution.impacts}
+                              />
+                            </div>
+                          )}
+                          {alt.cascadeResolution && alt.cascadeResolution.modifications.length === 0 && (
+                            <p className="mt-1 pl-6 text-[10px] text-amber-600 flex items-start gap-1">
+                              <span className="shrink-0">⚠</span>
+                              <span>Cascade non résoluble — aucun agent disponible pour couvrir les conflits induits</span>
+                            </p>
+                          )}
+
+                          {/* Figeage */}
+                          {alt.jsSourceFigee && (
+                            <div className="mt-1.5 pl-6">
+                              <FigeageBadge justification={alt.jsSourceFigee.justification} />
+                            </div>
+                          )}
+
+                          {/* Détail des règles */}
+                          {alt.detail && (
+                            <div className="pl-6 mt-1">
+                              <DetailRegles detail={alt.detail} />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Codes de règles → libellés lisibles ──────────────────────────────────────
 
 const REGLE_LABELS: Record<string, string> = {
@@ -681,11 +896,15 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
   const nbExclusions = scenario.exclusionsParJs.reduce(
     (sum, e) => sum + e.exclusions.length, 0
   );
+  const nbAlternatives = scenario.alternativesParJs.reduce(
+    (sum, a) => sum + a.alternatives.length, 0
+  );
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "resume", label: "Résumé" },
     { id: "affectations", label: "Affectations", count: scenario.affectations.length },
     { id: "agents", label: "Par agent", count: scenario.affectationsParAgent.length },
+    { id: "alternatives", label: "Alternatives", count: nbAlternatives },
     { id: "non-couvertes", label: "Non couvertes", count: scenario.jsNonCouvertes.length },
     { id: "conflits", label: "Conflits", count: scenario.conflitsDetectes.length },
     { id: "exclusions", label: "Exclusions", count: nbExclusions },
@@ -720,8 +939,13 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
               <div className="flex items-center justify-between mb-1.5">
                 <ScenarioIcon cfgKey={cfg.key} />
                 {cfg.figeage && (
-                  <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-1 py-0.5 rounded">
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-amber-100 text-amber-700 px-1 py-0.5 rounded">
                     CASCADE
+                    {s.nbCascadesResolues > 0 && (
+                      <span className="bg-amber-700 text-amber-100 rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold leading-none">
+                        {s.nbCascadesResolues}
+                      </span>
+                    )}
                   </span>
                 )}
               </div>
@@ -799,6 +1023,11 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
                 ))
               )}
             </div>
+          )}
+
+          {/* Alternatives */}
+          {activeTab === "alternatives" && (
+            <AlternativesPanel alternativesParJs={scenario.alternativesParJs} />
           )}
 
           {/* JS non couvertes */}

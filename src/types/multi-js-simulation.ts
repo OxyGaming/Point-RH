@@ -134,6 +134,70 @@ export interface AffectationsParAgent {
   conformiteGlobale: "CONFORME" | "VIGILANCE" | "NON_CONFORME";
 }
 
+// ─── Alternatives non retenues ───────────────────────────────────────────────
+
+/**
+ * Type de solution d'un agent alternatif.
+ * Reflète comment il aurait pu couvrir la JS s'il avait été retenu.
+ */
+export type TypeSolutionAlternative = "DIRECT" | "VIGILANCE" | "CASCADE" | "FIGEAGE";
+
+/**
+ * Un agent candidat évalué et non retenu pour une JS donnée.
+ */
+export interface AlternativeJs {
+  rang: number;
+  agentId: string;
+  nom: string;
+  prenom: string;
+  matricule: string;
+  agentReserve: boolean;
+  /** Statut RH issu de l'évaluation de mobilisabilité */
+  statut: "DIRECT" | "VIGILANCE";
+  score: number;
+  /** Nature de la solution que cet agent aurait représentée */
+  typeSolution: TypeSolutionAlternative;
+  /** Raison métier expliquant pourquoi cet agent n'a pas été retenu */
+  raisonNonRetention: string;
+  /** Motif principal de l'évaluation (issu de evaluerMobilisabilite) */
+  motif: string;
+  conflitsInduits: import("./js-simulation").ConflitInduit[];
+  jsSourceFigee: import("./js-simulation").JsSourceFigee | null;
+  detail?: import("./simulation").DetailCalcul;
+  /**
+   * Chaîne cascade pré-calculée pour les alternatives de type CASCADE.
+   * Montre quels agents résoudraient les conflits induits si cet agent était retenu.
+   * Absent pour DIRECT, VIGILANCE et FIGEAGE.
+   */
+  cascadeResolution?: {
+    modifications: import("./js-simulation").ModificationPlanning[];
+    impacts: import("./js-simulation").ImpactCascade[];
+    nbResolu: number;
+  };
+}
+
+/**
+ * Alternatives par JS : candidats valides non retenus pour chaque JS cible,
+ * avec explication métier de leur non-sélection.
+ */
+export interface AlternativesParJs {
+  jsId: string;
+  codeJs: string | null;
+  date: string;
+  heureDebut: string;
+  heureFin: string;
+  /** Agent effectivement retenu (null si JS non couverte) */
+  agentAffecte: {
+    agentId: string;
+    nom: string;
+    prenom: string;
+    matricule: string;
+    score: number;
+    statut: "DIRECT" | "VIGILANCE";
+  } | null;
+  alternatives: AlternativeJs[];
+}
+
 // ─── Scénario global ─────────────────────────────────────────────────────────
 
 export type RobustesseScenario = "HAUTE" | "MOYENNE" | "FAIBLE";
@@ -191,6 +255,11 @@ export interface MultiJsScenario {
    * Permet d'expliquer à l'utilisateur pourquoi chaque agent a été écarté.
    */
   exclusionsParJs: ExclusionsParJs[];
+  /**
+   * Alternatives non retenues par JS : candidats valides écartés au profit
+   * du retenu, avec raison métier. Permet de reproduire la lisibilité de la PJ.
+   */
+  alternativesParJs: AlternativesParJs[];
 }
 
 // ─── Résultat global de la simulation multi-JS ───────────────────────────────

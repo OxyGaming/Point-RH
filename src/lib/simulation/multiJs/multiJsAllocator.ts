@@ -12,6 +12,8 @@ import type { JsCible, FlexibiliteJs } from "@/types/js-simulation";
 import type {
   AffectationJs,
   AffectationsParAgent,
+  AlternativeJs,
+  AlternativesParJs,
   CandidatMultiJs,
   ConflitMultiJs,
   ExclusionsParJs,
@@ -19,6 +21,7 @@ import type {
   RobustesseScenario,
   CandidateScope,
   JsOriginaleAgent,
+  TypeSolutionAlternative,
 } from "@/types/multi-js-simulation";
 import type { WorkRulesMinutes } from "@/lib/rules/workRules";
 import { canAssignJsToAgentInScenario } from "./agentScenarioValidator";
@@ -658,6 +661,130 @@ export function allouerJsMultiple(
     robustesse = "FAIBLE";
   }
 
+  // ─── Alternatives non retenues par JS ────────────────────────────────────────
+  // Construite après toutes les passes (greedy + 2-opt + cascade) pour refléter
+  // les affectations finales. Pour chaque JS, liste les candidats valides qui
+  // n'ont pas été retenus avec la raison métier de leur non-sélection.
+  const TYPE_SOLUTION_PRIO: Record<TypeSolutionAlternative, number> = {
+    DIRECT: 0, CASCADE: 1, VIGILANCE: 2, FIGEAGE: 3,
+  };
+
+  const alternativesParJs: AlternativesParJs[] = jsCibles.map((js) => {
+    const candidates = candidatesPerJs.get(js.planningLigneId) ?? [];
+    const aff = affectations.get(js.planningLigneId) ?? null;
+    const assignedAgentId = aff?.agentId ?? null;
+    const assignedScore   = aff?.score ?? null;
+
+    const alternatives: AlternativeJs[] = [];
+
+    for (const candidat of candidates) {
+      if (candidat.agentId === assignedAgentId) continue;
+
+      // Type de solution
+      let typeSolution: TypeSolutionAlternative;
+      if (candidat.jsSourceFigee) {
+        typeSolution = "FIGEAGE";
+      } else if (candidat.conflitsInduits.length > 0 && candidat.conflitsInduits.some((c) => c.resolvable)) {
+        typeSolution = "CASCADE";
+      } else if (candidat.statut === "VIGILANCE") {
+        typeSolution = "VIGILANCE";
+      } else {
+        typeSolution = "DIRECT";
+      }
+
+      // Raison de non-rétention
+      const assignmentsElsewhere = (agentAssignments.get(candidat.agentId) ?? []).filter(
+        (j) => j.planningLigneId !== js.planningLigneId
+      );
+
+      let raisonNonRetention: string;
+      if (assignedAgentId !== null) {
+        // JS couverte — pourquoi cet agent n'a-t-il pas été retenu ?
+        if (assignmentsElsewhere.length > 0) {
+          const autre = assignmentsElsewhere[0];
+          raisonNonRetention = `Candidat partagé — consommé par ${autre.codeJs ?? "une autre JS"} du ${autre.date}`;
+        } else if (assignedScore !== null && candidat.score < assignedScore) {
+          raisonNonRetention = `Score inférieur au retenu (${candidat.score} vs ${assignedScore})`;
+        } else if (aff?.agentReserve && !candidat.agentReserve) {
+          raisonNonRetention = `Arbitré en faveur d'un agent de réserve (priorité réserve)`;
+        } else {
+          raisonNonRetention = `Devenu inutile — JS déjà couverte par un meilleur candidat`;
+        }
+      } else {
+        // JS non couverte — cet agent était candidat mais n'a pas été affecté
+        if (assignmentsElsewhere.length > 0) {
+          const autre = assignmentsElsewhere[0];
+          raisonNonRetention = `Candidat partagé — consommé par ${autre.codeJs ?? "une autre JS"} du ${autre.date}`;
+        } else {
+          raisonNonRetention = `Incompatible avec les affectations cumulées dans ce scénario`;
+        }
+      }
+
+      // Pré-calculer la chaîne cascade pour les alternatives de type CASCADE
+      // (cap à 3 par JS pour éviter tout impact sur la performance)
+      let cascadeResolution: AlternativeJs["cascadeResolution"];
+      if (typeSolution === "CASCADE" && alternatives.filter(a => a.typeSolution === "CASCADE").length < 3) {
+        const agentData = agentsMap.get(candidat.agentId);
+        const conflitsResolvables = candidat.conflitsInduits.filter((c) => c.resolvable);
+        if (agentData && conflitsResolvables.length > 0) {
+          const imprevuAlt = buildImprevu(js, remplacement, deplacement);
+          const eventsSimAlt = injecterJsDansPlanning(agentData.events, js, imprevuAlt);
+          const agentsCascadeAlt = Array.from(agentsMap.values()).filter(
+            (a) => a.context.id !== candidat.agentId
+          );
+          const { modifications, impactsCascade, nbResolu } = resoudreTousConflits(
+            conflitsResolvables,
+            eventsSimAlt,
+            agentsCascadeAlt,
+            npoExclusionCodes,
+            lpaContext,
+            rules
+          );
+          cascadeResolution = { modifications, impacts: impactsCascade, nbResolu };
+        }
+      }
+
+      alternatives.push({
+        rang: 0, // attribué après le tri
+        agentId:      candidat.agentId,
+        nom:          candidat.nom,
+        prenom:       candidat.prenom,
+        matricule:    candidat.matricule,
+        agentReserve: candidat.agentReserve,
+        statut:       candidat.statut,
+        score:        candidat.score,
+        typeSolution,
+        raisonNonRetention,
+        motif:        candidat.motif,
+        conflitsInduits: candidat.conflitsInduits,
+        jsSourceFigee:   candidat.jsSourceFigee ?? null,
+        detail:          candidat.detail,
+        cascadeResolution,
+      });
+    }
+
+    // Trier : DIRECT d'abord, puis par score décroissant
+    alternatives.sort((a, b) => {
+      const pA = TYPE_SOLUTION_PRIO[a.typeSolution] ?? 4;
+      const pB = TYPE_SOLUTION_PRIO[b.typeSolution] ?? 4;
+      if (pA !== pB) return pA - pB;
+      return b.score - a.score;
+    });
+    alternatives.forEach((alt, i) => { alt.rang = i + 1; });
+
+    return {
+      jsId:      js.planningLigneId,
+      codeJs:    js.codeJs,
+      date:      js.date,
+      heureDebut: js.heureDebut,
+      heureFin:  js.heureFin,
+      agentAffecte: aff
+        ? { agentId: aff.agentId, nom: aff.agentNom, prenom: aff.agentPrenom, matricule: aff.agentMatricule, score: aff.score, statut: aff.statut }
+        : null,
+      alternatives,
+    };
+  });
+
   // ─── Consolidation des exclusions par JS ──────────────────────────────────────
   // On expose toutes les exclusions pré-calculées (pré-filtre) dans le scénario,
   // ce qui permet à l'UI et aux logs d'expliquer chaque décision d'exclusion.
@@ -692,5 +819,6 @@ export function allouerJsMultiple(
     nbCascadesResolues: nbCascadesResoluesTotal,
     nbCascadesNonResolues: nbCascadesNonResoluesTotal,
     exclusionsParJs,
+    alternativesParJs,
   };
 }

@@ -28,6 +28,10 @@ jest.mock("@/lib/simulation/npoExclusionLoader", () => ({
   loadNpoExclusionCodes: jest.fn().mockResolvedValue([]),
 }));
 
+jest.mock("@/lib/simulation/jsTypeFlexibiliteLoader", () => ({
+  loadJsTypeFlexibiliteMap: jest.fn().mockResolvedValue(new Map()),
+}));
+
 jest.mock("@/lib/deplacement/loadLpaContext", () => ({
   loadLpaContext: jest.fn().mockResolvedValue({
     lpas: [],
@@ -116,25 +120,28 @@ describe("executerSimulationMultiJs — couverture complète", () => {
     expect(result.scenarioMeilleur!.jsNonCouvertes).toHaveLength(0);
   });
 
-  it("deux scénarios toujours produits (principal + comparatif)", async () => {
+  it("4 scénarios toujours produits (réserve × figeage × tous-agents)", async () => {
     const js1 = makeJs("js-1", "2024-03-20", "08:00", "16:00");
     const agent1 = makeAgent("a1");
 
     const result = await executerSimulationMultiJs([js1], [agent1], "all_agents");
 
-    expect(result.scenarios).toHaveLength(2);
-    expect(result.scenarios[0].score).toBeGreaterThanOrEqual(result.scenarios[1].score);
+    expect(result.scenarios).toHaveLength(4);
+    // Scénarios triés par score décroissant
+    for (let i = 1; i < result.scenarios.length; i++) {
+      expect(result.scenarios[i - 1].score).toBeGreaterThanOrEqual(result.scenarios[i].score);
+    }
   });
 
-  it("IDs de scénario distincts entre le principal et le comparatif", async () => {
+  it("IDs distincts pour les 4 scénarios produits", async () => {
     const js1 = makeJs("js-1", "2024-03-20", "08:00", "16:00");
     const agent1 = makeAgent("a1");
 
     const result = await executerSimulationMultiJs([js1], [agent1], "all_agents");
 
-    expect(result.scenarios[0].id).not.toBe(result.scenarios[1].id);
-    expect(result.scenarios[0].id).toMatch(/^scenario-/);
-    expect(result.scenarios[1].id).toMatch(/^scenario-/);
+    const ids = result.scenarios.map((s) => s.id);
+    expect(new Set(ids).size).toBe(result.scenarios.length);
+    for (const id of ids) expect(id).toMatch(/^scenario-/);
   });
 });
 
@@ -236,15 +243,18 @@ describe("executerSimulationMultiJs — auditLog", () => {
     expect(last.event).toBe("MULTI_SIMULATION_END");
   });
 
-  it("log contient MULTI_PREFILTER_DONE et MULTI_JS_CANDIDATES_BUILT", async () => {
+  it("log contient les événements intermédiaires d'allocation (tri + assignation)", async () => {
     const js1 = makeJs("js-1", "2024-03-20", "08:00", "16:00");
     const agent1 = makeAgent("a1");
 
     const result = await executerSimulationMultiJs([js1], [agent1], "all_agents");
 
     const events = result.auditLog.map(e => e.event);
-    expect(events).toContain("MULTI_JS_CANDIDATES_BUILT");
-    expect(events).toContain("MULTI_PREFILTER_DONE");
+    // MULTI_JS_ORDERED_BY_FLEX : émis à chaque scénario par l'allocator avant d'assigner
+    expect(events).toContain("MULTI_JS_ORDERED_BY_FLEX");
+    // MULTI_ASSIGNMENT_DONE : émis quand une JS est effectivement affectée
+    // (ici l'agent est éligible en "all_agents" donc au moins 1 assignation réussit)
+    expect(events).toContain("MULTI_ASSIGNMENT_DONE");
   });
 
   it("MULTI_ASSIGNMENT_DONE émis si une JS est couverte", async () => {

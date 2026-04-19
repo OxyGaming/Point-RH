@@ -50,7 +50,16 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Unit tests (Jest)
-        run: npm test -- --ci --silent
+        run: npm test -- --ci 2>&1 | tee jest-output.log
+        shell: bash
+
+      - name: Upload Jest log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jest-output
+          path: jest-output.log
+          retention-days: 7
 
       - name: Build (next build)
         run: npm run build

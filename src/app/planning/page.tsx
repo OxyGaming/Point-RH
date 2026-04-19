@@ -282,7 +282,7 @@ export default function PlanningPage() {
 
   const [groupBy,   setGroupBy]   = useState<GroupBy>("agent-az");
   const [filter,    setFilter]    = useState("");
-  const [hideEmpty, setHideEmpty] = useState(false);
+  const [hideUnknown, setHideUnknown] = useState(false);
   const [selected,  setSelected]  = useState<Set<string>>(new Set());
   const [slider,    setSlider]    = useState(0);
   const [visDays,   setVisDays]   = useState(VIS_DEFAULT);
@@ -440,12 +440,7 @@ export default function PlanningPage() {
         return false;
       });
     }
-    if (hideEmpty) {
-      list = list.filter((r) => {
-        const byDate = jsByAgentDate.get(r.key);
-        return byDate && visibleDates.some((day) => (byDate.get(day)?.length ?? 0) > 0);
-      });
-    }
+
 
     if (groupBy === "agent-az" || groupBy === "libelle")
       list.sort((a, b) => a.label.localeCompare(b.label));
@@ -470,7 +465,7 @@ export default function PlanningPage() {
       });
     }
     return list;
-  }, [groupBy, agents, filter, hideEmpty, visibleDates, jsByAgent, jsByAgentDate, userFilterActive, userFilterIds]);
+  }, [groupBy, agents, filter, visibleDates, jsByAgent, jsByAgentDate, userFilterActive, userFilterIds]);
 
 
   // ── Virtual flat item list ───────────────────────────────────────────────
@@ -485,11 +480,13 @@ export default function PlanningPage() {
         if (!buckets.has(lib)) buckets.set(lib, []);
         buckets.get(lib)!.push(row);
       }
-      const sorted = Array.from(buckets.entries()).sort(([a], [b]) => {
-        if (a === "???") return 1;
-        if (b === "???") return -1;
-        return a.localeCompare(b);
-      });
+      const sorted = Array.from(buckets.entries())
+        .filter(([lib]) => !(hideUnknown && lib === "???"))
+        .sort(([a], [b]) => {
+          if (a === "???") return 1;
+          if (b === "???") return -1;
+          return a.localeCompare(b);
+        });
       let ri = 0;
       for (const [lib, rows] of sorted) {
         items.push({ kind: "group", id: `grp-lib-${lib}`, h: GRP_H, label: lib, count: rows.length, color: "#475569" });
@@ -502,7 +499,7 @@ export default function PlanningPage() {
     }
 
     return items;
-  }, [groupBy, agentRows, jsByAgentDate, visibleDates]);
+  }, [groupBy, agentRows, jsByAgentDate, visibleDates, hideUnknown]);
 
   // Cumulative top positions for each item
   const itemTops = useMemo(() => {
@@ -718,15 +715,19 @@ export default function PlanningPage() {
           <option value="debut">Heure de début</option>
           <option value="libelle">Libellé JS</option>
         </select>
-        <div className="w-px h-5 bg-[#e2e8f0]" />
-        <label className="flex items-center gap-1.5 cursor-pointer select-none">
-          <input
-            type="checkbox" checked={hideEmpty}
-            onChange={(e) => setHideEmpty(e.target.checked)}
-            className="w-3.5 h-3.5 rounded border-gray-300 accent-[#1e293b]"
-          />
-          <span className="text-[11px] font-[600] text-[#64748b]">Masquer les agents sans JS</span>
-        </label>
+        {groupBy === "libelle" && (
+          <>
+            <div className="w-px h-5 bg-[#e2e8f0]" />
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox" checked={hideUnknown}
+                onChange={(e) => setHideUnknown(e.target.checked)}
+                className="w-3.5 h-3.5 rounded border-gray-300 accent-[#1e293b]"
+              />
+              <span className="text-[11px] font-[600] text-[#64748b]">Masquer les ???</span>
+            </label>
+          </>
+        )}
 
         {userFilterActive && userFilterIds.size > 0 && (
           <>

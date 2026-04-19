@@ -8,7 +8,7 @@
  *   2. L'ensemble de ses affectations cumulées reste conforme aux règles RH
  */
 
-import { combineDateTime, diffMinutes, isJsDeNuit, getDateFinJs } from "@/lib/utils";
+import { combineDateTime, isJsDeNuit, getDateFinJs } from "@/lib/utils";
 import { evaluerMobilisabilite } from "@/engine/rules";
 import type { WorkRulesMinutes } from "@/lib/rules/workRules";
 import type { JsCible } from "@/types/js-simulation";
@@ -47,12 +47,12 @@ export function canAssignJsToAgentInScenario(
   effectiveServiceMap?: Map<string, EffectiveServiceInfo>
 ): CompatibiliteResult {
   const newStart = combineDateTime(newJs.date, newJs.heureDebut);
-  const newEnd = combineDateTime(newJs.date, newJs.heureFin);
+  const newEnd = combineDateTime(getDateFinJs(newJs.date, newJs.heureDebut, newJs.heureFin), newJs.heureFin);
 
   // ─── 1. Vérifier chevauchements horaires avec les JS déjà affectées ──────────
   for (const existing of jsDejaAffectees) {
     const eStart = combineDateTime(existing.date, existing.heureDebut);
-    const eEnd = combineDateTime(existing.date, existing.heureFin);
+    const eEnd = combineDateTime(getDateFinJs(existing.date, existing.heureDebut, existing.heureFin), existing.heureFin);
 
     if (eStart < newEnd && eEnd > newStart) {
       return {

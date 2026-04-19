@@ -55,7 +55,7 @@ function determinerJsOriginale(
   agentReserve: boolean
 ): JsOriginaleAgent {
   const debutJs = combineDateTime(js.date, js.heureDebut);
-  const finJs   = combineDateTime(js.date, js.heureFin);
+  const finJs   = combineDateTime(getDateFinJs(js.date, js.heureDebut, js.heureFin), js.heureFin);
 
   const event = events.find(
     (e) => e.jsNpo === "JS" && e.dateDebut < finJs && e.dateFin > debutJs
@@ -115,12 +115,39 @@ export function allouerJsMultiple(
   // ─── Tri des JS cibles ────────────────────────────────────────────────────────
   // Priorité 1 : flexibilité (OBLIGATOIRE avant DERNIER_RECOURS — couvrir l'essentiel en premier)
   // Priorité 2 : difficulté (moins de candidats → traité en premier, à criticité égale)
+  // Priorité 3 (tiebreaker) : exclusivité des candidats — JS dont les candidats
+  //   ne sont disponibles que pour elle traitée en premier, pour éviter qu'une JS
+  //   à plus large choix "vole" le seul candidat possible d'une JS contrainte.
+  //   L'exclusivité = nb de candidats de cette JS qui ne figurent dans aucune autre JS.
+  const candidateAgentSets = new Map(
+    jsCibles.map((js) => [
+      js.planningLigneId,
+      new Set((candidatesPerJs.get(js.planningLigneId) ?? []).map((c) => c.agentId)),
+    ])
+  );
+  const exclusivityScore = (jsId: string): number => {
+    const myAgents = candidateAgentSets.get(jsId) ?? new Set<string>();
+    let exclusive = 0;
+    for (const agentId of myAgents) {
+      const sharedWith = jsCibles.filter(
+        (other) => other.planningLigneId !== jsId && (candidateAgentSets.get(other.planningLigneId)?.has(agentId) ?? false)
+      ).length;
+      if (sharedWith === 0) exclusive++;
+    }
+    return exclusive;
+  };
+
   const sortedJs = [...jsCibles].sort((a, b) => {
     const flexDiff = flexPrio(a.flexibilite) - flexPrio(b.flexibilite);
     if (flexDiff !== 0) return flexDiff;
     const nA = candidatesPerJs.get(a.planningLigneId)?.length ?? 0;
     const nB = candidatesPerJs.get(b.planningLigneId)?.length ?? 0;
-    return nA - nB;
+    if (nA !== nB) return nA - nB;
+    // Tiebreaker : préférer la JS avec le moins de candidats exclusifs restants
+    // (ses candidats sont plus "disputés" → elle doit être traitée en priorité)
+    const exA = exclusivityScore(a.planningLigneId);
+    const exB = exclusivityScore(b.planningLigneId);
+    return exA - exB;
   });
 
   logger?.info("MULTI_JS_ORDERED_BY_FLEX", {
@@ -319,17 +346,21 @@ export function allouerJsMultiple(
       if (!jsAffecteeCible) continue;
 
       let agentRemplacant: string | null = null;
+      // Inclure TOUS les candidats de jsAffectee sauf l'agent qu'on vient de déplacer.
+      // Les agents déjà affectés à d'autres JSes sont autorisés : canAssignJsToAgentInScenario
+      // vérifiera la compatibilité cumulée (chevauchement + règles RH).
       const candidatsJsAffectee = (candidatesPerJs.get(jsAffecteeId) ?? [])
-        .filter((c) => c.agentId !== affExistante.agentId && !agentAssignments.has(c.agentId));
+        .filter((c) => c.agentId !== affExistante.agentId);
 
       for (const autreCandidat of candidatsJsAffectee) {
         const autreAgentData = agentsMap.get(autreCandidat.agentId);
         if (!autreAgentData) continue;
 
+        const assignmentsAutre = agentAssignments.get(autreCandidat.agentId) ?? [];
         const { compatible } = canAssignJsToAgentInScenario(
           autreAgentData,
           jsAffecteeCible,
-          [],
+          assignmentsAutre,
           rules,
           remplacement,
           deplacement,
@@ -423,7 +454,8 @@ export function allouerJsMultiple(
         ...assignmentsSansJsAffectee,
         jsNonCouverte,
       ]);
-      agentAssignments.set(agentRemplacant, [jsAffecteeCible]);
+      const assignmentsRemplacantExistants = agentAssignments.get(agentRemplacant) ?? [];
+      agentAssignments.set(agentRemplacant, [...assignmentsRemplacantExistants, jsAffecteeCible]);
 
       // 4. Supprimer l'ancien conflit AUCUN_CANDIDAT si présent
       const idxConflit = conflitsGlobaux.findIndex(

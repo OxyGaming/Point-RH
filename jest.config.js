@@ -4,6 +4,7 @@ module.exports = {
   testEnvironment: "node",
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
+    "^server-only$": "<rootDir>/jest.server-only-stub.js",
   },
   transform: {
     "^.+\\.tsx?$": [

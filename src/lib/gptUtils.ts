@@ -1,8 +1,14 @@
 /**
  * Utilitaires GPT — Grande Période de Travail
  *
- * Logique partagée entre le moteur de règles (engine/rules.ts) et
- * le détecteur de conflits (lib/simulation/conflictDetector.ts).
+ * RÔLE : couche logique canonique. Source de vérité pour la détection de
+ * frontière de RP et le découpage en GPTs. Toute modification ici impacte
+ * le calcul de règles métier en production.
+ *
+ * Consommateurs directs :
+ *   – engine/rules.ts                         → évaluation des règles (prod)
+ *   – lib/rules/gptEngine.ts                  → wrapper typé (délègue ici)
+ *   – lib/simulation/candidateFinder.ts       → classification d'événements
  *
  * Règle métier fondamentale :
  *   – Seul un repos PÉRIODIQUE (RP, graphié) réinitialise la GPT.
@@ -140,15 +146,6 @@ export function trouverDebutGPT(
 }
 
 // ─── Fonctions utilitaires dérivées ──────────────────────────────────────────
-
-/** Nombre de JS dans la GPT courante */
-export function compterJoursGPT(
-  allEvents: PlanningEvent[],
-  before: Date,
-  rpSimpleMin: number
-): number {
-  return trouverDebutGPT(allEvents, before, rpSimpleMin).joursGPT.length;
-}
 
 /** Cumul de travail effectif (en minutes) dans la GPT courante */
 export function cumulTravailEffectifGPT(

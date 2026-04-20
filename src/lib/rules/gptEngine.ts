@@ -1,21 +1,23 @@
 /**
- * GPT Engine — Moteur de calcul des Groupes de Périodes de Travail
+ * GPT Engine — Wrapper typé au-dessus de gptUtils
  *
- * Source de vérité unique pour toute logique GPT dans l'application.
- * Utilisé par le moteur de règles (engine/rules.ts) et le moteur de
- * simulation (lib/simulation/*).
+ * RÔLE : couche d'interface. N'implémente AUCUNE logique de frontière RP
+ * ni de découpage : elle délègue à `lib/gptUtils.ts` (source de vérité).
+ * Apporte par-dessus :
+ *   – types structurés (WorkSequence, RPBoundary, GPTComparison)
+ *   – helpers de simulation (simulateGPT, compareGPT)
  *
- * Règles métier :
- *  - Une GPT = séquence de jours travaillés CONSÉCUTIFS entre deux RP.
- *  - Tout événement jsNpo === "JS" compte dans la GPT (JS, C, Z, DIS, etc.).
- *  - Seul un RP réel (gap ≥ rpSimpleMin sans congé/absence entre deux JS)
- *    clôture une GPT.
- *  - Le TYPE exact de journée (JS, C, Z, DIS…) n'a aucune incidence sur le
- *    comptage : seule la continuité entre deux RP détermine la longueur.
+ * Pour modifier la sémantique du découpage GPT, agir sur gptUtils.ts —
+ * ce module se contente de ré-exposer ses résultats dans un format typé.
  *
- * Conséquence directe :
- *  Remplacer une journée C par une JS simulée dans une séquence ininterrompue
- *  ne change pas la longueur de la GPT.
+ * Consommateurs :
+ *   – lib/simulation/gptRpAnalyser.ts   → analyse RP autour d'une GPT
+ *   – lib/simulation/conflictDetector.ts → détection de dépassement GPT_MAX
+ *
+ * Rappel métier (identique à gptUtils) :
+ *   – Une GPT = séquence de jours travaillés entre deux RP réels.
+ *   – Le type de journée (JS, C, Z, DIS…) n'affecte pas la longueur :
+ *     seule la continuité entre RP compte.
  */
 
 import type { PlanningEvent } from "@/engine/rules";

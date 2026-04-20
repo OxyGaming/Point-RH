@@ -268,6 +268,3 @@ export async function importerPlanning(
     };
   }
 }
-
-// Compat : l'ancien nom reste exporté
-export { importerPlanning as importerPlanningExcel };

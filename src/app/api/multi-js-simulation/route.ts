@@ -13,12 +13,24 @@ import { combineDateTime } from "@/lib/utils";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { MultiJsSimulationRequest } from "@/types/multi-js-simulation";
 import { executerSimulationMultiJs } from "@/lib/simulation/multiJs";
+import { rateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
+
+const SIMULATION_RATE_LIMIT = { max: 30, windowMs: 60 * 1000 };
 
 export async function POST(req: NextRequest) {
   const auth = checkAuth(req);
   if (!auth.ok) return auth.response;
+
+  const rl = rateLimit("multi-js-simulation", auth.user.id, SIMULATION_RATE_LIMIT);
+  if (!rl.ok) {
+    const retryAfterSec = Math.ceil((rl.resetAt - Date.now()) / 1000);
+    return NextResponse.json(
+      { error: "Trop de simulations lancées. Réessayez dans une minute." },
+      { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
+    );
+  }
 
   try {
     const body = (await req.json()) as MultiJsSimulationRequest;

@@ -19,6 +19,10 @@
 import * as XLSX from "xlsx";
 import { prisma } from "@/lib/prisma";
 
+/** Garde-fous DoS : limites structurelles appliquées après lecture du workbook. */
+const PARAM_MAX_SHEETS = 20;
+const PARAM_MAX_ROWS_PER_SHEET = 50_000;
+
 // ─── Types publics ────────────────────────────────────────────────────────────
 
 export interface ErreurImportParametrage {
@@ -161,6 +165,24 @@ function getSheetRows(wb: XLSX.WorkBook, sheetName: string): Record<string, unkn
   return XLSX.utils.sheet_to_json(ws, { defval: null }) as Record<string, unknown>[];
 }
 
+/**
+ * Inspecte les feuilles du workbook et retourne la première qui dépasse la limite.
+ * S'appuie sur `!ref` (métadonnée de plage) pour éviter un parsing complet à ce stade.
+ */
+function findOversizedSheet(
+  wb: XLSX.WorkBook,
+  maxRows: number
+): { name: string; rowCount: number } | null {
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name];
+    if (!ws || !ws["!ref"]) continue;
+    const range = XLSX.utils.decode_range(ws["!ref"]);
+    const rowCount = range.e.r - range.s.r + 1;
+    if (rowCount > maxRows) return { name, rowCount };
+  }
+  return null;
+}
+
 function emptyResult(erreurs: ErreurImportParametrage[], avertissements: ErreurImportParametrage[] = []): ResultatImportParametrage {
   return {
     success: false,
@@ -189,8 +211,28 @@ export async function importerParametrage(buffer: Buffer): Promise<ResultatImpor
   let wb: XLSX.WorkBook;
   try {
     wb = XLSX.read(buffer, { type: "buffer" });
-  } catch {
+  } catch (err) {
+    console.error("[importParametrage] XLSX.read failed", err);
     return emptyResult([{ onglet: "Fichier", ligne: 0, message: "Impossible de lire le fichier Excel. Vérifiez qu'il s'agit bien d'un fichier .xlsx valide.", niveau: "erreur" }]);
+  }
+
+  if (wb.SheetNames.length > PARAM_MAX_SHEETS) {
+    return emptyResult([{
+      onglet: "Fichier",
+      ligne: 0,
+      message: `Fichier refusé : ${wb.SheetNames.length} feuilles détectées (maximum autorisé : ${PARAM_MAX_SHEETS}).`,
+      niveau: "erreur",
+    }]);
+  }
+
+  const oversized = findOversizedSheet(wb, PARAM_MAX_ROWS_PER_SHEET);
+  if (oversized) {
+    return emptyResult([{
+      onglet: oversized.name,
+      ligne: 0,
+      message: `Feuille refusée : ${oversized.rowCount} lignes détectées (maximum autorisé : ${PARAM_MAX_ROWS_PER_SHEET}).`,
+      niveau: "erreur",
+    }]);
   }
 
   // Onglets obligatoires
@@ -592,6 +634,7 @@ export async function importerParametrage(buffer: Buffer): Promise<ResultatImpor
       }
     });
   } catch (err) {
+    console.error("[importParametrage] DB transaction error", err);
     return {
       success: false,
       nbCreations,
@@ -602,7 +645,7 @@ export async function importerParametrage(buffer: Buffer): Promise<ResultatImpor
         {
           onglet: "Base de données",
           ligne: 0,
-          message: `Erreur lors de l'écriture en base : ${String(err)}`,
+          message: "Erreur lors de l'écriture en base de données.",
           niveau: "erreur",
         },
       ],

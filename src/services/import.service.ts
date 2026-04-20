@@ -16,7 +16,7 @@ import { toZonedTime, fromZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/prisma";
 import type { ImportResult } from "@/types/planning";
 import { validateHeaders } from "./import/headers";
-import { parseExcelRows } from "./import/parseExcel";
+import { parseExcelRows, ExcelLimitError } from "./import/parseExcel";
 import { parseTxtRows } from "./import/parseTxt";
 import { normalizeRows } from "./import/normalizeRows";
 
@@ -60,10 +60,14 @@ export async function importerPlanning(
       ? parseExcelRows(buffer)
       : parseTxtRows(buffer);
   } catch (err) {
+    console.error("[import.service] parse error", err);
+    const message = err instanceof ExcelLimitError
+      ? err.message
+      : "Lecture du fichier impossible (format corrompu ou structure non conforme).";
     return {
       success: false, lignesCreees: 0, lignesMisesAJour: 0,
       agentsCreated: 0, agentsUpdated: 0, fileType,
-      erreurs: [{ ligne: 0, message: `Erreur de lecture du fichier : ${String(err)}` }],
+      erreurs: [{ ligne: 0, message }],
     };
   }
 
@@ -256,10 +260,11 @@ export async function importerPlanning(
       erreurs,
     };
   } catch (err) {
+    console.error("[import.service] DB error", err);
     return {
       success: false, lignesCreees: 0, lignesMisesAJour: 0,
       agentsCreated: 0, agentsUpdated: 0, fileType,
-      erreurs: [{ ligne: 0, message: `Erreur base de données : ${String(err)}` }],
+      erreurs: [{ ligne: 0, message: "Erreur lors de l'enregistrement en base de données." }],
     };
   }
 }

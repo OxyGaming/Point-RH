@@ -1,30 +1,28 @@
 import type { NextConfig } from "next";
-import { execSync } from "child_process";
-
-// Hash court du commit courant — injecté comme variable publique au build.
-// Retombe sur "dev" si git n'est pas disponible (CI sans dépôt, etc.)
-const COMMIT_SHA = (() => {
-  try {
-    return execSync("git rev-parse --short HEAD").toString().trim();
-  } catch {
-    return "dev";
-  }
-})();
 
 /**
  * En-têtes de sécurité HTTP appliqués à toutes les routes.
  *
  * CSP (Content-Security-Policy) :
- * - default-src 'self'          → tout bloqué sauf même origine par défaut
- * - script-src 'self' 'unsafe-inline' 'unsafe-eval' → requis par Next.js (inline hydration)
+ * - default-src 'self'           → tout bloqué sauf même origine par défaut
+ * - script-src 'self' 'unsafe-inline' [+ 'unsafe-eval' en dev uniquement]
+ *                                 Next.js a besoin d'unsafe-inline pour l'hydratation ;
+ *                                 'unsafe-eval' n'est requis que par le HMR en dev.
  * - style-src 'self' 'unsafe-inline' → requis par Tailwind CSS (inline styles)
- * - img-src 'self' data:         → images locales + data URIs (icônes)
+ * - img-src 'self' data: blob:   → images locales + data URIs (icônes) + blob (canvas)
  * - font-src 'self'              → polices locales uniquement
  * - connect-src 'self'           → XHR/fetch vers même origine uniquement
  * - frame-ancestors 'none'       → empêche le framing (clickjacking)
+ * - upgrade-insecure-requests    → force HTTPS pour tout sous-contenu (prod)
  *
  * À ajuster si vous intégrez des CDN externes (fonts.googleapis.com, etc.)
  */
+const isProd = process.env.NODE_ENV === "production";
+
+const scriptSrc = isProd
+  ? "script-src 'self' 'unsafe-inline'"
+  : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+
 const securityHeaders = [
   {
     key: "X-DNS-Prefetch-Control",
@@ -65,8 +63,7 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      // Next.js requiert unsafe-inline pour l'hydratation et unsafe-eval en dev
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      scriptSrc,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self'",
@@ -75,6 +72,7 @@ const securityHeaders = [
       "base-uri 'self'",
       "form-action 'self'",
       "object-src 'none'",
+      ...(isProd ? ["upgrade-insecure-requests"] : []),
     ].join("; "),
   },
 ];
@@ -82,10 +80,6 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["better-sqlite3"],
-
-  env: {
-    NEXT_PUBLIC_COMMIT_SHA: COMMIT_SHA,
-  },
 
   async headers() {
     return [

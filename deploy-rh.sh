@@ -73,15 +73,61 @@ fi
 echo "🗄️  Base de données : $DATABASE_URL"
 
 # ── Synchronisation schéma Prisma ─────────────────────────────────────────────
+#
+# Safelist des tables effaçables en cas de blocage migration.
+# Toute migration qui toucherait une table HORS de cette liste doit échouer
+# immédiatement : les données métier (agents, utilisateurs, règles, LPA,
+# JsType, etc.) ne sont PAS réimportables depuis un fichier externe.
+#
+# Tables réimportables (planning = issu d'un fichier Excel/TXT) :
+PURGEABLE_TABLES=("ResultatAgent" "Simulation" "PlanningLigne" "PlanningImport")
+
 echo "🗄️ Synchronisation du schéma Prisma..."
-# Première tentative de push
 PUSH_OUTPUT=$(npx prisma db push 2>&1) && PUSH_OK=true || PUSH_OK=false
 echo "$PUSH_OUTPUT"
 
 if [ "$PUSH_OK" = "false" ] && echo "$PUSH_OUTPUT" | grep -q "cannot be executed"; then
   echo ""
-  echo "⚠️  Migration bloquée par des données existantes dans les tables de planning."
-  echo "   Ces données sont réimportables depuis l'interface — vidage en cours..."
+  echo "⚠️  Migration bloquée par des données existantes."
+
+  # Extraire les tables citées par Prisma comme contenant des données bloquantes.
+  # Prisma log typique : "The table `XXX` contains ... data" ou "table XXX is not empty".
+  CITED_TABLES=$(echo "$PUSH_OUTPUT" | grep -oE '\b(ResultatAgent|Simulation|PlanningLigne|PlanningImport|Agent|User|AuditLog|UserAgentFilter|WorkRule|JsType|Lpa|LpaJsType|NpoExclusionCode|AgentJsDeplacementRule)\b' | sort -u)
+
+  if [ -z "$CITED_TABLES" ]; then
+    echo "❌ Impossible d'identifier les tables bloquantes depuis la sortie Prisma."
+    echo "   Intervention manuelle requise — déploiement annulé."
+    exit 1
+  fi
+
+  echo "   Tables bloquantes identifiées :"
+  echo "$CITED_TABLES" | sed 's/^/     - /'
+
+  # Vérifier que TOUTES les tables citées sont dans la safelist.
+  UNSAFE=""
+  for t in $CITED_TABLES; do
+    FOUND=false
+    for p in "${PURGEABLE_TABLES[@]}"; do
+      if [ "$t" = "$p" ]; then FOUND=true; break; fi
+    done
+    if [ "$FOUND" = false ]; then
+      UNSAFE="$UNSAFE $t"
+    fi
+  done
+
+  if [ -n "$UNSAFE" ]; then
+    echo ""
+    echo "🛑 ARRÊT : la migration toucherait des tables non réimportables :$UNSAFE"
+    echo "   Ces données ne peuvent pas être reconstruites depuis un fichier d'import."
+    echo "   Le déploiement est annulé pour protéger les données."
+    echo ""
+    echo "   Pour forcer : traiter la migration manuellement (prisma migrate resolve,"
+    echo "   scripts de backfill, etc.), puis relancer ce déploiement."
+    exit 1
+  fi
+
+  echo ""
+  echo "   Toutes les tables bloquantes sont réimportables — purge en cours..."
   sqlite3 "$DB_FILE" "
     DELETE FROM ResultatAgent;
     DELETE FROM Simulation;

@@ -1101,7 +1101,7 @@
     <div class="section-icon" style="background:#fee2e2"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="M2 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="M7 21H17"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg></div>
     <div>
       <h2>Règles réglementaires</h2>
-      <p>Les 10 règles vérifiées automatiquement par le moteur de simulation</p>
+      <p>Les 10 règles vérifiées automatiquement par le moteur de simulation (8 bloquantes + 2 vigilance)</p>
     </div>
   </div>
 
@@ -1196,18 +1196,18 @@
   </div>
 
   <div class="rule">
-    <div><div class="rule-badge badge-block">Bloquant</div></div>
+    <div><div class="rule-badge badge-warn">Vigilance</div></div>
     <div class="rule-content">
       <div class="rule-title">8. GPT NUIT CONSÉCUTIVES — 2 GPT de nuit de suite</div>
-      <div class="rule-desc">Il est interdit d'avoir 2 GPT de nuit consécutives. Une GPT est "de nuit" si ≥ 50% de ses journées contiennent la plage 00h00–04h00.</div>
+      <div class="rule-desc">Il est interdit d'avoir 2 GPT de nuit consécutives. Une GPT est "de nuit" si ≥ 50% de ses journées contiennent la plage 00h00–04h00. Déclenche une VIGILANCE, pas une exclusion.</div>
     </div>
   </div>
 
   <div class="rule">
-    <div><div class="rule-badge badge-block">Bloquant</div></div>
+    <div><div class="rule-badge badge-warn">Vigilance</div></div>
     <div class="rule-content">
       <div class="rule-title">9. RÉGIME B/C — Durée minimum</div>
-      <div class="rule-desc">Pour les agents en Régime B ou C, chaque JS doit avoir un TE minimum de <strong>5h30 (330 min)</strong>. Un poste trop court est refusé.</div>
+      <div class="rule-desc">Pour les agents en Régime B ou C, chaque JS doit avoir un TE minimum de <strong>5h30 (330 min)</strong>. Un poste trop court déclenche une VIGILANCE (score pénalisé) mais ne bloque pas l'affectation.</div>
     </div>
   </div>
 
@@ -1453,7 +1453,7 @@
   <a class="try-it" href="/import" target="_blank">Ouvrir l'import planning</a>
 
   <div class="card">
-    <p>L'import <strong>enrichit le planning consolidé</strong> de manière incrémentale : chaque ligne est identifiée par son triplet <code>(matricule, date début, heure début)</code>. Si la ligne existe déjà, elle est mise à jour ; sinon elle est créée. Plusieurs imports peuvent coexister — on peut importer une équipe, puis une autre, sans effacer les données déjà présentes. Chaque import est tracé dans un journal (<code>PlanningImport</code>) mais ne "remplace" plus les précédents.</p>
+    <p>L'import <strong>enrichit le planning consolidé</strong> de manière incrémentale : chaque ligne est identifiée par son doublet <code>(matricule, jour du planning)</code>. Si la ligne existe déjà, elle est mise à jour ; sinon elle est créée. Plusieurs imports peuvent coexister — on peut importer une équipe, puis une autre, sans effacer les données déjà présentes. Chaque import est tracé dans un journal (<code>PlanningImport</code>) mais ne "remplace" plus les précédents.</p>
   </div>
 
   <h3>Formats acceptés</h3>
@@ -1950,7 +1950,7 @@
     </div>
     <div class="card">
       <h4>Préfixes JS autorisés</h4>
-      <p>Liste des codes JS que l'agent est habilité à effectuer. Ex : <code>GIC004, GIC005, GIC006, PEY</code>. Si vide = toutes les JS autorisées.</p>
+      <p>Liste des codes JS que l'agent est habilité à effectuer. Ex : <code>GIC004, GIC005, GIC006, PEY</code>. <strong>Si vide</strong>, l'agent est considéré comme non habilité et la règle PREFIXE_JS est violée (aucun préfixe renseigné) → l'agent est exclu des candidats.</p>
     </div>
   </div>
 
@@ -2319,7 +2319,7 @@
       <tr><td>6</td><td class="mono">GPT_MAX</td><td>Max 6 JS/GPT</td><td class="red">Oui</td><td>Trop de jours travaillés sans RP</td></tr>
       <tr><td>7</td><td class="mono">NUIT_HABILITATION</td><td>Fiche agent</td><td class="red">Oui</td><td>Agent non habilité nuit</td></tr>
       <tr><td>8</td><td class="mono">DEPLACEMENT_HABILITATION</td><td>Fiche agent</td><td class="red">Oui</td><td>Agent non autorisé à se déplacer</td></tr>
-      <tr><td>9</td><td class="mono">GPT_NUIT_CONSECUTIVES</td><td>Historique GPT</td><td class="red">Oui</td><td>Deux GPT nuit d'affilée interdites</td></tr>
+      <tr><td>9</td><td class="mono">GPT_NUIT_CONSECUTIVES</td><td>Historique GPT</td><td>Non (Vigilance)</td><td>Deux GPT nuit d'affilée interdites</td></tr>
     </tbody>
   </table>
 
@@ -2447,7 +2447,7 @@
 
     <div class="accordion-item">
       <div class="accordion-header">
-        <div class="accordion-title"><span class="acc-num">9</span>GPT_NUIT_CONSECUTIVES — Pas deux GPT nuit d'affilée <span class="badge badge-red" style="margin-left:8px">Bloquant</span></div>
+        <div class="accordion-title"><span class="acc-num">9</span>GPT_NUIT_CONSECUTIVES — Pas deux GPT nuit d'affilée <span class="badge badge-yellow" style="margin-left:8px">Vigilance</span></div>
         <span class="accordion-chev">›</span>
       </div>
       <div class="accordion-body">
@@ -2544,7 +2544,7 @@
 
   <a class="try-it" href="/admin/registrations" target="_blank">Voir les demandes d'inscription</a>
 
-  <p>Écran : <code>/admin/registrations</code>. Un rappel par e-mail est envoyé aux admins toutes les N heures (paramétrable dans <code>.env</code>) pour les demandes non traitées.</p>
+  <p>Écran : <code>/admin/registrations</code>. Les demandes en attente y sont visibles tant qu'elles n'ont pas été traitées ; il appartient aux administrateurs de consulter régulièrement cet écran (aucun rappel automatique n'est envoyé).</p>
 
   <h3>Cycle de vie d'une demande</h3>
   <table>
@@ -2569,14 +2569,14 @@
     <div class="section-icon" style="background:#fef3c7"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
     <div>
       <h2>Configuration des règles métier</h2>
-      <p>25 paramètres modifiables répartis en 7 catégories</p>
+      <p>28 paramètres modifiables répartis en 7 catégories</p>
     </div>
   </div>
 
   <figure class="screenshot">
     <img src="/mode-operatoire-assets/09-admin-work-rules.png" alt="Configuration des règles métier">
     <figcaption class="screenshot-caption">
-      <span>25 paramètres regroupés en catégories avec valeurs par défaut et bornes</span>
+      <span>28 paramètres regroupés en catégories avec valeurs par défaut et bornes</span>
       <span class="caption-route">/admin/work-rules</span>
       <span class="caption-zoom"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> zoom</span>
     </figcaption>
@@ -2605,7 +2605,7 @@
       <tr><td class="mono">travailEffectif.max</td><td>10h</td><td>5h</td><td>12h</td><td>TE maximal journalier standard</td></tr>
       <tr><td class="mono">travailEffectif.supplementRemplace</td><td>2h</td><td>0</td><td>3h</td><td>TE additionnel si remplacement DJS</td></tr>
       <tr><td class="mono">travailEffectif.nuit</td><td>8h30</td><td>6h</td><td>10h</td><td>TE maximal nuit</td></tr>
-      <tr><td class="mono">travailEffectif.maxGPT</td><td>48h</td><td>40h</td><td>60h</td><td>Plafond cumul TE sur la GPT</td></tr>
+      <tr><td class="mono">travailEffectif.maxGPT</td><td>48h</td><td>24h</td><td>60h</td><td>Plafond cumul TE sur la GPT</td></tr>
       <tr><td class="mono">travailEffectif.minRegimeBC</td><td>5h30</td><td>4h</td><td>7h</td><td>Amplitude minimale régime B/C</td></tr>
     </tbody>
   </table>
@@ -2624,9 +2624,9 @@
   <table>
     <thead><tr><th>Clé</th><th>Défaut</th><th>Min</th><th>Max</th><th>Impact</th></tr></thead>
     <tbody>
-      <tr><td class="mono">reposPeriodique.simple</td><td>36h</td><td>30h</td><td>48h</td><td>Frontière de GPT (RP simple)</td></tr>
-      <tr><td class="mono">reposPeriodique.double</td><td>60h</td><td>50h</td><td>72h</td><td>RP double (après 5 JS)</td></tr>
-      <tr><td class="mono">reposPeriodique.triple</td><td>84h</td><td>72h</td><td>120h</td><td>RP triple (compensation)</td></tr>
+      <tr><td class="mono">reposPeriodique.simple</td><td>36h</td><td>24h</td><td>48h</td><td>Frontière de GPT (RP simple)</td></tr>
+      <tr><td class="mono">reposPeriodique.double</td><td>60h</td><td>48h</td><td>84h</td><td>RP double (après 5 JS)</td></tr>
+      <tr><td class="mono">reposPeriodique.triple</td><td>84h</td><td>60h</td><td>120h</td><td>RP triple (compensation)</td></tr>
     </tbody>
   </table>
 
@@ -2655,10 +2655,10 @@
   <table>
     <thead><tr><th>Clé</th><th>Défaut</th><th>Min</th><th>Max</th><th>Impact</th></tr></thead>
     <tbody>
-      <tr><td class="mono">periodeNocturne.debutSoir</td><td>21h30</td><td>19h</td><td>23h</td><td>Début de la plage nocturne</td></tr>
-      <tr><td class="mono">periodeNocturne.finMatin</td><td>06h30</td><td>04h</td><td>08h</td><td>Fin de la plage nocturne</td></tr>
-      <tr><td class="mono">periodeNocturne.seuilJsNuit</td><td>2h30</td><td>1h</td><td>4h</td><td>Chevauchement min pour qualifier une JS « nuit »</td></tr>
-      <tr><td class="mono">periodeNocturne.seuilGptNuit</td><td>4h</td><td>2h</td><td>6h</td><td>Fenêtre 00h–04h pour qualifier une GPT « nuit »</td></tr>
+      <tr><td class="mono">periodeNocturne.debutSoir</td><td>21h30</td><td>18h</td><td>23h</td><td>Début de la plage nocturne</td></tr>
+      <tr><td class="mono">periodeNocturne.finMatin</td><td>06h30</td><td>03h</td><td>10h</td><td>Fin de la plage nocturne</td></tr>
+      <tr><td class="mono">periodeNocturne.seuilJsNuit</td><td>2h30</td><td>0h30</td><td>6h</td><td>Chevauchement min pour qualifier une JS « nuit »</td></tr>
+      <tr><td class="mono">periodeNocturne.seuilGptNuit</td><td>4h</td><td>1h</td><td>8h</td><td>Fenêtre 00h–04h pour qualifier une GPT « nuit »</td></tr>
     </tbody>
   </table>
   <div class="callout info" style="margin-top:12px">
@@ -2836,7 +2836,7 @@
   <table>
     <thead><tr><th>Champ</th><th>Description</th><th>Exemples</th></tr></thead>
     <tbody>
-      <tr><td><strong>Code</strong></td><td>Préfixe du code NPO (insensible à la casse)</td><td>MA, AT, CLM, FOR</td></tr>
+      <tr><td><strong>Code</strong></td><td>Préfixe du code NPO (insensible à la casse)</td><td>MA, AT, CLM, CLD, MAT</td></tr>
       <tr><td><strong>Libellé</strong></td><td>Description lisible</td><td>Maladie ordinaire, Accident de travail…</td></tr>
       <tr><td><strong>Actif</strong></td><td>Si OUI, la règle est appliquée</td><td>OUI / NON</td></tr>
     </tbody>
@@ -2847,7 +2847,7 @@
 
   <div class="callout example">
     <div class="callout-title">Codes pré-peuplés</div>
-    À l'installation : MA (maladie), AT (accident de travail), CLM (congé longue maladie), FOR (formation longue). L'admin peut en ajouter, modifier les libellés ou désactiver.
+    À l'installation : MA (maladie ordinaire), AT (accident du travail), CLM (congé longue maladie), CLD (congé longue durée), MAT (maternité / paternité). L'admin peut en ajouter, modifier les libellés ou désactiver.
   </div>
 </section>
 

@@ -62,19 +62,50 @@
   .sidebar-header h1 { font-size: 18px; font-weight: 700; color: #fff; }
   .sidebar-header p { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 4px; }
 
+  #search-wrapper { position: relative; margin: 12px 12px; }
   #search-box {
-    margin: 12px 12px;
-    padding: 8px 12px;
+    padding: 8px 86px 8px 12px;
     border-radius: 8px;
     border: none;
     background: rgba(255,255,255,0.12);
     color: #fff;
     font-size: 13px;
-    width: calc(100% - 24px);
+    width: 100%;
     outline: none;
+    box-sizing: border-box;
   }
   #search-box::placeholder { color: rgba(255,255,255,0.4); }
   #search-box:focus { background: rgba(255,255,255,0.18); }
+  #search-nav {
+    display: none;
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    align-items: center;
+    gap: 1px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.7);
+    pointer-events: none;
+  }
+  #search-nav.active { display: inline-flex; pointer-events: auto; }
+  #search-counter {
+    min-width: 34px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    padding: 0 4px;
+  }
+  #search-nav button {
+    width: 22px; height: 22px;
+    border: none; background: transparent;
+    color: rgba(255,255,255,0.7); cursor: pointer;
+    border-radius: 4px;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 0;
+  }
+  #search-nav button:hover:not(:disabled) { background: rgba(255,255,255,0.18); color: #fff; }
+  #search-nav button:disabled { opacity: 0.35; cursor: default; }
+  #search-nav svg { width: 14px; height: 14px; }
 
   .nav-group { padding: 4px 0; }
   .nav-group-title {
@@ -363,6 +394,7 @@
 
   /* ── SEARCH HIGHLIGHT ─────────────────────────────────────── */
   .highlight { background: #fef08a; border-radius: 2px; }
+  .highlight.current { background: #f59e0b; color: #1e3a8a; box-shadow: 0 0 0 2px rgba(245,158,11,0.4); }
 
   /* ── COLLAPSIBLE ──────────────────────────────────────────── */
   .collapsible { cursor: pointer; user-select: none; }
@@ -730,7 +762,14 @@
     <h1><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Point RH</h1>
     <p>Mode Opératoire — Guide Complet</p>
   </div>
-  <input type="text" id="search-box" placeholder="🔍 Rechercher..." oninput="handleSearch(this.value)">
+  <div id="search-wrapper">
+    <input type="text" id="search-box" placeholder="🔍 Rechercher..." oninput="handleSearch(this.value)" onkeydown="handleSearchKey(event)">
+    <div id="search-nav">
+      <span id="search-counter">0/0</span>
+      <button type="button" id="search-prev" onclick="gotoMatch(-1)" title="Résultat précédent (Maj+Entrée)" aria-label="Résultat précédent"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg></button>
+      <button type="button" id="search-next" onclick="gotoMatch(1)" title="Résultat suivant (Entrée)" aria-label="Résultat suivant"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+    </div>
+  </div>
 
   <div class="nav-group">
     <div class="nav-group-title">Introduction</div>
@@ -765,19 +804,14 @@
   </div>
 
   <div class="nav-group">
-    <div class="nav-group-title">Simulation JS Simple</div>
-    <a class="nav-link" href="#sim-simple-intro"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="search" class="lucide"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>Vue d'ensemble</a>
+    <div class="nav-group-title">Simulation Multi-JS</div>
+    <a class="nav-link" href="#multi-js"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="calendar" class="lucide"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>Simulation multi-JS</a>
     <a class="nav-link" href="#sim-simple-workflow"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="refresh-cw" class="lucide"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10"/><path d="M3.51 15a9 9 0 0 0 14.85 3.36L23 14"/></svg></span>Workflow étape par étape</a>
     <a class="nav-link" href="#cascade"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="link" class="lucide"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>Résolution en cascade</a>
     <a class="nav-link" href="#scenarios"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="list-checks" class="lucide"><path d="M11 6h10"/><path d="M11 12h10"/><path d="M11 18h10"/><path d="m3 6 2 2 4-4"/><path d="m3 14 2 2 4-4"/><path d="m3 20 2 2 4-4"/></svg></span>Scénarios</a>
     <a class="nav-link" href="#scoring-candidat"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="trophy" class="lucide"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></span>Score candidat</a>
+    <a class="nav-link" href="#scoring-multi"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="medal" class="lucide"><path d="M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15"/><path d="M11 12 5.12 2.2"/><path d="m13 12 5.88-9.8"/><path d="M8 7h8"/><circle cx="12" cy="17" r="5"/></svg></span>Score scénario</a>
     <a class="nav-link" href="#figeage"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="lock" class="lucide"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>Figeage DERNIER RECOURS</a>
-  </div>
-
-  <div class="nav-group">
-    <div class="nav-group-title">Simulation Multi-JS</div>
-    <a class="nav-link" href="#multi-js"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="calendar" class="lucide"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>Simulation multi-JS</a>
-    <a class="nav-link" href="#scoring-multi"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="medal" class="lucide"><path d="M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15"/><path d="M11 12 5.12 2.2"/><path d="m13 12 5.88-9.8"/><path d="M8 7h8"/><circle cx="12" cy="17" r="5"/></svg></span>Score scénario multi-JS</a>
   </div>
 
   <div class="nav-group">
@@ -796,7 +830,6 @@
     <a class="nav-link" href="#admin-agents-supprimes"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="rotate-ccw" class="lucide"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></span>Agents supprimés</a>
     <a class="nav-link" href="#admin-parametrage"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="upload" class="lucide"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>Export/Import paramétrage</a>
     <a class="nav-link" href="#admin-audit"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="file-text" class="lucide"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg></span>Journal d'audit</a>
-    <a class="nav-link" href="#admin-history"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="folder" class="lucide"><path d="M20 7V5a2 2 0 0 0-2-2H9.6a2 2 0 0 0-1.69.9L6.6 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/></svg></span>Historique simulations</a>
     <a class="nav-link" href="#admin-impact"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="trending-up" class="lucide"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></span>Impact des paramètres</a>
   </div>
 
@@ -835,14 +868,9 @@
 
   <div class="card-grid">
     <div class="card">
-      <h4><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> Simulation JS Simple</h4>
-      <p>Un agent est absent sur une JS précise. Le système identifie qui peut le remplacer, en cascade si nécessaire.</p>
-      <div class="badge badge-green">Mode principal</div>
-    </div>
-    <div class="card">
       <h4><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Simulation Multi-JS</h4>
-      <p>Plusieurs JS sont à couvrir simultanément. Le système propose des répartitions globales optimisées sur plusieurs scénarios.</p>
-      <div class="badge badge-blue">Mode avancé</div>
+      <p>Une ou plusieurs JS à couvrir. Le système propose des répartitions globales optimisées, avec résolution en cascade si nécessaire, sur 4 scénarios parallèles.</p>
+      <div class="badge badge-green">Mode principal</div>
     </div>
     <div class="card">
       <h4><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Fiches agents</h4>
@@ -1515,62 +1543,11 @@
 
   <div class="callout info">
     <div class="callout-title">💡 Accès rapide à la simulation</div>
-    La vue planning est en lecture seule. Pour lancer une simulation sur un agent, cliquer sur son nom pour ouvrir sa fiche, puis cliquer sur la JS concernée.
+    La vue planning est en lecture seule. Pour lancer une simulation, aller dans <strong>Simulation multi-JS</strong> depuis le menu latéral, sélectionner la semaine et cocher la ou les JS à couvrir.
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════ SIM SIMPLE INTRO -->
-<section id="sim-simple-intro">
-  <div class="section-header">
-    <div class="section-icon" style="background:#dbeafe"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
-    <div>
-      <h2>Simulation JS Simple — Vue d'ensemble</h2>
-      <p>Trouver le remplaçant idéal pour une journée de service imprévisible</p>
-    </div>
-  </div>
-
-  <figure class="screenshot">
-    <img src="/mode-operatoire-assets/05-simulation-js.png" alt="Formulaire de simulation JS">
-    <figcaption class="screenshot-caption">
-      <span>Formulaire de simulation avec 9 champs (dates, code JS, options de contexte)</span>
-      <span class="caption-route">/simulation</span>
-      <span class="caption-zoom"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> zoom</span>
-    </figcaption>
-  </figure>
-
-  <a class="try-it" href="/simulation" target="_blank">Lancer une simulation</a>
-
-  <div class="card">
-    <p>La simulation simple est déclenchée depuis la <strong>fiche agent</strong> : on clique sur la JS de l'agent absent. Le système analyse automatiquement tous les autres agents et retourne deux groupes de résultats en parallèle :</p>
-    <ul style="margin-top:8px">
-      <li><strong>Sans figeage</strong> : agents disponibles sans modifier aucune JS planifiée</li>
-      <li><strong>Avec figeage</strong> : inclut les agents qu'on peut libérer en figeant une JS DERNIER_RECOURS</li>
-    </ul>
-    <p style="margin-top:10px;font-size:0.85em;color:#6b7280">⏱ <strong>Fenêtre temporelle ±9 jours</strong> : le moteur charge uniquement les lignes de planning dans une fenêtre de ±9 jours autour de la date de l'imprévu. Cela garantit la précision des calculs (repos journalier, GPT, conflicts induits) sans charger l'intégralité de l'historique.</p>
-  </div>
-
-  <h3>Les 4 onglets de résultats</h3>
-  <div class="card-grid">
-    <div class="card" style="border-left:4px solid #16a34a">
-      <h4>✅ Mobilisables</h4>
-      <p>Agents <span class="badge badge-green">CONFORME</span> — toutes les règles sont respectées, aucun conflit induit. Mobilisation sans réserve.</p>
-    </div>
-    <div class="card" style="border-left:4px solid #ca8a04">
-      <h4>⚠ Vigilance</h4>
-      <p>Agents <span class="badge badge-yellow">VIGILANCE</span> — mobilisables mais avec un point d'attention. Validation encadrant requise.</p>
-    </div>
-    <div class="card" style="border-left:4px solid #dc2626">
-      <h4>✗ Non utilisables</h4>
-      <p>Agents <span class="badge badge-red">REFUSÉ</span> — violations bloquantes, ils ne peuvent pas prendre ce poste.</p>
-    </div>
-    <div class="card" style="border-left:4px solid #2563eb">
-      <h4><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Scénarios</h4>
-      <p>Propositions de réorganisation en cascade. Un agent bloqué peut être libéré par réaffectation d'un autre.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ══════════════════════════════════════════ SIM SIMPLE WORKFLOW -->
+<!-- ══════════════════════════════════════════ SIM WORKFLOW -->
 <section id="sim-simple-workflow">
   <div class="section-header">
     <div class="section-icon" style="background:#ede9fe"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></div>
@@ -1629,21 +1606,22 @@
 
     <div class="step">
       <div class="step-num">6</div>
-      <div class="step-title">Construction des scénarios</div>
+      <div class="step-title">Construction des 4 scénarios parallèles</div>
       <div class="step-body">
-        Chaque solution cascade devient un scénario, scoré de 0 à 100. Les scénarios sont triés par score décroissant (maximum 5 propositions).
+        Le moteur génère systématiquement <strong>4 scénarios</strong> en combinant deux axes : le périmètre du vivier (agents de réserve uniquement, ou tous les agents éligibles) et l'activation ou non du figeage. Chaque scénario est scoré globalement sur 0 à 100 et présenté côte à côte pour permettre la comparaison.
       </div>
     </div>
   </div>
 
   <div class="callout example">
     <div class="callout-title">💡 Exemple complet</div>
-    BELABBAS est absent le 16 mars (JS GIC006R 20h30–04h30).<br>
-    Le système analyse 23 agents → 4 mobilisables directs, 1 vigilance, 19 refusés, 2 scénarios.<br>
+    Trois JS imprévues sur la même journée (ex. 16 mars : GIC006R, PEY002S, VAL004N).<br>
+    Le système analyse l'ensemble des agents éligibles puis produit 4 scénarios parallèles :<br>
     <br>
-    <strong>Scénario 1</strong> : SEFOUHI reprend directement. Toutes règles OK. Score 92/100.<br>
-    <strong>Scénario 2</strong> : PANEL peut reprendre MAIS sa prochaine JS (17 mars PEY006R) crée un conflit repos.
-    → WERNER reprend la JS du 17 mars de PANEL → PANEL libéré pour le 16 mars. Score 54/100.
+    <strong>Réserve seule</strong> : couverture partielle avec les agents de réserve. Score global calculé sur la couverture totale.<br>
+    <strong>Tous agents</strong> : ouverture à l'ensemble du vivier. Taux de couverture généralement supérieur.<br>
+    <strong>Avec figeage</strong> : autorise à figer les agents déjà positionnés sur des JS en dernier recours pour libérer du monde.<br>
+    <strong>Sans figeage</strong> : pas de remaniement des agents déjà planifiés. Cascade seule pour résoudre les conflits.
   </div>
 </section>
 
@@ -2016,41 +1994,6 @@
     </div>
   </div>
 
-  <h3>Lancer une simulation JS simple</h3>
-  <div class="steps" style="padding-left:32px">
-    <div class="step">
-      <div class="step-num">1</div>
-      <div class="step-title">Ouvrir la fiche d'un agent absent</div>
-      <div class="step-body">Depuis <strong>Agents</strong> → cliquer sur l'agent concerné.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <div class="step-title">Cliquer sur la JS à couvrir dans le planning</div>
-      <div class="step-body">La JS imprévisible s'affiche en surbrillance. Le panneau d'analyse s'ouvre à droite.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <div class="step-title">Configurer le contexte (optionnel)</div>
-      <div class="step-body">
-        <ul>
-          <li><strong>Imprévu partiel</strong> : si l'absence ne commence pas à l'heure prévue</li>
-          <li><strong>Remplacement</strong> : cocher si l'agent qui vient remplace (seuils TE/repos assouplis)</li>
-          <li><strong>Commentaire</strong> : note libre pour traçabilité</li>
-        </ul>
-      </div>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <div class="step-title">Cliquer sur "Analyser l'imprévu"</div>
-      <div class="step-body">Le moteur lance l'analyse et affiche les résultats dans les 4 onglets.</div>
-    </div>
-    <div class="step">
-      <div class="step-num">5</div>
-      <div class="step-title">Basculer "Sans figeage / Avec figeage"</div>
-      <div class="step-body">Si le mode "Avec figeage" apporte des agents supplémentaires, un badge "+N agents" l'indique.</div>
-    </div>
-  </div>
-
   <h3>Carte candidat — Détail des calculs</h3>
   <p>Cliquer sur <strong>"Détail des règles"</strong> dans une carte candidat ou dans un nœud de cascade pour voir :</p>
   <div class="card-grid">
@@ -2227,9 +2170,7 @@
     <tbody>
       <tr><td>Import Planning</td><td>Charger un fichier Excel/TXT de planning</td><td class="green">✓</td><td class="green">✓</td></tr>
       <tr><td>Agents</td><td>Consulter et modifier les fiches agents</td><td class="green">✓</td><td class="green">✓</td></tr>
-      <tr><td>Simulation JS</td><td>Simuler le remplacement d'un agent</td><td class="green">✓</td><td class="green">✓</td></tr>
-      <tr><td>Simulation Multi-JS</td><td>Simuler une perturbation multi-postes</td><td class="green">✓</td><td class="green">✓</td></tr>
-      <tr><td>Résultats</td><td>Historique des simulations</td><td class="green">✓</td><td class="green">✓</td></tr>
+      <tr><td>Simulation Multi-JS</td><td>Couvrir une ou plusieurs JS avec 4 scénarios parallèles</td><td class="green">✓</td><td class="green">✓</td></tr>
       <tr><td>LPA</td><td>Gérer les Lieux Principaux d'Affectation</td><td class="red">✗</td><td class="green">✓</td></tr>
       <tr><td>Règles métier</td><td>Paramétrer les seuils réglementaires</td><td class="red">✗</td><td class="green">✓</td></tr>
       <tr><td>Utilisateurs</td><td>Gérer les comptes utilisateurs</td><td class="red">✗</td><td class="green">✓</td></tr>
@@ -3073,53 +3014,6 @@
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════ ADMIN — HISTORIQUE SIMU -->
-<section id="admin-history">
-  <div class="section-header">
-    <div class="section-icon" style="background:#fef3c7"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg></div>
-    <div>
-      <h2>Historique des simulations</h2>
-      <p>Consulter, rejouer, exporter, supprimer</p>
-    </div>
-  </div>
-
-  <figure class="screenshot">
-    <img src="/mode-operatoire-assets/07-resultats-historique.png" alt="Historique des simulations">
-    <figcaption class="screenshot-caption">
-      <span>Liste chronologique des simulations effectuées avec possibilité de rejeu</span>
-      <span class="caption-route">/resultats</span>
-      <span class="caption-zoom"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> zoom</span>
-    </figcaption>
-  </figure>
-
-  <a class="try-it" href="/resultats" target="_blank">Voir l'historique des simulations</a>
-
-  <p>Écran : <code>/resultats</code>. Liste toutes les simulations (JS simple et multi-JS) effectuées par tous les utilisateurs.</p>
-
-  <h3>Informations enregistrées par simulation</h3>
-  <table>
-    <thead><tr><th>Catégorie</th><th>Informations conservées</th></tr></thead>
-    <tbody>
-      <tr><td><strong>Contexte de saisie</strong></td><td>Date/heure, utilisateur, paramètres du poste, cases cochées</td></tr>
-      <tr><td><strong>Portée</strong></td><td>Liste des agents analysés, mode (tous/réserve)</td></tr>
-      <tr><td><strong>Résultats</strong></td><td>Statut, score, motif, violations, valeurs calculées par agent</td></tr>
-      <tr><td><strong>Scénarios</strong></td><td>Combinaisons, taux de couverture, robustesse, JS non couverts</td></tr>
-      <tr><td><strong>Snapshot planning</strong></td><td>Permet de rejouer à l'identique même si le planning a changé</td></tr>
-    </tbody>
-  </table>
-
-  <h3>Actions disponibles</h3>
-  <table>
-    <thead><tr><th>Action</th><th>USER</th><th>ADMIN</th><th>Commentaire</th></tr></thead>
-    <tbody>
-      <tr><td>Consulter le détail</td><td class="green">✓</td><td class="green">✓</td><td>Accès à tous les résultats</td></tr>
-      <tr><td>Rejouer la simulation</td><td class="green">✓</td><td class="green">✓</td><td>Avec planning actuel (résultat peut différer)</td></tr>
-      <tr><td>Exporter en Excel</td><td class="green">✓</td><td class="green">✓</td><td>Détail tabulaire</td></tr>
-      <tr><td>Supprimer</td><td class="red">✗</td><td class="green">✓</td><td>Définitif, tracé</td></tr>
-    </tbody>
-  </table>
-</section>
-
 <!-- ══════════════════════════════════════════ ADMIN — IMPACT PARAMÈTRES -->
 <section id="admin-impact">
   <div class="section-header">
@@ -3467,7 +3361,6 @@
     <div class="term-card"><div class="term">User</div><div class="def">Comptes utilisateurs, rôles, statut inscription, bcrypt hashes.</div></div>
     <div class="term-card"><div class="term">Agent</div><div class="def">Agents avec matricule, habilitations (JSON), LPA de rattachement, soft delete.</div></div>
     <div class="term-card"><div class="term">PlanningImport / PlanningLigne</div><div class="def">Imports de planning et leurs lignes individuelles (JS + NPO).</div></div>
-    <div class="term-card"><div class="term">Simulation / SimulationResult</div><div class="def">Simulations effectuées et leurs résultats détaillés par agent.</div></div>
     <div class="term-card"><div class="term">Lpa / JsType / LpaJsType</div><div class="def">Référentiel géographique et associations.</div></div>
     <div class="term-card"><div class="term">WorkRule</div><div class="def">Paramètres métier (25 règles) avec clé + valeur.</div></div>
     <div class="term-card"><div class="term">AgentJsDeplacementRule</div><div class="def">Règles de trajet personnalisées par agent et par type de JS.</div></div>
@@ -3481,7 +3374,6 @@
     <tbody>
       <tr><td>Utilisateurs simultanés</td><td>&lt; 50</td><td>Au-delà, envisager PostgreSQL (migration facile via Prisma)</td></tr>
       <tr><td>Taille du fichier planning</td><td>&lt; 50 000 lignes</td><td>Traitement plus lent au-delà</td></tr>
-      <tr><td>Historique simulations</td><td>Illimité</td><td>Croissance base — archivage périodique recommandé</td></tr>
       <tr><td>Durée de session</td><td>8 heures</td><td>Reconnexion après expiration</td></tr>
     </tbody>
   </table>
@@ -3586,20 +3478,27 @@ document.querySelectorAll('.collapsible').forEach(el => {
 // ── SEARCH ────────────────────────────────────────────────────────────────
 
 let searchTimeout;
+const searchState = { matches: [], index: -1 };
+
 function handleSearch(val) {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
-    // Remove existing highlights
     document.querySelectorAll('.highlight').forEach(el => {
-      el.outerHTML = el.textContent;
+      const txt = document.createTextNode(el.textContent);
+      el.parentNode.replaceChild(txt, el);
     });
+    searchState.matches = [];
+    searchState.index = -1;
 
-    if (!val.trim()) return;
+    if (!val.trim()) {
+      updateSearchNav(false);
+      return;
+    }
 
     const regex = new RegExp(`(${val.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
 
     function highlightNode(node) {
-      if (node.nodeType === 3) { // text node
+      if (node.nodeType === 3) {
         if (regex.test(node.textContent)) {
           const span = document.createElement('span');
           span.innerHTML = node.textContent.replace(regex, '<span class="highlight">$1</span>');
@@ -3609,14 +3508,50 @@ function handleSearch(val) {
         Array.from(node.childNodes).forEach(highlightNode);
       }
     }
-
-    // Only search in main content
     highlightNode(document.getElementById('main'));
 
-    // Scroll to first result
-    const first = document.querySelector('.highlight');
-    if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    searchState.matches = [...document.querySelectorAll('.highlight')];
+    updateSearchNav(true);
+    if (searchState.matches.length > 0) gotoMatch(0, true);
   }, 300);
+}
+
+function gotoMatch(deltaOrAbs, absolute = false) {
+  const n = searchState.matches.length;
+  if (n === 0) return;
+  searchState.index = absolute
+    ? ((deltaOrAbs % n) + n) % n
+    : ((searchState.index + deltaOrAbs) % n + n) % n;
+  searchState.matches.forEach(el => el.classList.remove('current'));
+  const cur = searchState.matches[searchState.index];
+  cur.classList.add('current');
+  cur.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  updateSearchNav(true);
+}
+
+function updateSearchNav(hasQuery) {
+  const nav = document.getElementById('search-nav');
+  const counter = document.getElementById('search-counter');
+  const prev = document.getElementById('search-prev');
+  const next = document.getElementById('search-next');
+  const n = searchState.matches.length;
+  if (!hasQuery) {
+    nav.classList.remove('active');
+    counter.textContent = '0/0';
+    return;
+  }
+  nav.classList.add('active');
+  counter.textContent = n > 0 ? `${searchState.index + 1}/${n}` : '0/0';
+  const disabled = n < 2;
+  prev.disabled = disabled;
+  next.disabled = disabled;
+}
+
+function handleSearchKey(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (searchState.matches.length > 0) gotoMatch(e.shiftKey ? -1 : 1);
+  }
 }
 
 // ── KEYBOARD ──────────────────────────────────────────────────────────────

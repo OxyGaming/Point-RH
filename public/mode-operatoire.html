@@ -1480,7 +1480,7 @@
     <li>Un agent est <strong>identifié par son matricule</strong> (code immatriculation). Si l'agent existe déjà, son profil est mis à jour (upsert).</li>
     <li>Chaque import est <strong>cumulatif</strong> : un même créneau (même agent + date + heure de début) est mis à jour si il existe déjà dans le planning.</li>
     <li>En cas d'erreur sur une ligne, la ligne est ignorée (les autres sont importées).</li>
-    <li><strong>Rétention automatique M-3</strong> : les lignes de planning dont la date de fin est antérieure à 3 mois sont supprimées automatiquement après chaque import (nettoyage en arrière-plan, sans blocage). Les agents ne sont jamais supprimés.</li>
+    <li><strong>Rétention automatique M-6</strong> : les lignes de planning dont la date de fin est antérieure à 6 mois sont supprimées automatiquement après chaque import (nettoyage en arrière-plan, sans blocage). Les agents ne sont jamais supprimés.</li>
   </ul>
 </section>
 

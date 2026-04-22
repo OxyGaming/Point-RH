@@ -26,7 +26,7 @@ export default async function ActiveDataBanner() {
           <h2 className="text-[15px] font-[700] text-[#0f1b4c] mt-0.5">Données disponibles</h2>
         </div>
         <span className="text-[10px] text-[#8b93b8] bg-[#f1f5f9] rounded-full px-2.5 py-1 font-[500]">
-          Rétention 3 mois
+          Rétention 6 mois
         </span>
       </div>
 

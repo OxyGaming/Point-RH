@@ -10,7 +10,7 @@
  *         -H "Authorization: Bearer <jwt-admin>"
  *
  * Effets :
- *   - supprime les PlanningLigne dont dateFinPop < aujourd'hui - 3 mois ;
+ *   - supprime les PlanningLigne dont dateFinPop < aujourd'hui - 6 mois ;
  *   - purge les PlanningImport antérieurs au seuil et sans ligne associée ;
  *   - ne touche jamais aux agents (rémanence garantie) ;
  *   - idempotent : peut être rejoué sans effet de bord.

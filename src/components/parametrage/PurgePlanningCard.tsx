@@ -20,7 +20,7 @@ export default function PurgePlanningCard() {
 
   async function handlePurge() {
     const ok = window.confirm(
-      "Cette action supprime définitivement les lignes de planning dont la date de fin est antérieure à aujourd'hui - 3 mois, ainsi que les imports devenus orphelins.\n\nLes agents et le paramétrage ne sont pas impactés.\n\nConfirmer la purge ?"
+      "Cette action supprime définitivement les lignes de planning dont la date de fin est antérieure à aujourd'hui - 6 mois, ainsi que les imports devenus orphelins.\n\nLes agents et le paramétrage ne sont pas impactés.\n\nConfirmer la purge ?"
     );
     if (!ok) return;
 
@@ -46,7 +46,7 @@ export default function PurgePlanningCard() {
       <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
         <h2 className="font-semibold text-slate-800">Maintenance — Purge planning</h2>
         <p className="text-xs text-slate-500 mt-0.5">
-          Supprime les lignes de planning terminées depuis plus de 3 mois et les imports devenus orphelins.
+          Supprime les lignes de planning terminées depuis plus de 6 mois et les imports devenus orphelins.
           Les agents et le paramétrage sont préservés. Opération idempotente.
         </p>
       </div>

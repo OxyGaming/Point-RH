@@ -19,7 +19,7 @@
  */
 import { prisma } from "@/lib/prisma";
 
-const RETENTION_MONTHS = 3;
+const RETENTION_MONTHS = 6;
 
 export interface CleanupResult {
   lignesDeleted: number;

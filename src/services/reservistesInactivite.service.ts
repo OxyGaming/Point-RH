@@ -82,13 +82,19 @@ export async function getReservistesInactivite(userId: string): Promise<Reservis
     habilitations: parseHabilitations(a.habilitations),
   }));
 
-  // 3. Toutes les lignes JS pour ces agents en une requête
+  // 3. Toutes les lignes JS passées pour ces agents en une requête.
+  //    On exclut le futur (jourPlanning > aujourd'hui) : un planning programmé
+  //    à venir ne compte pas comme "a été affecté" — seules les affectations
+  //    déjà réalisées alimentent la mesure d'inactivité.
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
   const agentIds = agents.map((a) => a.id);
   const lignes = agentIds.length
     ? await prisma.planningLigne.findMany({
         where: {
           agentId: { in: agentIds },
           jsNpo: "JS",
+          jourPlanning: { lte: today },
         },
         select: { agentId: true, codeJs: true, jourPlanning: true },
       })
@@ -107,8 +113,6 @@ export async function getReservistesInactivite(userId: string): Promise<Reservis
   }
 
   // 5. Agrégation par (agent, préfixe)
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
   const todayMs = today.getTime();
   const MS_PER_DAY = 24 * 60 * 60 * 1000;
 

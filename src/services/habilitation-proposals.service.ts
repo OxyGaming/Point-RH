@@ -149,3 +149,73 @@ function parseHabilitations(raw: string): string[] {
     return [];
   }
 }
+
+/**
+ * Valide un lot de propositions : pour chaque agent, re-lit les habilitations
+ * fraîches depuis la base, merge avec les ajouts, sauvegarde + audit log.
+ * Les erreurs par agent (non bloquantes) sont accumulées dans `erreurs`.
+ */
+export async function validerPropositions(
+  validations: ValidationInput[],
+  actor: { id: string; email: string } | null,
+): Promise<ValidationResult> {
+  const result: ValidationResult = {
+    agentsMisAJour: 0,
+    prefixesAjoutes: 0,
+    erreurs: [],
+  };
+
+  for (const { agentId, prefixesAAjouter } of validations) {
+    try {
+      // Filtrage des préfixes vides en amont
+      const cleaned = prefixesAAjouter
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+      if (cleaned.length === 0) continue;
+
+      const agent = await prisma.agent.findUnique({
+        where: { id: agentId },
+        select: { id: true, habilitations: true, deletedAt: true },
+      });
+
+      if (!agent) {
+        result.erreurs.push({ agentId, message: "Agent introuvable." });
+        continue;
+      }
+      if (agent.deletedAt !== null) {
+        result.erreurs.push({ agentId, message: "Agent supprimé." });
+        continue;
+      }
+
+      const actuelles = parseHabilitations(agent.habilitations);
+      const nouvelles = mergerHabilitations(actuelles, cleaned);
+      const ajoutesEffectivement = nouvelles.filter((p) => !actuelles.includes(p));
+      if (ajoutesEffectivement.length === 0) continue; // tout déjà présent
+
+      await prisma.agent.update({
+        where: { id: agentId },
+        data: { habilitations: JSON.stringify(nouvelles) },
+      });
+
+      await logAudit("HABILITATION_AUTO_VALIDATED", "Agent", {
+        user: actor ? { id: actor.id, email: actor.email, role: "ADMIN", name: "" } : null,
+        entityId: agentId,
+        details: {
+          prefixesAjoutes: ajoutesEffectivement,
+          habilitationsApres: nouvelles,
+          source: "import-proposal",
+        },
+      });
+
+      result.agentsMisAJour += 1;
+      result.prefixesAjoutes += ajoutesEffectivement.length;
+    } catch (err) {
+      result.erreurs.push({
+        agentId,
+        message: err instanceof Error ? err.message : "Erreur inconnue.",
+      });
+    }
+  }
+
+  return result;
+}

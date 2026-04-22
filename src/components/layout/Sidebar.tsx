@@ -86,14 +86,22 @@ const IconPlanning = () => (
     <rect x="5" y="17" width="8" height="3" rx="1"/>
   </svg>
 );
+const IconReservistes = () => (
+  <svg className="w-[17px] h-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="8" r="4"/>
+    <path d="M4 21v-1a6 6 0 016-6h4a6 6 0 016 6v1"/>
+    <circle cx="18" cy="6" r="2.5" fill="currentColor" stroke="none"/>
+  </svg>
+);
 
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
 const NAV = [
-  { href: "/planning",             label: "Vue planning",         Icon: IconPlanning },
-  { href: "/import",               label: "Import planning",      Icon: IconImport },
-  { href: "/agents",               label: "Agents",               Icon: IconAgents },
-  { href: "/simulations/multi-js", label: "Simulation multi-JS",  Icon: IconMultiJs },
+  { href: "/planning",             label: "Vue planning",         Icon: IconPlanning,    badge: false },
+  { href: "/import",               label: "Import planning",      Icon: IconImport,      badge: false },
+  { href: "/agents",               label: "Agents",               Icon: IconAgents,      badge: false },
+  { href: "/reservistes",          label: "Réservistes",          Icon: IconReservistes, badge: true  },
+  { href: "/simulations/multi-js", label: "Simulation multi-JS",  Icon: IconMultiJs,     badge: false },
 ];
 
 const NAV_ADMIN = [
@@ -114,6 +122,7 @@ function NavLinks({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const { user, isAdmin, logout } = useAuth();
   const [pendingCount, setPendingCount] = useState(0);
+  const [reservistesAlerteCount, setReservistesAlerteCount] = useState(0);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -122,6 +131,18 @@ function NavLinks({ onClose }: { onClose?: () => void }) {
       .then((data: unknown[]) => setPendingCount(data.length))
       .catch(() => {});
   }, [isAdmin]);
+
+  useEffect(() => {
+    if (!user) return;
+    fetch("/api/reservistes/inactivite")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { alerteCount?: number } | null) => {
+        if (data && typeof data.alerteCount === "number") {
+          setReservistesAlerteCount(data.alerteCount);
+        }
+      })
+      .catch(() => {});
+  }, [user]);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
@@ -139,25 +160,37 @@ function NavLinks({ onClose }: { onClose?: () => void }) {
           Exploitation
         </p>
 
-        {NAV.map(({ href, label, Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            onClick={onClose}
-            className={cn(
-              "flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg text-[13px] font-medium transition-all relative",
-              isActive(href)
-                ? "bg-[rgba(37,99,235,0.22)] text-white"
-                : "text-white/55 hover:bg-white/7 hover:text-white"
-            )}
-          >
-            {isActive(href) && (
-              <span className="absolute left-[-12px] top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#60a5fa] rounded-r" />
-            )}
-            <Icon />
-            <span className="truncate">{label}</span>
-          </Link>
-        ))}
+        {NAV.map(({ href, label, Icon, badge }) => {
+          const badgeCount = badge && href === "/reservistes" ? reservistesAlerteCount : 0;
+          const showBadge = badgeCount > 0;
+          return (
+            <Link
+              key={href}
+              href={href}
+              onClick={onClose}
+              className={cn(
+                "flex items-center gap-2.5 px-2.5 py-[7px] rounded-lg text-[13px] font-medium transition-all relative",
+                isActive(href)
+                  ? "bg-[rgba(37,99,235,0.22)] text-white"
+                  : "text-white/55 hover:bg-white/7 hover:text-white"
+              )}
+            >
+              {isActive(href) && (
+                <span className="absolute left-[-12px] top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#60a5fa] rounded-r" />
+              )}
+              <Icon />
+              <span className="truncate flex-1">{label}</span>
+              {showBadge && (
+                <span
+                  className="shrink-0 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none"
+                  title={`${badgeCount} réserviste${badgeCount > 1 ? "s" : ""} avec une inactivité > 4 mois`}
+                >
+                  {badgeCount > 99 ? "99+" : badgeCount}
+                </span>
+              )}
+            </Link>
+          );
+        })}
 
         {/* Section Administration */}
         {isAdmin && (

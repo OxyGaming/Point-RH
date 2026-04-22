@@ -9,6 +9,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
+import type { SessionUser } from "@/lib/session";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ export interface CodeJsTenu {
   dernierJour: Date;
 }
 
-export interface HabilitationProposal extends CodeJsTenu {}
+export type HabilitationProposal = CodeJsTenu;
 
 export interface AgentProposals {
   agentId: string;
@@ -157,7 +158,7 @@ function parseHabilitations(raw: string): string[] {
  */
 export async function validerPropositions(
   validations: ValidationInput[],
-  actor: { id: string; email: string } | null,
+  actor: SessionUser | null,
 ): Promise<ValidationResult> {
   const result: ValidationResult = {
     agentsMisAJour: 0,
@@ -198,7 +199,7 @@ export async function validerPropositions(
       });
 
       await logAudit("HABILITATION_AUTO_VALIDATED", "Agent", {
-        user: actor ? { id: actor.id, email: actor.email, role: "ADMIN", name: "" } : null,
+        user: actor,
         entityId: agentId,
         details: {
           prefixesAjoutes: ajoutesEffectivement,

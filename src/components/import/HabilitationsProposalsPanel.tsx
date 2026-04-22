@@ -252,6 +252,7 @@ export default function HabilitationsProposalsPanel() {
         <input
           type="text"
           placeholder="Rechercher par nom, prénom, matricule…"
+          aria-label="Rechercher un agent"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full mb-3 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -282,6 +283,7 @@ export default function HabilitationsProposalsPanel() {
                     onChange={() => toggleOne(a.agentId, p.codeJs)}
                     disabled={submitting}
                     className="h-4 w-4"
+                    aria-label={`${p.codeJs} pour ${a.nom} ${a.prenom}`}
                   />
                   <span className="font-mono font-medium text-blue-700">{p.codeJs}</span>
                   <span className="text-xs text-gray-500">

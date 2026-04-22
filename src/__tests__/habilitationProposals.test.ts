@@ -47,6 +47,10 @@ describe("mergerHabilitations", () => {
   it("trim chaque préfixe ajouté", () => {
     expect(mergerHabilitations([], [" GIC ", "BAD"])).toEqual(["BAD", "GIC"]);
   });
+
+  it("idempotent : ajouter un préfixe déjà présent n'introduit pas de doublon", () => {
+    expect(mergerHabilitations(["GIC"], ["GIC"])).toEqual(["GIC"]);
+  });
 });
 
 describe("computeAgentProposals", () => {

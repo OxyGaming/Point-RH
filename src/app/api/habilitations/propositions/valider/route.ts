@@ -47,10 +47,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await validerPropositions(validations, {
-      id: auth.user.id,
-      email: auth.user.email,
-    });
+    const result = await validerPropositions(validations, auth.user);
     return NextResponse.json({ success: true, ...result });
   } catch (err) {
     console.error("[API/habilitations/propositions/valider]", err);

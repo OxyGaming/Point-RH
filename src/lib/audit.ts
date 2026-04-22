@@ -24,7 +24,8 @@ export type AuditAction =
   | "APPROVE_REGISTRATION"
   | "REJECT_REGISTRATION"
   | "RESTORE_AGENT"
-  | "CLEANUP_PLANNING";
+  | "CLEANUP_PLANNING"
+  | "HABILITATION_AUTO_VALIDATED";
 
 export async function logAudit(
   action: AuditAction,

@@ -13,6 +13,13 @@ interface Props {
   data: ReservistesInactiviteData;
 }
 
+// ─── Largeurs colonnes figées (doivent correspondre entre thead/tbody) ────────
+const COL_AGENT_W = 180;
+const COL_MAT_W = 96;
+const COL_UCH_W = 120;
+const STICKY_MAT_LEFT = COL_AGENT_W;
+const STICKY_UCH_LEFT = COL_AGENT_W + COL_MAT_W;
+
 /**
  * Couleur d'une cellule (gradient HSL vert → rouge linéaire sur 0–180 jours).
  * Null = "jamais affecté" → gris neutre distinct du rouge.
@@ -23,7 +30,7 @@ function cellStyle(jours: number | null, seuil: number): React.CSSProperties {
     return { background: "#e2e8f0", color: "#475569" };
   }
   const capped = Math.min(jours, 180);
-  const hue = 120 - (capped / 180) * 120; // 120 (vert) → 0 (rouge)
+  const hue = 120 - (capped / 180) * 120;
   const over = jours > seuil;
   return {
     background: `hsl(${hue}, ${over ? 72 : 62}%, ${over ? 52 : 74}%)`,
@@ -31,10 +38,11 @@ function cellStyle(jours: number | null, seuil: number): React.CSSProperties {
   };
 }
 
-function agentMaxInactivite(row: ReservisteRow): number {
+function agentMaxInactiviteSurPrefixes(row: ReservisteRow, prefixes: string[]): number {
   let max = -1;
-  for (const c of Object.values(row.cellules)) {
-    if (c.joursInactivite !== null && c.joursInactivite > max) max = c.joursInactivite;
+  for (const p of prefixes) {
+    const c = row.cellules[p];
+    if (c && c.joursInactivite !== null && c.joursInactivite > max) max = c.joursInactivite;
   }
   return max;
 }
@@ -52,6 +60,13 @@ function formatCellTooltip(c: CelluleInactivite, prefixe: string): string {
 export default function ReservistesInactiviteTable({ data }: Props) {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortMode>("inactivite");
+  const [hiddenPrefixes, setHiddenPrefixes] = useState<Set<string>>(new Set());
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  const visiblePrefixes = useMemo(
+    () => data.prefixes.filter((p) => !hiddenPrefixes.has(p)),
+    [data.prefixes, hiddenPrefixes]
+  );
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -69,10 +84,29 @@ export default function ReservistesInactiviteTable({ data }: Props) {
     if (sort === "nom") {
       sorted.sort((a, b) => a.nom.localeCompare(b.nom) || a.prenom.localeCompare(b.prenom));
     } else {
-      sorted.sort((a, b) => agentMaxInactivite(b) - agentMaxInactivite(a));
+      sorted.sort(
+        (a, b) =>
+          agentMaxInactiviteSurPrefixes(b, visiblePrefixes) -
+          agentMaxInactiviteSurPrefixes(a, visiblePrefixes)
+      );
     }
     return sorted;
-  }, [data.reservistes, search, sort]);
+  }, [data.reservistes, search, sort, visiblePrefixes]);
+
+  function togglePrefix(p: string) {
+    setHiddenPrefixes((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p);
+      else next.add(p);
+      return next;
+    });
+  }
+  function showAllPrefixes() {
+    setHiddenPrefixes(new Set());
+  }
+  function hideAllPrefixes() {
+    setHiddenPrefixes(new Set(data.prefixes));
+  }
 
   if (data.reservistes.length === 0) {
     return (
@@ -118,10 +152,65 @@ export default function ReservistesInactiviteTable({ data }: Props) {
           </button>
         </div>
 
+        <button
+          onClick={() => setFilterOpen((v) => !v)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-[600] rounded-md border transition-colors ${filterOpen ? "border-[#2563eb] bg-[#eff6ff] text-[#1e40af]" : "border-[#e2e8f5] bg-white text-[#4a5580] hover:text-[#0f1b4c]"}`}
+          aria-expanded={filterOpen}
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+          </svg>
+          Préfixes {visiblePrefixes.length}/{data.prefixes.length}
+          <svg className={`w-3 h-3 transition-transform ${filterOpen ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+
         <p className="text-[12px] text-[#4a5580] sm:ml-auto">
           {rows.length} / {data.reservistes.length} réserviste{data.reservistes.length > 1 ? "s" : ""}
         </p>
       </div>
+
+      {/* Panneau filtre préfixes (repliable) */}
+      {filterOpen && (
+        <div className="bg-white border border-[#e2e8f5] rounded-xl p-3">
+          <div className="flex flex-wrap items-center gap-2 mb-2.5">
+            <span className="text-[11px] font-[600] text-[#0f1b4c]">Préfixes affichés</span>
+            <button
+              onClick={showAllPrefixes}
+              className="text-[11px] font-[600] text-[#2563eb] hover:text-[#1e40af] px-2 py-0.5 rounded hover:bg-[#eff6ff]"
+            >
+              Tout
+            </button>
+            <button
+              onClick={hideAllPrefixes}
+              className="text-[11px] font-[600] text-[#64748b] hover:text-[#0f1b4c] px-2 py-0.5 rounded hover:bg-[#f1f5f9]"
+            >
+              Aucun
+            </button>
+            <span className="text-[11px] text-[#8b93b8] ml-auto">Clique sur une pastille pour afficher/masquer</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {data.prefixes.map((p) => {
+              const hidden = hiddenPrefixes.has(p);
+              return (
+                <button
+                  key={p}
+                  onClick={() => togglePrefix(p)}
+                  className={`px-2 py-1 text-[11px] font-[600] rounded-md border transition-colors ${
+                    hidden
+                      ? "border-[#e2e8f5] bg-white text-[#8b93b8] hover:border-[#cbd5e1]"
+                      : "border-[#2563eb] bg-[#eff6ff] text-[#1e40af] hover:bg-[#dbeafe]"
+                  }`}
+                  aria-pressed={!hidden}
+                >
+                  {p}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Légende */}
       <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#4a5580] bg-[#f8fafc] border border-[#e2e8f5] rounded-lg px-3 py-2">
@@ -141,79 +230,108 @@ export default function ReservistesInactiviteTable({ data }: Props) {
       </div>
 
       {/* Tableau croisé */}
-      <div className="bg-white border border-[#e2e8f5] rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(15,27,76,0.07)]">
-        <div className="overflow-auto max-h-[70vh]">
-          <table className="min-w-full text-[12px] border-collapse">
-            <thead className="sticky top-0 z-20 bg-[#0f1b4c] text-white">
-              <tr>
-                <th className="sticky left-0 z-30 bg-[#0f1b4c] text-left font-[600] px-3 py-2.5 min-w-[160px] border-r border-white/10">
-                  Agent
-                </th>
-                <th className="text-left font-[600] px-3 py-2.5 min-w-[80px] border-r border-white/10">
-                  Matricule
-                </th>
-                <th className="text-left font-[600] px-3 py-2.5 min-w-[60px] border-r border-white/10">
-                  UCH
-                </th>
-                {data.prefixes.map((p) => (
-                  <th
-                    key={p}
-                    className="text-center font-[700] px-2 py-2.5 min-w-[64px] tracking-wide"
-                    title={`Préfixe JS ${p}`}
-                  >
-                    {p}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => (
-                <tr key={row.id} className={i % 2 === 0 ? "bg-white" : "bg-[#f8fafc]"}>
-                  <td className={`sticky left-0 z-10 ${i % 2 === 0 ? "bg-white" : "bg-[#f8fafc]"} px-3 py-2 font-[600] text-[#0f1b4c] border-r border-[#e2e8f5]`}>
-                    <div className="truncate max-w-[180px]">
-                      {row.nom} {row.prenom}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-[#4a5580] border-r border-[#e2e8f5] font-mono text-[11px]">
-                    {row.matricule}
-                  </td>
-                  <td className="px-3 py-2 text-[#4a5580] border-r border-[#e2e8f5]">
-                    {row.uch ?? "—"}
-                  </td>
-                  {data.prefixes.map((p) => {
-                    const c = row.cellules[p];
-                    if (!c) {
-                      return (
-                        <td
-                          key={p}
-                          className="text-center px-1 py-2 text-[#cbd5e1]"
-                          title={`${p} — non habilité`}
-                        >
-                          ·
-                        </td>
-                      );
-                    }
-                    return (
-                      <td
-                        key={p}
-                        className="text-center px-1 py-1"
-                        title={formatCellTooltip(c, p)}
-                      >
-                        <span
-                          className="inline-flex items-center justify-center min-w-[52px] px-2 py-1 rounded-md font-[600] text-[11px] leading-tight"
-                          style={cellStyle(c.joursInactivite, data.seuilAlerteJours)}
-                        >
-                          {formatCellLabel(c)}
-                        </span>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {visiblePrefixes.length === 0 ? (
+        <div className="bg-white border border-[#e2e8f5] rounded-xl p-8 text-center">
+          <p className="text-[13px] text-[#4a5580]">
+            Aucun préfixe sélectionné — utilise le bouton « Préfixes » pour en réafficher.
+          </p>
         </div>
-      </div>
+      ) : (
+        <div className="bg-white border border-[#e2e8f5] rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(15,27,76,0.07)]">
+          <div className="overflow-auto max-h-[70vh]">
+            <table className="min-w-full text-[12px] border-collapse">
+              <thead className="sticky top-0 z-20 bg-[#0f1b4c] text-white">
+                <tr>
+                  <th
+                    style={{ left: 0, width: COL_AGENT_W, minWidth: COL_AGENT_W }}
+                    className="sticky z-30 bg-[#0f1b4c] text-left font-[600] px-3 py-2.5 border-r border-white/10"
+                  >
+                    Agent
+                  </th>
+                  <th
+                    style={{ left: STICKY_MAT_LEFT, width: COL_MAT_W, minWidth: COL_MAT_W }}
+                    className="sticky z-30 bg-[#0f1b4c] text-left font-[600] px-3 py-2.5 border-r border-white/10"
+                  >
+                    Matricule
+                  </th>
+                  <th
+                    style={{ left: STICKY_UCH_LEFT, width: COL_UCH_W, minWidth: COL_UCH_W }}
+                    className="sticky z-30 bg-[#0f1b4c] text-left font-[600] px-3 py-2.5 border-r border-white/10 shadow-[2px_0_0_0_rgba(255,255,255,0.08)]"
+                  >
+                    UCH
+                  </th>
+                  {visiblePrefixes.map((p) => (
+                    <th
+                      key={p}
+                      className="text-center font-[700] px-1.5 py-2.5 min-w-[52px] tracking-wide"
+                      title={`Préfixe JS ${p}`}
+                    >
+                      {p}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => {
+                  const rowBg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
+                  return (
+                    <tr key={row.id} style={{ background: rowBg }}>
+                      <td
+                        style={{ left: 0, width: COL_AGENT_W, minWidth: COL_AGENT_W, background: rowBg }}
+                        className="sticky z-10 px-3 py-2 font-[600] text-[#0f1b4c] border-r border-[#e2e8f5]"
+                      >
+                        <div className="truncate">
+                          {row.nom} {row.prenom}
+                        </div>
+                      </td>
+                      <td
+                        style={{ left: STICKY_MAT_LEFT, width: COL_MAT_W, minWidth: COL_MAT_W, background: rowBg }}
+                        className="sticky z-10 px-3 py-2 text-[#4a5580] border-r border-[#e2e8f5] font-mono text-[11px]"
+                      >
+                        {row.matricule}
+                      </td>
+                      <td
+                        style={{ left: STICKY_UCH_LEFT, width: COL_UCH_W, minWidth: COL_UCH_W, background: rowBg }}
+                        className="sticky z-10 px-3 py-2 text-[#4a5580] border-r border-[#e2e8f5] shadow-[2px_0_0_0_rgba(15,27,76,0.05)] truncate"
+                      >
+                        {row.uch ?? "—"}
+                      </td>
+                      {visiblePrefixes.map((p) => {
+                        const c = row.cellules[p];
+                        if (!c) {
+                          return (
+                            <td
+                              key={p}
+                              className="text-center px-1 py-2 text-[#cbd5e1]"
+                              title={`${p} — non habilité`}
+                            >
+                              ·
+                            </td>
+                          );
+                        }
+                        return (
+                          <td
+                            key={p}
+                            className="text-center px-0.5 py-1"
+                            title={formatCellTooltip(c, p)}
+                          >
+                            <span
+                              className="inline-flex items-center justify-center min-w-[42px] px-1.5 py-0.5 rounded-md font-[600] text-[10.5px] leading-tight"
+                              style={cellStyle(c.joursInactivite, data.seuilAlerteJours)}
+                            >
+                              {formatCellLabel(c)}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

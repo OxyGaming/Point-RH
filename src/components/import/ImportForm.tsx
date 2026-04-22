@@ -35,19 +35,53 @@ export default function ImportForm() {
     const fd = new FormData();
     fd.append("file", file);
 
+    const emptyResult = {
+      success: false as const,
+      lignesCreees: 0, lignesMisesAJour: 0,
+      agentsCreated: 0, agentsUpdated: 0,
+    };
+
     try {
       const res = await fetch("/api/import", { method: "POST", body: fd });
-      const data: ImportResult = await res.json();
-      setResult(data);
+
+      const contentType = res.headers.get("content-type") ?? "";
+      const isJson = contentType.includes("application/json");
+
+      if (!isJson) {
+        const text = await res.text().catch(() => "");
+        const snippet = text.slice(0, 200).replace(/\s+/g, " ").trim();
+        setResult({
+          ...emptyResult,
+          erreurs: [{
+            ligne: 0,
+            message: `HTTP ${res.status} — réponse non-JSON${snippet ? ` : ${snippet}` : ""}`,
+          }],
+        });
+        return;
+      }
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setResult({
+          ...emptyResult,
+          erreurs: [{
+            ligne: 0,
+            message: `HTTP ${res.status}${data?.error ? ` — ${data.error}` : ""}`,
+          }],
+        });
+        return;
+      }
+
+      setResult(data as ImportResult);
       if (data.success) {
         router.refresh();
       }
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       setResult({
-        success: false,
-        lignesCreees: 0, lignesMisesAJour: 0,
-        agentsCreated: 0, agentsUpdated: 0,
-        erreurs: [{ ligne: 0, message: "Erreur réseau" }],
+        ...emptyResult,
+        erreurs: [{ ligne: 0, message: `Erreur réseau — ${message}` }],
       });
     } finally {
       setLoading(false);

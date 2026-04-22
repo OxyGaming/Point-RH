@@ -1,6 +1,7 @@
 import ImportForm from "@/components/import/ImportForm";
 import ActiveDataBanner from "@/components/import/ActiveDataBanner";
 import { Card, CardBody, CardHeader, CardTitle, CardSubtitle } from "@/components/ui/Card";
+import { getSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,8 @@ const COLUMNS = [
 ];
 
 export default async function ImportPage() {
+  const session = await getSession();
+  const isAdmin = session?.role === "ADMIN";
   return (
     <div className="p-5 sm:p-7 lg:p-8 max-w-5xl">
 
@@ -46,7 +49,7 @@ export default async function ImportPage() {
             <CardSubtitle>Glissez ou cliquez pour sélectionner</CardSubtitle>
           </CardHeader>
           <CardBody>
-            <ImportForm />
+            <ImportForm isAdmin={isAdmin} />
           </CardBody>
         </Card>
 

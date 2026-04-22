@@ -4,8 +4,13 @@ import { useRouter } from "next/navigation";
 import { IconDownload } from "@/components/icons/Icons";
 import type { ImportResult } from "@/types/planning";
 import ImportResultMessage from "./ImportResultMessage";
+import HabilitationsProposalsPanel from "./HabilitationsProposalsPanel";
 
-export default function ImportForm() {
+interface Props {
+  isAdmin: boolean;
+}
+
+export default function ImportForm({ isAdmin }: Props) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -135,6 +140,7 @@ export default function ImportForm() {
       </form>
 
       {result && <ImportResultMessage result={result} />}
+      {result?.success && isAdmin && <HabilitationsProposalsPanel />}
     </div>
   );
 }

@@ -67,3 +67,85 @@ export function computeAgentProposals(
     .filter((c) => !isCouvert(c.codeJs, habilitationsActuelles))
     .sort((a, b) => a.codeJs.localeCompare(b.codeJs));
 }
+
+// ─── Accès DB ─────────────────────────────────────────────────────────────────
+
+/**
+ * Calcule toutes les propositions d'habilitations à partir de l'historique
+ * complet de PlanningLigne. Retourne uniquement les agents AYANT au moins
+ * une proposition (les autres sont filtrés).
+ */
+export async function calculerPropositionsHabilitations(): Promise<AgentProposals[]> {
+  // 1. Agents actifs (non soft-deleted)
+  const agents = await prisma.agent.findMany({
+    where: { deletedAt: null },
+    select: {
+      id: true,
+      matricule: true,
+      nom: true,
+      prenom: true,
+      habilitations: true,
+    },
+  });
+
+  // 2. Aggregation SQL : (agentId, codeJs) → COUNT + MAX(jourPlanning)
+  //    Filtre : jsNpo = "JS" (exclut NPO) + codeJs non null/vide.
+  const rows = await prisma.planningLigne.groupBy({
+    by: ["agentId", "codeJs"],
+    where: {
+      agentId: { not: null },
+      jsNpo: "JS",
+      codeJs: { not: null },
+    },
+    _count: { _all: true },
+    _max: { jourPlanning: true },
+  });
+
+  // 3. Indexation par agentId pour accès O(1)
+  const byAgent = new Map<string, CodeJsTenu[]>();
+  for (const row of rows) {
+    if (!row.agentId || !row.codeJs) continue;
+    const code = row.codeJs.trim();
+    if (code.length === 0) continue;
+    const tenu: CodeJsTenu = {
+      codeJs: code,
+      nbJoursTenus: row._count._all,
+      dernierJour: row._max.jourPlanning ?? new Date(0),
+    };
+    const list = byAgent.get(row.agentId) ?? [];
+    list.push(tenu);
+    byAgent.set(row.agentId, list);
+  }
+
+  // 4. Calcul par agent → garder ceux avec ≥ 1 proposition
+  const result: AgentProposals[] = [];
+  for (const agent of agents) {
+    const actuelles = parseHabilitations(agent.habilitations);
+    const tenus = byAgent.get(agent.id) ?? [];
+    const propositions = computeAgentProposals(actuelles, tenus);
+    if (propositions.length === 0) continue;
+    result.push({
+      agentId: agent.id,
+      matricule: agent.matricule,
+      nom: agent.nom,
+      prenom: agent.prenom,
+      habilitationsActuelles: actuelles,
+      propositions,
+    });
+  }
+
+  // 5. Tri par nom, prenom
+  result.sort((a, b) => a.nom.localeCompare(b.nom) || a.prenom.localeCompare(b.prenom));
+  return result;
+}
+
+/** Parse le JSON d'habilitations avec fallback vide en cas de corruption. */
+function parseHabilitations(raw: string): string[] {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is string => typeof x === "string");
+  } catch {
+    return [];
+  }
+}

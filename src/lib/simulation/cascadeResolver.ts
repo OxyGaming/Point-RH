@@ -165,9 +165,31 @@ export function tenterResolutionCascade(
   const jsDebut = conflictingEvent.dateDebut;
   const jsFin   = conflictingEvent.dateFin;
 
+  // Pré-calculs partagés pour le filtre d'habilitation (sortis de la boucle)
+  const conflictCode = conflictingEvent.codeJs ?? null;
+  const conflictHdBase = conflictingEvent.heureDebutJsType ?? conflictingEvent.heureDebut;
+  const conflictHfBase = conflictingEvent.heureFinJsType   ?? conflictingEvent.heureFin;
+  const conflictEstNuit = isJsDeNuit(conflictHdBase, conflictHfBase, {
+    debutSoirMin: rules.periodeNocturne.debutSoir,
+    finMatinMin:  rules.periodeNocturne.finMatin,
+    seuilMin:     rules.periodeNocturne.seuilJsNuit,
+  });
+
   for (const autre of autresAgents) {
     // Anti-cycle : ne pas réutiliser un agent déjà dans la chaîne
     if (agentsEngages.has(autre.context.id)) continue;
+
+    // Habilitation : préfixe JS autorisé pour ce code (même filtre que preFilterCandidats).
+    // Évite des milliers d'evaluerMobilisabilite pour des agents de toute façon non éligibles.
+    if (autre.context.prefixesJs.length === 0) continue;
+    if (conflictCode) {
+      const codeUp = conflictCode.toUpperCase();
+      const autorise = autre.context.prefixesJs.some((p) => codeUp.startsWith(p.toUpperCase()));
+      if (!autorise) continue;
+    }
+
+    // Habilitation nuit
+    if (conflictEstNuit && !autre.context.peutFaireNuit) continue;
 
     // Déjà en service sur ce créneau
     const dejaPris = autre.events.some(

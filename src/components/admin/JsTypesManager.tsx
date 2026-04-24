@@ -365,7 +365,7 @@ export default function JsTypesManager() {
       {/* ── Tableau ─────────────────────────────────────────────────────── */}
       <div className="border border-gray-200 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[720px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Code</th>
@@ -481,7 +481,7 @@ export default function JsTypesManager() {
                             type="button"
                             onClick={() => editingId === t.id ? setEditingId(null) : startEdit(t)}
                             className={cn(
-                              "text-xs font-medium transition-colors",
+                              "text-xs font-medium transition-colors min-h-[36px] sm:min-h-0 px-2 sm:px-0",
                               editingId === t.id
                                 ? "text-gray-500 hover:text-gray-700"
                                 : "text-blue-600 hover:text-blue-800"
@@ -495,7 +495,7 @@ export default function JsTypesManager() {
                             disabled={t._count.lpaJsTypes > 0 || state === "saving"}
                             onClick={() => setConfirmDelete(t.id)}
                             title={t._count.lpaJsTypes > 0 ? `Utilisé par ${t._count.lpaJsTypes} LPA(s)` : "Supprimer"}
-                            className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-300 disabled:cursor-not-allowed transition-colors"
+                            className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-300 disabled:cursor-not-allowed transition-colors min-h-[36px] sm:min-h-0 px-2 sm:px-0"
                           >
                             Supprimer
                           </button>

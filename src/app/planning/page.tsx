@@ -661,10 +661,30 @@ export default function PlanningPage() {
     return null;
   }
 
+  // ── Mobile — day navigation ──────────────────────────────────────────────
+
+  const mobileDayIdx = Math.min(safeSlider, Math.max(0, totalDays - 1));
+  const mobileDate   = allDates[mobileDayIdx] ?? "";
+  const prevDay = useCallback(() => setSlider((s) => Math.max(0, s - 1)), []);
+  const nextDay = useCallback(() => setSlider((s) => Math.min(Math.max(0, totalDays - 1), s + 1)), [totalDays]);
+
+  // Liste des agents + leurs JS pour le jour mobile
+  const mobileAgentDay = useMemo(() => {
+    return agentRows.map((row) => {
+      const jsForDay = jsByAgentDate.get(row.key)?.get(mobileDate) ?? [];
+      return { row, jsForDay };
+    });
+  }, [agentRows, jsByAgentDate, mobileDate]);
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col overflow-hidden h-[calc(100vh-3.5rem)] lg:h-screen">
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          DESKTOP (lg+)
+          ══════════════════════════════════════════════════════════════════ */}
+      <div className="hidden lg:flex lg:flex-col lg:flex-1 lg:min-h-0 lg:overflow-hidden">
 
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
       <div className="shrink-0 flex items-center gap-3 px-4 h-12"
@@ -850,23 +870,199 @@ export default function PlanningPage() {
         )}
       </div>
 
-      {/* ── Floating simulation bar ──────────────────────────────────────── */}
+      </div>
+      {/* ═══════════════════════════════════════════════════════════════════
+          MOBILE (< lg)
+          ══════════════════════════════════════════════════════════════════ */}
+      <div className="lg:hidden flex flex-col flex-1 min-h-0">
+        {/* Top day nav */}
+        <div
+          className="shrink-0 flex items-center justify-between gap-2 px-3 py-2.5"
+          style={{ background: "#1a3070", color: "white" }}
+        >
+          <button
+            onClick={prevDay}
+            disabled={mobileDayIdx <= 0}
+            aria-label="Jour précédent"
+            className="w-10 h-10 flex items-center justify-center rounded-lg disabled:opacity-30 hover:bg-white/10 transition-colors active:scale-95"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <div className="flex-1 text-center min-w-0">
+            {mobileDate ? (() => {
+              const { n, wd, mo } = fmtDayHeader(mobileDate);
+              const full = new Date(mobileDate + "T00:00:00Z");
+              const dayName = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"][full.getUTCDay()];
+              return (
+                <>
+                  <p className="text-[10px] font-[700] text-white/55 uppercase tracking-[0.1em] leading-none">
+                    {wd === "Sam" || wd === "Dim" ? "Week-end" : "Semaine"}
+                  </p>
+                  <p className="text-[16px] font-[800] leading-tight mt-0.5">
+                    {dayName} {n} {mo}
+                  </p>
+                  <p className="text-[10px] text-white/50 leading-none mt-0.5">
+                    Jour {mobileDayIdx + 1} / {totalDays}
+                  </p>
+                </>
+              );
+            })() : (
+              <p className="text-[13px] text-white/50">—</p>
+            )}
+          </div>
+          <button
+            onClick={nextDay}
+            disabled={mobileDayIdx >= totalDays - 1}
+            aria-label="Jour suivant"
+            className="w-10 h-10 flex items-center justify-center rounded-lg disabled:opacity-30 hover:bg-white/10 transition-colors active:scale-95"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Controls */}
+        <div className="shrink-0 px-3 py-2 border-b border-[#e2e8f0] bg-white space-y-2">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8b93b8]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="7" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Nom, matricule, code JS…"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="w-full h-10 pl-9 pr-3 text-[14px] border border-[#e2e8f0] rounded-lg outline-none focus:border-[#6366f1] bg-white"
+              />
+            </div>
+            <select
+              value={groupBy}
+              onChange={(e) => setGroupBy(e.target.value as GroupBy)}
+              className="h-10 px-2 text-[13px] border border-[#e2e8f0] rounded-lg bg-white outline-none min-w-[110px]"
+              aria-label="Tri"
+            >
+              <option value="agent-az">A → Z</option>
+              <option value="agent-za">Z → A</option>
+              <option value="debut">Début</option>
+              <option value="libelle">Libellé</option>
+            </select>
+          </div>
+          {userFilterActive && userFilterIds.size > 0 && (
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-[#eff6ff] border border-[#bfdbfe] rounded-md text-[11px] text-[#1e40af]">
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+              </svg>
+              Filtre perso actif — {userFilterIds.size} agent{userFilterIds.size > 1 ? "s" : ""}
+            </div>
+          )}
+        </div>
+
+        {/* Agent list */}
+        <div className="flex-1 min-h-0 overflow-auto bg-[#f8fafc]">
+          {loading ? (
+            <div className="flex items-center justify-center h-32 gap-3 text-[13px] text-[#94a3b8]">
+              <div className="w-4 h-4 border-2 border-[#3b82f6] border-t-transparent rounded-full animate-spin" />
+              Chargement…
+            </div>
+          ) : jsData.length === 0 ? (
+            <div className="flex items-center justify-center h-40 text-[13px] text-[#94a3b8] px-4 text-center">
+              {importId ? "Aucune JS dans cet import" : "Sélectionnez un import"}
+            </div>
+          ) : mobileAgentDay.length === 0 ? (
+            <div className="flex items-center justify-center h-40 text-[13px] text-[#94a3b8] px-4 text-center">
+              Aucun agent ne correspond
+            </div>
+          ) : (
+            <div className="divide-y divide-[#e2e8f0]">
+              {mobileAgentDay.map(({ row, jsForDay }) => {
+                const prev = addDaysStr(mobileDate, -1);
+                const overflowFromPrev = (jsByAgentDate.get(row.key)?.get(prev) ?? []).filter((js) => {
+                  const fin = toHours(js.heureFin);
+                  return fin < toHours(js.heureDebut) && fin > 0;
+                });
+                const totalJs = jsForDay.length + overflowFromPrev.length;
+                return (
+                  <div key={row.key} className="bg-white px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <Link
+                        href={`/agents/${row.key}`}
+                        className="flex-1 min-w-0 hover:text-blue-600 transition-colors"
+                      >
+                        <p className="text-[13px] font-[700] text-[#0f1b4c] truncate leading-tight">
+                          {row.label}
+                        </p>
+                        <p className="text-[10px] text-[#94a3b8] font-mono leading-none mt-0.5">
+                          {row.sub}
+                        </p>
+                      </Link>
+                      <span
+                        className="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-[800] text-white"
+                        style={{ background: SHIFT_COLORS[row.shift] }}
+                        title={SHIFT_LABELS[row.shift]}
+                      >
+                        {row.shift}
+                      </span>
+                    </div>
+                    {totalJs === 0 ? (
+                      <p className="text-[11px] text-[#cbd5e1] italic pl-1">Repos</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {overflowFromPrev.map((js) => (
+                          <MobileJsRow
+                            key={`ovf-${js.planningLigneId}`}
+                            js={js}
+                            selected={selected.has(js.planningLigneId)}
+                            onToggle={toggleSelect}
+                            overflow
+                          />
+                        ))}
+                        {jsForDay.map((js) => (
+                          <MobileJsRow
+                            key={js.planningLigneId}
+                            js={js}
+                            selected={selected.has(js.planningLigneId)}
+                            onToggle={toggleSelect}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Stats bar mobile */}
+        <div className="shrink-0 flex items-center justify-around gap-2 px-3 py-1.5 border-t border-[#e2e8f0] bg-white text-[11px] text-[#64748b]">
+          <span>Agents : <strong className="text-[13px] text-[#1e293b] font-[700]">{stats.rows}</strong></span>
+          <span>JS : <strong className="text-[13px] text-[#1e293b] font-[700]">{stats.total}</strong></span>
+          <span>Nuits : <strong className="text-[13px] text-[#1e293b] font-[700]">{stats.nuits}</strong></span>
+        </div>
+      </div>
+
+      {/* ── Floating simulation bar (mobile + desktop) ───────────────────── */}
       {nbSelected > 0 && (
         <div
-          className="fixed bottom-8 left-1/2 z-50 flex items-center gap-3 px-5 py-3 rounded-2xl shadow-2xl border border-white/10"
+          className="fixed bottom-4 lg:bottom-8 left-1/2 z-50 flex items-center gap-2 lg:gap-3 px-3 lg:px-5 py-2.5 lg:py-3 rounded-2xl shadow-2xl border border-white/10 max-w-[calc(100vw-16px)]"
           style={{ transform: "translateX(-50%)", background: "#0f1b4c", color: "white" }}
         >
-          <span className="text-[13px] font-[600] whitespace-nowrap">
-            {nbSelected} JS sélectionnée{nbSelected > 1 ? "s" : ""}
+          <span className="text-[12px] lg:text-[13px] font-[600] whitespace-nowrap">
+            {nbSelected} JS
           </span>
           <button onClick={() => setSelected(new Set())}
-            className="text-white/50 hover:text-white text-[12px] transition-colors">
+            className="text-white/50 hover:text-white text-[12px] px-2 py-1 rounded transition-colors">
             Effacer
           </button>
           <div className="w-px h-4 bg-white/20" />
           <button
             onClick={handleSimulate}
-            className="flex items-center gap-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-[12px] font-[700] px-4 py-1.5 rounded-xl transition-colors whitespace-nowrap"
+            className="flex items-center gap-1.5 bg-[#2563eb] hover:bg-[#1d4ed8] text-white text-[12px] font-[700] px-3 lg:px-4 py-1.5 rounded-xl transition-colors whitespace-nowrap"
           >
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2"/>
@@ -874,10 +1070,72 @@ export default function PlanningPage() {
               <line x1="8" y1="2" x2="8" y2="6"/>
               <line x1="3" y1="10" x2="21" y2="10"/>
             </svg>
-            Simuler {nbSelected > 1 ? `${nbSelected} JS` : "cette JS"}
+            Simuler
           </button>
         </div>
       )}
     </div>
   );
 }
+
+// ── Mobile : ligne JS ──────────────────────────────────────────────────────
+
+const MobileJsRow = React.memo(function MobileJsRow({
+  js, selected, onToggle, overflow,
+}: {
+  js: JsTimeline;
+  selected: boolean;
+  onToggle: (id: string) => void;
+  overflow?: boolean;
+}) {
+  const type = getShiftType(js.heureDebut, js.heureFin, js.isNuit, js.heureDebutJsType, js.heureFinJsType, js.codeJs);
+  const color = SHIFT_COLORS[type];
+  const h = Math.floor(js.amplitudeMin / 60);
+  const m = String(js.amplitudeMin % 60).padStart(2, "0");
+  const dernierRecours = js.flexibilite === "DERNIER_RECOURS";
+  return (
+    <button
+      onClick={() => onToggle(js.planningLigneId)}
+      className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left transition-colors active:scale-[0.98] ${
+        selected
+          ? "bg-[#bfdbfe] border-[#3b82f6] text-[#1d4ed8]"
+          : "bg-[#f8fafc] border-[#e2e8f0] hover:bg-white"
+      }`}
+      style={{ borderLeftWidth: 4, borderLeftColor: selected ? "#3b82f6" : color }}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[13px] font-[700] text-[#0f1b4c] truncate">
+            {js.codeJs ?? "JS"}
+          </span>
+          {overflow && (
+            <span className="text-[9px] font-[600] uppercase tracking-wider text-[#7c3aed] bg-[#f3e8ff] px-1 py-0.5 rounded">
+              Nuit précédente
+            </span>
+          )}
+          {dernierRecours && (
+            <span className="text-[9px] font-[600] uppercase tracking-wider text-[#b45309] bg-[#fef3c7] px-1 py-0.5 rounded">
+              Dernier recours
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] text-[#64748b] font-mono mt-0.5">
+          {js.heureDebut} — {js.heureFin} · {h}h{m}
+        </p>
+      </div>
+      <div
+        className="shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center"
+        style={{
+          borderColor: selected ? "#3b82f6" : "#cbd5e1",
+          background: selected ? "#3b82f6" : "transparent",
+        }}
+      >
+        {selected && (
+          <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        )}
+      </div>
+    </button>
+  );
+});

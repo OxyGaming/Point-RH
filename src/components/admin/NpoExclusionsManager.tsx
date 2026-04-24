@@ -187,7 +187,8 @@ export default function NpoExclusionsManager() {
       {/* Tableau des codes */}
       {!loading && !error && (
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-left">
                 <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide w-28">Préfixe</th>
@@ -253,6 +254,7 @@ export default function NpoExclusionsManager() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import withSerwistInit from "@serwist/next";
 
 /**
  * En-têtes de sécurité HTTP appliqués à toutes les routes.
@@ -72,6 +73,8 @@ const securityHeaders = [
       "base-uri 'self'",
       "form-action 'self'",
       "object-src 'none'",
+      "worker-src 'self' blob:",
+      "manifest-src 'self'",
       ...(isProd ? ["upgrade-insecure-requests"] : []),
     ].join("; "),
   },
@@ -80,6 +83,11 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["better-sqlite3"],
+
+  // Config Turbopack explicite (Next.js 16) : empêche l'avertissement-erreur
+  // "This build is using Turbopack, with a webpack config and no turbopack config"
+  // lorsqu'un plugin (Serwist en prod) ajoute une config webpack.
+  turbopack: {},
 
   experimental: {
     serverActions: {
@@ -105,4 +113,21 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// PWA : Serwist (service worker + precache du shell statique).
+// - swSrc : source TypeScript du SW (src/app/sw.ts).
+// - swDest : fichier généré dans /public (servi à la racine).
+// - cacheOnNavigation : précache les pages HTML visitées pour le mode hors ligne.
+// - reloadOnOnline : force un reload quand la connexion revient.
+//
+// En dev, on n'applique pas le wrap Serwist : il injecte une config webpack
+// incompatible avec Turbopack (Next 16 par défaut). Le SW n'est pas requis
+// pour le développement — il est régénéré à chaque `next build`.
+const withSerwist = withSerwistInit({
+  swSrc: "src/app/sw.ts",
+  swDest: "public/sw.js",
+  cacheOnNavigation: true,
+  reloadOnOnline: true,
+  disable: process.env.NODE_ENV === "development",
+});
+
+export default withSerwist(nextConfig);

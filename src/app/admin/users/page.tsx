@@ -270,7 +270,7 @@ export default function UsersAdminPage() {
             <h2 className="text-base font-semibold text-gray-800 mb-3">Utilisateurs</h2>
             <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[640px]">
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
                       <th className="text-left px-4 py-3 font-semibold text-gray-600">Utilisateur</th>
@@ -313,20 +313,20 @@ export default function UsersAdminPage() {
                           <div className="flex flex-wrap gap-1">
                             <button
                               onClick={() => handleToggleRole(user)}
-                              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                              className="text-xs px-2 min-h-[36px] sm:min-h-0 sm:py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
                               title="Changer le rôle"
                             >
                               {user.role === "ADMIN" ? "→ User" : "→ Admin"}
                             </button>
                             <button
                               onClick={() => handleToggleActive(user)}
-                              className="text-xs px-2 py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                              className="text-xs px-2 min-h-[36px] sm:min-h-0 sm:py-1 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
                             >
                               {user.isActive ? "Désactiver" : "Activer"}
                             </button>
                             <button
                               onClick={() => handleDelete(user)}
-                              className="text-xs px-2 py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors"
+                              className="text-xs px-2 min-h-[36px] sm:min-h-0 sm:py-1 border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors"
                             >
                               Supprimer
                             </button>

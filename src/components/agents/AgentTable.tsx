@@ -265,14 +265,14 @@ export default function AgentTable({ agents, initialSlots }: Props) {
           <span>
             <strong>{activeSlot.name}</strong> — {activeCount} agent{activeCount > 1 ? "s" : ""} affiché{activeCount > 1 ? "s" : ""}
           </span>
-          <button onClick={deactivateFromBanner} className="underline hover:text-[#1d4ed8] ml-4 font-[500]">
+          <button onClick={deactivateFromBanner} className="underline hover:text-[#1d4ed8] ml-4 font-[500] min-h-[40px] sm:min-h-0 px-2 sm:px-0">
             Désactiver
           </button>
         </div>
       )}
 
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full min-w-[560px]">
           <thead>
             <tr className="border-b border-[#e2e8f5] bg-[#f8f9fd]">
               <th className="text-left px-4 py-3 text-[10px] font-[700] text-[#8b93b8] uppercase tracking-[0.08em]">Agent</th>
@@ -295,7 +295,9 @@ export default function AgentTable({ agents, initialSlots }: Props) {
               filtered.map((a) => (
                 <tr key={a.id} className="border-b border-[#e2e8f5] hover:bg-[#f4f6fb] transition-colors group">
                   <td className="px-4 py-3 text-[13px] font-[600] text-[#0f1b4c]">
-                    {a.nom} {a.prenom}
+                    <Link href={`/agents/${a.id}`} className="hover:text-[#2563eb] transition-colors">
+                      {a.nom} {a.prenom}
+                    </Link>
                   </td>
                   <td className="px-4 py-3">
                     <span className="font-mono text-[12px] text-[#4a5580]">{a.matricule}</span>
@@ -323,7 +325,7 @@ export default function AgentTable({ agents, initialSlots }: Props) {
                   <td className="px-4 py-3">
                     <Link
                       href={`/agents/${a.id}`}
-                      className="text-[12px] font-[600] text-[#2563eb] hover:text-[#1d4ed8] transition-colors opacity-0 group-hover:opacity-100"
+                      className="inline-flex items-center min-h-[40px] lg:min-h-0 text-[12px] font-[600] text-[#2563eb] hover:text-[#1d4ed8] transition-colors lg:opacity-0 lg:group-hover:opacity-100"
                     >
                       Voir →
                     </Link>

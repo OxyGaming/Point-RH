@@ -49,3 +49,9 @@ next-env.d.ts
 
 # Mémoire Claude Code
 /.claude/
+
+# Service Worker généré par Serwist (rebuild à chaque `next build`)
+/public/sw.js
+/public/sw.js.map
+/public/swe-worker-*.js
+/public/swe-worker-*.js.map

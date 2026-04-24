@@ -63,7 +63,7 @@ function NewLpaForm({ onCreated }: { onCreated: () => void }) {
 
   return (
     <form onSubmit={handleSubmit} className="flex gap-2 items-end flex-wrap">
-      <div>
+      <div className="flex-1 min-w-[120px] sm:flex-none">
         <label className="block text-xs font-semibold text-gray-600 mb-1">Code LPA</label>
         <input
           type="text"
@@ -71,10 +71,10 @@ function NewLpaForm({ onCreated }: { onCreated: () => void }) {
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           placeholder="ex: GIVORS"
           required
-          className="border border-gray-300 rounded px-2 py-1.5 text-sm w-32 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full sm:w-32 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
-      <div>
+      <div className="flex-1 min-w-[140px] sm:flex-none">
         <label className="block text-xs font-semibold text-gray-600 mb-1">Libellé</label>
         <input
           type="text"
@@ -82,13 +82,13 @@ function NewLpaForm({ onCreated }: { onCreated: () => void }) {
           onChange={(e) => setLibelle(e.target.value)}
           placeholder="ex: Givors"
           required
-          className="border border-gray-300 rounded px-2 py-1.5 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="border border-gray-300 rounded px-2 py-1.5 text-sm w-full sm:w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
       <button
         type="submit"
         disabled={saving}
-        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm font-semibold px-4 py-1.5 rounded transition-colors"
+        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm font-semibold px-4 min-h-[40px] rounded transition-colors"
       >
         {saving ? "…" : "+ Créer"}
       </button>
@@ -481,13 +481,13 @@ function LpaCard({
           <div className="flex gap-3 ml-4 shrink-0">
             <button
               onClick={() => { setEditForm({ code: lpa.code, libelle: lpa.libelle }); setEditing(true); }}
-              className="text-xs text-amber-600 hover:text-amber-800 transition-colors font-semibold"
+              className="text-xs text-amber-600 hover:text-amber-800 transition-colors font-semibold min-h-[36px] sm:min-h-0 px-2 sm:px-0"
             >
               Éditer
             </button>
             <button
               onClick={handleDeleteLpa}
-              className="text-xs text-red-500 hover:text-red-700 transition-colors"
+              className="text-xs text-red-500 hover:text-red-700 transition-colors min-h-[36px] sm:min-h-0 px-2 sm:px-0"
             >
               Supprimer
             </button>
@@ -522,7 +522,7 @@ function LpaCard({
                 <button
                   onClick={() => handleRemove(jsType.id)}
                   disabled={deleting}
-                  className="text-green-500 hover:text-red-500 font-bold text-xs ml-1 transition-colors"
+                  className="text-green-500 hover:text-red-500 font-bold text-xs ml-1 transition-colors min-w-[28px] min-h-[28px] sm:min-w-0 sm:min-h-0 flex items-center justify-center"
                   title="Retirer de la LPA"
                 >
                   ×
@@ -639,7 +639,7 @@ export default function LpaManager() {
             <p className="text-sm text-gray-500 italic">Aucun type JS configuré.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
+              <table className="w-full text-sm border-collapse min-w-[680px]">
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 uppercase">Code</th>
@@ -685,13 +685,13 @@ export default function LpaManager() {
                           <div className="flex gap-3 justify-end">
                             <button
                               onClick={() => setEditingJsTypeId(jt.id)}
-                              className="text-xs text-amber-600 hover:text-amber-800 transition-colors font-semibold"
+                              className="text-xs text-amber-600 hover:text-amber-800 transition-colors font-semibold min-h-[36px] sm:min-h-0 px-2 sm:px-0"
                             >
                               Éditer
                             </button>
                             <button
                               onClick={() => handleDeleteJsType(jt.id)}
-                              className="text-xs text-red-500 hover:text-red-700 transition-colors"
+                              className="text-xs text-red-500 hover:text-red-700 transition-colors min-h-[36px] sm:min-h-0 px-2 sm:px-0"
                             >
                               Supprimer
                             </button>

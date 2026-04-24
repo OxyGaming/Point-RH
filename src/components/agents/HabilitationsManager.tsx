@@ -202,7 +202,8 @@ export default function HabilitationsManager() {
       {/* Tableau */}
       {!loading && !error && filtered.length > 0 && (
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-left">
                 <th className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wide">Agent</th>
@@ -229,7 +230,8 @@ export default function HabilitationsManager() {
                 );
               })}
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
       )}
     </div>

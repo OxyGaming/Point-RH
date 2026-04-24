@@ -140,13 +140,13 @@ export default function ReservistesInactiviteTable({ data }: Props) {
         <div className="flex items-center gap-1 bg-[#f1f5f9] rounded-lg p-1">
           <button
             onClick={() => setSort("inactivite")}
-            className={`px-3 py-1.5 text-[12px] font-[600] rounded-md transition-colors ${sort === "inactivite" ? "bg-white text-[#0f1b4c] shadow-sm" : "text-[#4a5580] hover:text-[#0f1b4c]"}`}
+            className={`px-3 min-h-[40px] sm:min-h-0 sm:py-1.5 text-[12px] font-[600] rounded-md transition-colors ${sort === "inactivite" ? "bg-white text-[#0f1b4c] shadow-sm" : "text-[#4a5580] hover:text-[#0f1b4c]"}`}
           >
             Tri par inactivité
           </button>
           <button
             onClick={() => setSort("nom")}
-            className={`px-3 py-1.5 text-[12px] font-[600] rounded-md transition-colors ${sort === "nom" ? "bg-white text-[#0f1b4c] shadow-sm" : "text-[#4a5580] hover:text-[#0f1b4c]"}`}
+            className={`px-3 min-h-[40px] sm:min-h-0 sm:py-1.5 text-[12px] font-[600] rounded-md transition-colors ${sort === "nom" ? "bg-white text-[#0f1b4c] shadow-sm" : "text-[#4a5580] hover:text-[#0f1b4c]"}`}
           >
             Tri par nom
           </button>
@@ -154,7 +154,7 @@ export default function ReservistesInactiviteTable({ data }: Props) {
 
         <button
           onClick={() => setFilterOpen((v) => !v)}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-[600] rounded-md border transition-colors ${filterOpen ? "border-[#2563eb] bg-[#eff6ff] text-[#1e40af]" : "border-[#e2e8f5] bg-white text-[#4a5580] hover:text-[#0f1b4c]"}`}
+          className={`inline-flex items-center gap-1.5 px-3 min-h-[40px] sm:min-h-0 sm:py-1.5 text-[12px] font-[600] rounded-md border transition-colors ${filterOpen ? "border-[#2563eb] bg-[#eff6ff] text-[#1e40af]" : "border-[#e2e8f5] bg-white text-[#4a5580] hover:text-[#0f1b4c]"}`}
           aria-expanded={filterOpen}
         >
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
@@ -237,7 +237,71 @@ export default function ReservistesInactiviteTable({ data }: Props) {
           </p>
         </div>
       ) : (
-        <div className="bg-white border border-[#e2e8f5] rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(15,27,76,0.07)]">
+        <>
+        {/* ── Vue mobile : cartes empilées (< md) ───────────────────────── */}
+        <div className="md:hidden space-y-3">
+          {rows.map((row) => {
+            const maxInact = agentMaxInactiviteSurPrefixes(row, visiblePrefixes);
+            const overAlert = maxInact > data.seuilAlerteJours;
+            return (
+              <div
+                key={row.id}
+                className={`bg-white border rounded-xl p-3 shadow-[0_1px_2px_rgba(15,27,76,0.05)] ${
+                  overAlert ? "border-[#fecaca]" : "border-[#e2e8f5]"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-[700] text-[14px] text-[#0f1b4c] leading-tight truncate">
+                      {row.nom} {row.prenom}
+                    </p>
+                    <p className="text-[11px] text-[#8b93b8] font-mono mt-0.5">
+                      {row.matricule}{row.uch ? ` · ${row.uch}` : ""}
+                    </p>
+                  </div>
+                  {overAlert && (
+                    <span className="shrink-0 text-[10px] font-[700] uppercase tracking-wide bg-[#fef2f2] text-[#991b1b] border border-[#fecaca] rounded-md px-1.5 py-0.5">
+                      Alerte
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(68px,1fr))] gap-1.5">
+                  {visiblePrefixes.map((p) => {
+                    const c = row.cellules[p];
+                    if (!c) {
+                      return (
+                        <div
+                          key={p}
+                          className="rounded-md border border-dashed border-[#e2e8f5] px-1.5 py-1 text-center"
+                          title={`${p} — non habilité`}
+                        >
+                          <p className="text-[9px] font-[700] text-[#cbd5e1] uppercase tracking-wider">{p}</p>
+                          <p className="text-[11px] font-[600] text-[#cbd5e1]">·</p>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div
+                        key={p}
+                        className="rounded-md px-1.5 py-1 text-center"
+                        style={cellStyle(c.joursInactivite, data.seuilAlerteJours)}
+                        title={formatCellTooltip(c, p)}
+                      >
+                        <p className="text-[9px] font-[700] uppercase tracking-wider opacity-80">{p}</p>
+                        <p className="text-[11px] font-[700] leading-tight">
+                          {formatCellLabel(c)}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Vue desktop : tableau croisé (md+) ────────────────────────── */}
+        <div className="hidden md:block bg-white border border-[#e2e8f5] rounded-xl overflow-hidden shadow-[0_1px_3px_rgba(15,27,76,0.07)]">
           <div className="overflow-auto max-h-[70vh]">
             <table className="min-w-full text-[12px] border-collapse">
               <thead className="sticky top-0 z-20 bg-[#0f1b4c] text-white">
@@ -331,6 +395,7 @@ export default function ReservistesInactiviteTable({ data }: Props) {
             </table>
           </div>
         </div>
+        </>
       )}
     </div>
   );

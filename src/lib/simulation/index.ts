@@ -33,6 +33,18 @@ export async function executerSimulationJS(
   const { jsCible, imprevu } = request;
   const logger = createLogger();
 
+  // Télémétrie granulaire : log avec timestamps pour identifier le hotspot.
+  // Imprimé directement sur stdout (pas via logger) pour survivre aux timeouts
+  // nginx — chaque log arrive immédiatement même si la requête est coupée côté
+  // client (le process Node continue jusqu'à la fin du calcul).
+  const t0 = Date.now();
+  const mark = (etape: string, extra?: Record<string, unknown>) => {
+    const ms = Date.now() - t0;
+    const extras = extra ? ` ${JSON.stringify(extra)}` : "";
+    console.log(`[sim-trace] +${ms}ms ${etape}${extras}`);
+  };
+  mark("START", { nbAgents: agents.length });
+
   logger.info("SIMULATION_START", {
     data: {
       jsCibleId: jsCible.planningLigneId,
@@ -51,6 +63,7 @@ export async function executerSimulationJS(
   // ─── Chargement du contexte LPA ──────────────────────────────────────────────
   const agentIds = agents.map((a) => a.context.id);
   const lpaContext = await loadLpaContext(agentIds);
+  mark("CONTEXT_LOADED");
 
   // ─── Calcul du service effectif par agent (LPA-based) ────────────────────────
   // Calculé une fois pour tous les agents (y compris les futurs exclus)
@@ -75,11 +88,14 @@ export async function executerSimulationJS(
     effectiveServiceMap.set(context.id, effSvc);
   }
 
+  mark("EFFECTIVE_SVC_DONE");
+
   // ─── Étape 1 : pré-filtre ────────────────────────────────────────────────────
   const agentInitialId = jsCible.agentId;
   const { eligible, exclus } = preFilterCandidats(
     agents, jsCible, imprevu, agentInitialId, effectiveServiceMap, npoExclusionCodes
   );
+  mark("PREFILTER_DONE", { nbEligible: eligible.length, nbExclus: exclus.length });
 
   logger.info("PREFILTRAGE_DONE", {
     data: { nbEligible: eligible.length, nbExclus: exclus.length },
@@ -213,6 +229,8 @@ export async function executerSimulationJS(
     candidats.push({ ...candidatPartiel, scorePertinence: scoreBreakdown.total, scoreBreakdown });
   }
 
+  mark("ELIGIBLE_LOOP_DONE", { nbCandidats: candidats.length });
+
   // ─── Étape 2bis : candidats libérés par figeage (DERNIER_RECOURS) ─────────────
   // Toujours calculé (pour les deux résultats sansFigeage / avecFigeage).
   const jsTypeFlexibiliteMap = await loadJsTypeFlexibiliteMap();
@@ -307,6 +325,8 @@ export async function executerSimulationJS(
     agentsEvaluesViaFigeage.add(context.id);
   }
 
+  mark("FIGEAGE_LOOP_DONE", { nbFigeage: candidatsFigeageEvalues.length });
+
   // ─── Ajouter les exclus comme refusés ────────────────────────────────────────
   const exclusRefuses: CandidatResult[] = [];
   for (const { agent, raison } of exclus) {
@@ -347,12 +367,20 @@ export async function executerSimulationJS(
     });
   }
 
+  mark("EXCLUS_LOOP_DONE", { nbExclus: exclusRefuses.length });
+
   // ─── Helper : construire un JsSimulationResultat ──────────────────────────────
-  function buildResultat(allCandidats: CandidatResult[]): JsSimulationResultat {
+  function buildResultat(allCandidats: CandidatResult[], tag: string): JsSimulationResultat {
+    const tBuild = Date.now();
     const sorted = [...allCandidats].sort((a, b) => b.scorePertinence - a.scorePertinence);
     const directs   = sorted.filter((c) => c.statut === "DIRECT");
     const vigilants = sorted.filter((c) => c.statut === "VIGILANCE");
     const refuses   = sorted.filter((c) => c.statut === "REFUSE");
+
+    const nbAvecConflits = sorted.filter(
+      (c) => (c.statut === "DIRECT" || c.statut === "VIGILANCE") && c.nbConflits > 0
+    ).length;
+    mark(`SCENARIOS_START[${tag}]`, { nbAvecConflits, topN: Math.min(3, nbAvecConflits) });
 
     const scenarios = construireScenarios(
       sorted.filter((c) => c.statut !== "REFUSE"),
@@ -362,6 +390,7 @@ export async function executerSimulationJS(
       lpaContext,
       rules
     );
+    console.log(`[sim-trace] +${Date.now() - t0}ms SCENARIOS_END[${tag}] (${Date.now() - tBuild}ms pour cette passe, ${scenarios.length} scénarios)`);
 
     return {
       jsCible,
@@ -399,8 +428,10 @@ export async function executerSimulationJS(
     },
   });
 
-  return {
-    sansFigeage: buildResultat(candidatsSans),
-    avecFigeage: buildResultat(candidatsAvec),
+  const result = {
+    sansFigeage: buildResultat(candidatsSans, "sans"),
+    avecFigeage: buildResultat(candidatsAvec, "avec"),
   };
+  mark("RETURN");
+  return result;
 }

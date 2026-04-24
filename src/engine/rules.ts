@@ -80,13 +80,28 @@ function isGPTDeNuit(joursGPT: PlanningEvent[], seuilGptNuitMin: number): boolea
 /**
  * Vérifie s'il y a eu 2 GPT de nuit consécutives avant la date cible.
  * Utilise decoupeEnGPTs pour une détection correcte (congés/RU ignorés comme RP).
+ *
+ * S'appuie sur la décomposition mémoïsée de l'array complet d'événements puis
+ * tronque les GPTs à la borne `before`, au lieu de filtrer+redécouper à chaque
+ * appel (cache miss systématique).
  */
 function deuxGPTNuitConsecutives(events: PlanningEvent[], before: Date, rules: WorkRulesMinutes): boolean {
-  const eventsAvant = events.filter((e) => e.dateDebut < before);
-  const gpts = decoupeEnGPTs(eventsAvant, rules.reposPeriodique.simple);
-  if (gpts.length < 2) return false;
-  const n = gpts.length;
-  return isGPTDeNuit(gpts[n - 1], rules.periodeNocturne.seuilGptNuit) && isGPTDeNuit(gpts[n - 2], rules.periodeNocturne.seuilGptNuit);
+  const gpts = decoupeEnGPTs(events, rules.reposPeriodique.simple);
+  const beforeTs = before.getTime();
+
+  // Conserver les GPTs ayant au moins une JS avant `before`, en tronquant la
+  // dernière si elle chevauche. Ordre chronologique → on peut break au 1er
+  // élément entièrement après `before`.
+  const gptsAvant: PlanningEvent[][] = [];
+  for (const gpt of gpts) {
+    if (gpt[0].dateDebut.getTime() >= beforeTs) break;
+    const avant = gpt.filter((e) => e.dateDebut.getTime() < beforeTs);
+    if (avant.length > 0) gptsAvant.push(avant);
+  }
+
+  if (gptsAvant.length < 2) return false;
+  const n = gptsAvant.length;
+  return isGPTDeNuit(gptsAvant[n - 1], rules.periodeNocturne.seuilGptNuit) && isGPTDeNuit(gptsAvant[n - 2], rules.periodeNocturne.seuilGptNuit);
 }
 
 // ─── Moteur principal ─────────────────────────────────────────────────────────

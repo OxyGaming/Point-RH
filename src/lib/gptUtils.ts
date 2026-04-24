@@ -111,38 +111,51 @@ export function isGapReposPeriodique(
   return !hasConge;
 }
 
+// ─── Cache de décomposition GPT ──────────────────────────────────────────────
+//
+// L'analyse d'imprévu appelle `evaluerMobilisabilite` plusieurs milliers de fois
+// (230 agents × cascade jusqu'à 10 niveaux × 2 résultats sans/avec figeage).
+// À chaque appel, on redécoupait les mêmes événements en GPTs. Ce cache partagé,
+// clé = référence d'array + rpSimpleMin, élimine ces recalculs redondants.
+//
+// Hypothèse d'intégrité : une fois construit (dans la route API), un tableau
+// d'événements n'est JAMAIS muté — il est passé en lecture seule au moteur.
+// Les variantes (filtre JS Z, figeage, eventsSimules) créent de nouveaux tableaux,
+// qui ressortent naturellement comme cache miss. WeakMap libère la mémoire dès
+// que le tableau n'est plus référencé (fin de requête).
+const gptCache = new WeakMap<PlanningEvent[], Map<number, PlanningEvent[][]>>();
+
 // ─── Détection de la GPT courante ────────────────────────────────────────────
 
 /**
  * Trouve le début de la GPT courante et la liste de ses JS.
  *
- * Remonte la liste des JS (avant `before`) jusqu'à trouver la frontière
- * de RP la plus récente qui ne soit pas un congé/absence/RU.
+ * S'appuie sur `decoupeEnGPTs` (mémoïsé) : on prend la dernière GPT
+ * contenant au moins une JS antérieure à `before`, puis on la tronque
+ * à cette borne.
  */
 export function trouverDebutGPT(
   allEvents: PlanningEvent[],
   before: Date,
   rpSimpleMin: number
 ): { gptStart: Date; joursGPT: PlanningEvent[] } {
-  const joursJS = allEvents
-    .filter((e) => isJourTravailleGPT(e) && e.dateDebut < before)
-    .sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
+  const gpts = decoupeEnGPTs(allEvents, rpSimpleMin);
+  const beforeTs = before.getTime();
 
-  if (joursJS.length === 0) {
-    return { gptStart: before, joursGPT: [] };
-  }
+  // Les GPTs et les événements qu'elles contiennent sont triés chronologiquement.
+  // On parcourt en ordre inverse pour trouver la GPT la plus récente dont au moins
+  // un événement commence strictement avant `before`.
+  for (let i = gpts.length - 1; i >= 0; i--) {
+    const gpt = gpts[i];
+    if (gpt[0].dateDebut.getTime() >= beforeTs) continue;
 
-  let gptStart = joursJS[0].dateDebut;
-
-  for (let i = joursJS.length - 1; i >= 1; i--) {
-    if (isGapReposPeriodique(allEvents, joursJS[i - 1].dateFin, joursJS[i].dateDebut, rpSimpleMin)) {
-      gptStart = joursJS[i].dateDebut;
-      break;
+    const joursGPT = gpt.filter((e) => e.dateDebut.getTime() < beforeTs);
+    if (joursGPT.length > 0) {
+      return { gptStart: joursGPT[0].dateDebut, joursGPT };
     }
   }
 
-  const joursGPT = joursJS.filter((e) => e.dateDebut >= gptStart);
-  return { gptStart, joursGPT };
+  return { gptStart: before, joursGPT: [] };
 }
 
 // ─── Fonctions utilitaires dérivées ──────────────────────────────────────────
@@ -160,29 +173,46 @@ export function cumulTravailEffectifGPT(
 /**
  * Découpe une liste d'événements en GPTs successives.
  * Chaque coupure est un RP réel (gap ≥ rpSimpleMin sans congé).
+ *
+ * Résultat mémoïsé par (référence allEvents, rpSimpleMin) via WeakMap —
+ * voir `gptCache` ci-dessus pour la justification et l'hypothèse d'intégrité.
  */
 export function decoupeEnGPTs(
   allEvents: PlanningEvent[],
   rpSimpleMin: number
 ): PlanningEvent[][] {
+  let byRp = gptCache.get(allEvents);
+  if (byRp) {
+    const cached = byRp.get(rpSimpleMin);
+    if (cached) return cached;
+  }
+
   const joursJS = allEvents
     .filter((e) => isJourTravailleGPT(e))
     .sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
 
-  if (joursJS.length === 0) return [];
+  let gpts: PlanningEvent[][];
+  if (joursJS.length === 0) {
+    gpts = [];
+  } else {
+    gpts = [];
+    let gptCourante: PlanningEvent[] = [joursJS[0]];
 
-  const gpts: PlanningEvent[][] = [];
-  let gptCourante: PlanningEvent[] = [joursJS[0]];
-
-  for (let i = 1; i < joursJS.length; i++) {
-    if (isGapReposPeriodique(allEvents, joursJS[i - 1].dateFin, joursJS[i].dateDebut, rpSimpleMin)) {
-      gpts.push(gptCourante);
-      gptCourante = [joursJS[i]];
-    } else {
-      gptCourante.push(joursJS[i]);
+    for (let i = 1; i < joursJS.length; i++) {
+      if (isGapReposPeriodique(allEvents, joursJS[i - 1].dateFin, joursJS[i].dateDebut, rpSimpleMin)) {
+        gpts.push(gptCourante);
+        gptCourante = [joursJS[i]];
+      } else {
+        gptCourante.push(joursJS[i]);
+      }
     }
+    gpts.push(gptCourante);
   }
-  gpts.push(gptCourante);
 
+  if (!byRp) {
+    byRp = new Map();
+    gptCache.set(allEvents, byRp);
+  }
+  byRp.set(rpSimpleMin, gpts);
   return gpts;
 }

@@ -81,6 +81,15 @@ const nextConfig: NextConfig = {
   output: "standalone",
   serverExternalPackages: ["better-sqlite3"],
 
+  experimental: {
+    serverActions: {
+      // Clé stable entre builds : évite les erreurs "Failed to find Server Action"
+      // quand les clients ont une ancienne version en cache après redéploiement.
+      // Définir NEXT_SERVER_ACTIONS_ENCRYPTION_KEY dans .env (openssl rand -base64 32).
+      encryptionKey: process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY,
+    },
+  },
+
   async headers() {
     return [
       {

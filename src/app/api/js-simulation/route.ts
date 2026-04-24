@@ -11,6 +11,14 @@ export const runtime = "nodejs";
 
 const SIMULATION_RATE_LIMIT = { max: 30, windowMs: 60 * 1000 };
 
+// Garde-fous volume : l'analyse d'imprévu est 100 % synchrone côté Node
+// (voir `executerSimulationJS`). Un import trop gros bloque l'event loop
+// jusqu'à la fin du calcul → nginx timeout → 504 pour tous les utilisateurs.
+// Valeurs configurables via env pour pouvoir les ajuster sans rebuild.
+const MAX_LIGNES_SIMULATION = Number(process.env.SIM_MAX_LIGNES ?? 40000);
+const MAX_AGENTS_SIMULATION = Number(process.env.SIM_MAX_AGENTS ?? 1500);
+const SIM_SLOW_WARN_MS = Number(process.env.SIM_SLOW_WARN_MS ?? 10000);
+
 export async function POST(req: NextRequest) {
   const auth = checkAuth(req);
   if (!auth.ok) return auth.response;
@@ -41,6 +49,20 @@ export async function POST(req: NextRequest) {
       }),
       prisma.jsType.findMany({ select: { code: true, heureDebutStandard: true, heureFinStandard: true } }),
     ]);
+
+    // Refuser les imports trop gros avant de lancer le calcul synchrone.
+    // Sans ce garde-fou, un import massif peut bloquer Node ~1 min → 504 pour tous.
+    if (lignes.length > MAX_LIGNES_SIMULATION) {
+      return NextResponse.json(
+        {
+          error:
+            `Import trop volumineux (${lignes.length.toLocaleString("fr-FR")} lignes) ` +
+            `pour une analyse d'imprévu. Maximum autorisé : ${MAX_LIGNES_SIMULATION.toLocaleString("fr-FR")}. ` +
+            `Réduisez la période ou le périmètre lors de l'import.`,
+        },
+        { status: 413 }
+      );
+    }
     // Résolution JsType : match exact sur typeJs, fallback préfixe sur codeJs (même logique que multi-JS)
     function resolveJsType(codeJs: string | null, typeJs: string | null) {
       if (typeJs) {
@@ -115,7 +137,29 @@ export async function POST(req: NextRequest) {
 
     const agents = Array.from(agentsMap.values());
 
+    if (agents.length > MAX_AGENTS_SIMULATION) {
+      return NextResponse.json(
+        {
+          error:
+            `Trop d'agents dans cet import (${agents.length}) pour une analyse d'imprévu. ` +
+            `Maximum autorisé : ${MAX_AGENTS_SIMULATION}. ` +
+            `Filtrez le périmètre ou la période avant analyse.`,
+        },
+        { status: 413 }
+      );
+    }
+
+    const simStart = Date.now();
     const resultat: JsSimulationResultatDouble = await executerSimulationJS(body, agents);
+    const simDuration = Date.now() - simStart;
+
+    // Télémétrie : log systématique + alerte sur analyses lentes pour identifier les cas pathologiques.
+    const logLine = `[js-simulation] user=${auth.user.id} agents=${agents.length} lignes=${lignes.length} duration=${simDuration}ms`;
+    if (simDuration > SIM_SLOW_WARN_MS) {
+      console.warn(`${logLine} SLOW`);
+    } else {
+      console.log(logLine);
+    }
 
     return NextResponse.json(resultat, { status: 200 });
   } catch (err) {

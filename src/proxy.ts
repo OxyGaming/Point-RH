@@ -39,11 +39,22 @@ function isAdminPath(pathname: string): boolean {
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Toujours autoriser les ressources statiques Next.js
+  // Toujours autoriser les ressources statiques Next.js + PWA.
+  // Le service worker, le manifest et la page offline DOIVENT être
+  // accessibles sans auth :
+  // - /sw.js + /swe-worker-*.js : téléchargés par le navigateur avant login
+  // - /manifest.webmanifest : lu pour afficher le prompt d'installation
+  // - /offline : fallback hors ligne (doit rester servi sans session)
+  // - /icons/* : icônes PWA (déjà servies car *.png sont exclues par le matcher)
   if (
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/favicon") ||
-    pathname === "/"
+    pathname === "/" ||
+    pathname === "/sw.js" ||
+    pathname === "/sw.js.map" ||
+    pathname.startsWith("/swe-worker-") ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/offline"
   ) {
     return NextResponse.next();
   }

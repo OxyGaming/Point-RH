@@ -55,3 +55,6 @@ next-env.d.ts
 /public/sw.js.map
 /public/swe-worker-*.js
 /public/swe-worker-*.js.map
+
+# Aperçus d'icônes — générés via `node scripts/generate-icon-previews.mjs`
+/public/icon-previews/

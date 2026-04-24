@@ -26,8 +26,8 @@ model User {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  auditLogs   AuditLog[]
-  agentFilter UserAgentFilter?
+  auditLogs    AuditLog[]
+  agentFilters UserAgentFilter[]
 }
 
 /// Journal d'audit — trace les actions sensibles (suppression, modification RH, etc.)
@@ -59,20 +59,26 @@ model AuditLog {
 
 // ─── Affichage personnalisé ────────────────────────────────────────────────
 
-/// Filtre d'agents par utilisateur.
-/// isActive = false → affichage normal (tous les agents visibles).
+/// Filtre d'agents par utilisateur — jusqu'à 4 slots par utilisateur (0..3).
+/// Un seul slot peut avoir isActive = true à la fois (contrainte métier gérée
+/// côté API). isActive = false sur tous les slots → affichage normal.
 /// Les agents sélectionnés sont stockés dans UserAgentFilterItem (relation items)
 /// pour garantir l'intégrité référentielle et la cascade automatique
 /// (agent supprimé → item retiré automatiquement, plus aucun ID zombie).
 model UserAgentFilter {
   id        String   @id @default(cuid())
-  userId    String   @unique
+  userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slotIndex Int      @default(0)
+  name      String   @default("Filtre 1")
   isActive  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   items UserAgentFilterItem[]
+
+  @@unique([userId, slotIndex])
+  @@index([userId])
 }
 
 /// Items d'un filtre d'agents utilisateur.

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo, useCallback, useTransition } from "react";
+import { useState, useMemo, useCallback, useTransition, useRef, useEffect } from "react";
 import Link from "next/link";
 import Badge from "@/components/ui/Badge";
 
@@ -16,35 +16,43 @@ interface Agent {
   habilitations: string[];
 }
 
-interface UserFilter {
+interface FilterSlot {
+  slotIndex: number;
+  name: string;
   selectedIds: string[];
   isActive: boolean;
 }
 
 interface Props {
   agents: Agent[];
-  initialFilter: UserFilter;
+  initialSlots: FilterSlot[];
 }
 
-async function saveFilter(filter: UserFilter) {
+const NB_SLOTS = 4;
+const NAME_MAX_LEN = 40;
+
+async function saveSlot(slot: FilterSlot) {
   await fetch("/api/user-filter", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(filter),
+    body: JSON.stringify(slot),
   });
 }
 
-export default function AgentTable({ agents, initialFilter }: Props) {
+export default function AgentTable({ agents, initialSlots }: Props) {
   const [search, setSearch] = useState("");
   const [uchFilter, setUchFilter] = useState("__all__");
 
   const [filterPanel, setFilterPanel] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    new Set(initialFilter.selectedIds)
+  const [slots, setSlots] = useState<FilterSlot[]>(initialSlots);
+  const [currentSlotIndex, setCurrentSlotIndex] = useState<number>(
+    initialSlots.find((s) => s.isActive)?.slotIndex ?? 0
   );
-  const [isActive, setIsActive] = useState(initialFilter.isActive);
   const [modalSearch, setModalSearch] = useState("");
   const [modalUchFilter, setModalUchFilter] = useState<string>("__all__");
+  const [editingName, setEditingName] = useState<number | null>(null);
+  const [nameDraft, setNameDraft] = useState("");
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
   const [, startTransition] = useTransition();
 
   const uchOptions = useMemo(() => {
@@ -52,25 +60,43 @@ export default function AgentTable({ agents, initialFilter }: Props) {
     return Array.from(set).sort();
   }, [agents]);
 
-  const persist = useCallback((nextIds: Set<string>, nextActive: boolean) => {
+  const currentSlot = slots[currentSlotIndex];
+  const activeSlot = slots.find((s) => s.isActive) ?? null;
+  const selectedIds = useMemo(() => new Set(currentSlot.selectedIds), [currentSlot]);
+  const activeIds = useMemo(
+    () => (activeSlot ? new Set(activeSlot.selectedIds) : null),
+    [activeSlot]
+  );
+
+  const persistSlot = useCallback((slot: FilterSlot) => {
     startTransition(async () => {
-      await saveFilter({ selectedIds: Array.from(nextIds), isActive: nextActive });
+      await saveSlot(slot);
     });
   }, []);
 
-  const toggleActive = () => {
-    const next = !isActive;
-    setIsActive(next);
-    persist(selectedIds, next);
-  };
+  // ─── Mutations ────────────────────────────────────────────────────────────
+
+  const mutateSlot = useCallback(
+    (idx: number, patch: Partial<Omit<FilterSlot, "slotIndex">>) => {
+      setSlots((prev) => {
+        const next = prev.map((s) => (s.slotIndex === idx ? { ...s, ...patch } : s));
+        // Contrainte métier : 1 seul slot actif à la fois
+        if (patch.isActive === true) {
+          return next.map((s) =>
+            s.slotIndex === idx ? s : s.isActive ? { ...s, isActive: false } : s
+          );
+        }
+        return next;
+      });
+    },
+    []
+  );
 
   const toggleAgent = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    const curr = new Set(currentSlot.selectedIds);
+    if (curr.has(id)) curr.delete(id);
+    else curr.add(id);
+    mutateSlot(currentSlotIndex, { selectedIds: Array.from(curr) });
   };
 
   const modalAgents = useMemo(() => {
@@ -82,40 +108,88 @@ export default function AgentTable({ agents, initialFilter }: Props) {
     });
   }, [agents, modalSearch, modalUchFilter]);
 
-  // "Tout sélectionner / désélectionner" n'agit que sur les agents visibles
-  // (après filtres équipe + recherche) : permet la sélection en masse par équipe
-  // tout en préservant les sélections des autres équipes.
-  const selectAll = () =>
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      for (const a of modalAgents) next.add(a.id);
-      return next;
-    });
+  const selectAll = () => {
+    const next = new Set(currentSlot.selectedIds);
+    for (const a of modalAgents) next.add(a.id);
+    mutateSlot(currentSlotIndex, { selectedIds: Array.from(next) });
+  };
 
-  const selectNone = () =>
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      for (const a of modalAgents) next.delete(a.id);
-      return next;
-    });
+  const selectNone = () => {
+    const next = new Set(currentSlot.selectedIds);
+    for (const a of modalAgents) next.delete(a.id);
+    mutateSlot(currentSlotIndex, { selectedIds: Array.from(next) });
+  };
+
+  const toggleActiveCurrent = () => {
+    const next = !currentSlot.isActive;
+    mutateSlot(currentSlotIndex, { isActive: next });
+  };
+
+  const deactivateFromBanner = () => {
+    if (!activeSlot) return;
+    const updated = { ...activeSlot, isActive: false };
+    mutateSlot(activeSlot.slotIndex, { isActive: false });
+    persistSlot(updated);
+  };
+
+  // ─── Renommage inline ─────────────────────────────────────────────────────
+
+  const startRename = (idx: number) => {
+    setEditingName(idx);
+    setNameDraft(slots[idx].name);
+  };
+
+  useEffect(() => {
+    if (editingName !== null) {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    }
+  }, [editingName]);
+
+  const commitRename = () => {
+    if (editingName === null) return;
+    const trimmed = nameDraft.trim().slice(0, NAME_MAX_LEN);
+    const name = trimmed.length > 0 ? trimmed : `Filtre ${editingName + 1}`;
+    mutateSlot(editingName, { name });
+    setEditingName(null);
+  };
+
+  const cancelRename = () => {
+    setEditingName(null);
+    setNameDraft("");
+  };
+
+  // ─── Fermeture / persistance ──────────────────────────────────────────────
 
   const saveAndClose = () => {
-    persist(selectedIds, isActive);
+    // Envoie tous les slots (4 requêtes en parallèle via startTransition)
+    startTransition(async () => {
+      await Promise.all(slots.map(saveSlot));
+    });
     setFilterPanel(false);
     setModalSearch("");
     setModalUchFilter("__all__");
+    setEditingName(null);
   };
 
   const closePanel = () => {
+    // Abandon : on recharge les slots initiaux pour jeter les modifs en cours
+    setSlots(initialSlots);
+    setCurrentSlotIndex(
+      initialSlots.find((s) => s.isActive)?.slotIndex ?? 0
+    );
     setFilterPanel(false);
     setModalSearch("");
     setModalUchFilter("__all__");
+    setEditingName(null);
   };
+
+  // ─── Filtrage de la table (hors modale) ────────────────────────────────────
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return agents.filter((a) => {
-      if (isActive && selectedIds.size > 0 && !selectedIds.has(a.id)) return false;
+      if (activeIds && !activeIds.has(a.id)) return false;
       if (uchFilter !== "__all__" && (a.uch ?? "") !== uchFilter) return false;
       if (q) {
         const haystack = `${a.nom} ${a.prenom} ${a.matricule}`.toLowerCase();
@@ -123,7 +197,7 @@ export default function AgentTable({ agents, initialFilter }: Props) {
       }
       return true;
     });
-  }, [agents, search, uchFilter, isActive, selectedIds]);
+  }, [agents, search, uchFilter, activeIds]);
 
   if (agents.length === 0) {
     return (
@@ -136,6 +210,8 @@ export default function AgentTable({ agents, initialFilter }: Props) {
       </div>
     );
   }
+
+  const activeCount = activeIds?.size ?? 0;
 
   return (
     <div>
@@ -170,7 +246,7 @@ export default function AgentTable({ agents, initialFilter }: Props) {
         <button
           onClick={() => setFilterPanel(true)}
           className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] font-[600] border transition-all ${
-            isActive
+            activeSlot
               ? "bg-[#2563eb] text-white border-[#2563eb] shadow-[0_1px_3px_rgba(37,99,235,0.3)]"
               : "bg-white text-[#4a5580] border-[#e2e8f5] hover:border-[#2563eb] hover:text-[#2563eb]"
           }`}
@@ -179,15 +255,17 @@ export default function AgentTable({ agents, initialFilter }: Props) {
           <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
           </svg>
-          {isActive ? `Filtré (${selectedIds.size})` : "Affichage"}
+          {activeSlot ? `${activeSlot.name} (${activeCount})` : "Affichage"}
         </button>
       </div>
 
       {/* Bandeau filtre actif */}
-      {isActive && selectedIds.size > 0 && (
+      {activeSlot && activeCount > 0 && (
         <div className="flex items-center justify-between px-4 py-2 bg-[#eff6ff] border-b border-[#bfdbfe] text-[12px] text-[#1e40af]">
-          <span>Affichage personnalisé actif — {selectedIds.size} agent(s) sélectionné(s)</span>
-          <button onClick={toggleActive} className="underline hover:text-[#1d4ed8] ml-4 font-[500]">
+          <span>
+            <strong>{activeSlot.name}</strong> — {activeCount} agent{activeCount > 1 ? "s" : ""} affiché{activeCount > 1 ? "s" : ""}
+          </span>
+          <button onClick={deactivateFromBanner} className="underline hover:text-[#1d4ed8] ml-4 font-[500]">
             Désactiver
           </button>
         </div>
@@ -265,12 +343,12 @@ export default function AgentTable({ agents, initialFilter }: Props) {
       {/* Modal panneau de configuration */}
       {filterPanel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col border border-[#e2e8f5]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col border border-[#e2e8f5]">
             {/* En-tête */}
             <div className="flex items-center justify-between px-5 py-4 border-b border-[#e2e8f5]">
               <div>
                 <h3 className="font-[700] text-[#0f1b4c] text-[15px]">Affichage personnalisé</h3>
-                <p className="text-[12px] text-[#8b93b8] mt-0.5">Sélectionnez les agents à afficher</p>
+                <p className="text-[12px] text-[#8b93b8] mt-0.5">Jusqu&apos;à 4 filtres nommés — 1 seul actif à la fois</p>
               </div>
               <button
                 onClick={closePanel}
@@ -280,21 +358,70 @@ export default function AgentTable({ agents, initialFilter }: Props) {
               </button>
             </div>
 
+            {/* Onglets de slots */}
+            <div className="flex border-b border-[#e2e8f5] bg-[#f8f9fd] px-2 pt-2 gap-1">
+              {slots.map((s) => {
+                const isCurrent = s.slotIndex === currentSlotIndex;
+                const isEditing = editingName === s.slotIndex;
+                return (
+                  <div
+                    key={s.slotIndex}
+                    className={`relative flex-1 min-w-0 px-2 py-1.5 rounded-t-lg border-t border-x text-[12px] font-[500] cursor-pointer transition-colors flex items-center gap-1 ${
+                      isCurrent
+                        ? "bg-white border-[#e2e8f5] text-[#0f1b4c]"
+                        : "border-transparent text-[#8b93b8] hover:text-[#4a5580]"
+                    }`}
+                    onClick={() => !isEditing && setCurrentSlotIndex(s.slotIndex)}
+                    onDoubleClick={() => startRename(s.slotIndex)}
+                    title={`Renommer : double-cliquez sur l'onglet`}
+                  >
+                    {s.isActive && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#059669] shrink-0" title="Slot actif" />
+                    )}
+                    {isEditing ? (
+                      <input
+                        ref={nameInputRef}
+                        type="text"
+                        value={nameDraft}
+                        onChange={(e) => setNameDraft(e.target.value.slice(0, NAME_MAX_LEN))}
+                        onBlur={commitRename}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") commitRename();
+                          else if (e.key === "Escape") cancelRename();
+                        }}
+                        className="flex-1 min-w-0 bg-white border border-[#2563eb] rounded px-1 py-0 text-[11px] outline-none"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span className="truncate">{s.name}</span>
+                    )}
+                    <span className="shrink-0 text-[10px] text-[#8b93b8]">({s.selectedIds.length})</span>
+                  </div>
+                );
+              })}
+            </div>
+
             {/* Toggle activer/désactiver */}
             <div className="px-5 py-3 border-b border-[#e2e8f5] flex items-center justify-between">
               <div>
-                <p className="text-[13px] font-[600] text-[#0f1b4c]">Filtre actif</p>
-                <p className="text-[11px] text-[#8b93b8]">Active ou désactive l&apos;affichage personnalisé</p>
+                <p className="text-[13px] font-[600] text-[#0f1b4c]">Activer ce filtre</p>
+                <p className="text-[11px] text-[#8b93b8]">
+                  {currentSlot.isActive
+                    ? `« ${currentSlot.name} » est actif`
+                    : activeSlot
+                    ? `« ${activeSlot.name} » est actuellement actif`
+                    : "Aucun filtre actif"}
+                </p>
               </div>
               <button
-                onClick={toggleActive}
+                onClick={toggleActiveCurrent}
                 className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  isActive ? "bg-[#2563eb]" : "bg-[#e2e8f5]"
+                  currentSlot.isActive ? "bg-[#2563eb]" : "bg-[#e2e8f5]"
                 }`}
               >
                 <span
                   className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                    isActive ? "translate-x-6" : "translate-x-1"
+                    currentSlot.isActive ? "translate-x-6" : "translate-x-1"
                   }`}
                 />
               </button>
@@ -375,19 +502,24 @@ export default function AgentTable({ agents, initialFilter }: Props) {
             </div>
 
             {/* Pied de page */}
-            <div className="px-5 py-4 border-t border-[#e2e8f5] flex justify-end gap-2">
-              <button
-                onClick={closePanel}
-                className="px-4 py-2 text-[13px] text-[#4a5580] border border-[#e2e8f5] rounded-lg hover:bg-[#f8f9fd] font-[500] transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={saveAndClose}
-                className="px-4 py-2 text-[13px] bg-[#2563eb] text-white rounded-lg hover:bg-[#1d4ed8] font-[600] transition-colors shadow-[0_1px_3px_rgba(37,99,235,0.3)]"
-              >
-                Enregistrer
-              </button>
+            <div className="px-5 py-4 border-t border-[#e2e8f5] flex items-center justify-between gap-2">
+              <p className="text-[11px] text-[#8b93b8]">
+                Double-cliquez sur un onglet pour renommer
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={closePanel}
+                  className="px-4 py-2 text-[13px] text-[#4a5580] border border-[#e2e8f5] rounded-lg hover:bg-[#f8f9fd] font-[500] transition-colors"
+                >
+                  Annuler
+                </button>
+                <button
+                  onClick={saveAndClose}
+                  className="px-4 py-2 text-[13px] bg-[#2563eb] text-white rounded-lg hover:bg-[#1d4ed8] font-[600] transition-colors shadow-[0_1px_3px_rgba(37,99,235,0.3)]"
+                >
+                  Enregistrer
+                </button>
+              </div>
             </div>
           </div>
         </div>

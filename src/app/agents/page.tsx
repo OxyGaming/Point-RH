@@ -16,17 +16,24 @@ export default async function AgentsPage() {
   const [agents, session] = await Promise.all([getAgents(), getSession()]);
   const isAdmin = session?.role === "ADMIN";
 
-  const userFilter = session
-    ? await prisma.userAgentFilter.findUnique({
+  const rows = session
+    ? await prisma.userAgentFilter.findMany({
         where: { userId: session.id },
         include: { items: { select: { agentId: true } } },
+        orderBy: { slotIndex: "asc" },
       })
-    : null;
+    : [];
 
-  const initialFilter = {
-    selectedIds: userFilter ? userFilter.items.map((i) => i.agentId) : [],
-    isActive: userFilter?.isActive ?? false,
-  };
+  // Hydrate les 4 slots (0..3) — les slots jamais utilisés sont vides par défaut
+  const initialSlots = Array.from({ length: 4 }, (_, i) => {
+    const row = rows.find((r) => r.slotIndex === i);
+    return {
+      slotIndex: i,
+      name: row?.name ?? `Filtre ${i + 1}`,
+      selectedIds: row ? row.items.map((it) => it.agentId) : [],
+      isActive: row?.isActive ?? false,
+    };
+  });
 
   const stats = [
     { label: "Total agents",   value: agents.length,                                    color: "blue"  as const },
@@ -89,7 +96,7 @@ export default async function AgentsPage() {
           <CardTitle>Liste des agents actifs</CardTitle>
         </CardHeader>
         <CardBody className="p-0">
-          <AgentTable agents={agents} initialFilter={initialFilter} />
+          <AgentTable agents={agents} initialSlots={initialSlots} />
         </CardBody>
       </Card>
 

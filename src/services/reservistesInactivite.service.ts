@@ -51,13 +51,13 @@ function parseHabilitations(raw: string): string[] {
 }
 
 export async function getReservistesInactivite(userId: string): Promise<ReservistesInactiviteData> {
-  // 1. Filtre utilisateur (éventuel)
-  const filter = await prisma.userAgentFilter.findUnique({
-    where: { userId },
+  // 1. Filtre utilisateur (éventuel) — prend le slot actif parmi les 4 slots possibles
+  const filter = await prisma.userAgentFilter.findFirst({
+    where: { userId, isActive: true },
     include: { items: { select: { agentId: true } } },
   });
-  const filterActive = filter?.isActive ?? false;
-  const filteredIds = filterActive ? filter!.items.map((i) => i.agentId) : null;
+  const filterActive = filter !== null;
+  const filteredIds = filter ? filter.items.map((i) => i.agentId) : null;
 
   // 2. Réservistes actifs (respecte le filtre)
   const agentsRaw = await prisma.agent.findMany({

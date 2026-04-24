@@ -22,7 +22,38 @@ import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveServi
 import type { LpaContext } from "@/types/deplacement";
 import { DEFAULT_WORK_RULES_MINUTES, type WorkRulesMinutes } from "@/lib/rules/workRules";
 
-export const CASCADE_MAX_DEPTH = 10;
+/**
+ * Profondeur maximale de cascade.
+ *
+ * Réduite à 3 (ancien : 10) : au-delà, l'exploration combinatoire dégénère —
+ * avec ~230 agents, depth=10 peut déclencher des dizaines de milliers d'appels
+ * à evaluerMobilisabilite et bloquer l'event loop Node ≫ 60s (timeout nginx).
+ *
+ * Métier : une chaîne de 3 remplacements (A← B← C← D) reste gérable
+ * humainement ; au-delà personne ne la valide en pratique. Le gain perf
+ * l'emporte sur la perte de scénarios exotiques.
+ */
+export const CASCADE_MAX_DEPTH = Number(process.env.CASCADE_MAX_DEPTH ?? 3);
+
+/**
+ * Budget global d'appels à evaluerMobilisabilite par construction de scénarios.
+ *
+ * Sert de garde-fou absolu : si la cascade consomme ce budget (combinatoire
+ * pathologique), on l'interrompt proprement au lieu de laisser l'event loop
+ * tourner dans le vide. Un log `CASCADE_BUDGET_EXHAUSTED` permet de repérer
+ * ces cas en prod pour investigation ciblée.
+ */
+export const CASCADE_EVAL_BUDGET = Number(process.env.CASCADE_EVAL_BUDGET ?? 5000);
+
+/** État mutable partagé entre appels récursifs pour comptabiliser le budget. */
+export interface CascadeBudget {
+  evaluationsRestantes: number;
+  epuise: boolean;
+}
+
+export function createCascadeBudget(): CascadeBudget {
+  return { evaluationsRestantes: CASCADE_EVAL_BUDGET, epuise: false };
+}
 
 export interface ResolutionResultat {
   resolu: boolean;
@@ -121,13 +152,15 @@ export function tenterResolutionCascade(
   npoExclusionCodes: string[] = [],
   lpaContext?: LpaContext,
   rules: WorkRulesMinutes = DEFAULT_WORK_RULES_MINUTES,
-  agentsEngages: Set<string> = new Set()
+  agentsEngages: Set<string> = new Set(),
+  budget: CascadeBudget = createCascadeBudget()
 ): ResolutionResultat {
   const echec: ResolutionResultat = {
     resolu: false, agentRemplagant: null, modifications: [], impactsCascade: [], profondeur: depth,
   };
 
   if (depth > CASCADE_MAX_DEPTH || !conflictingEvent) return echec;
+  if (budget.epuise) return echec;
 
   const jsDebut = conflictingEvent.dateDebut;
   const jsFin   = conflictingEvent.dateFin;
@@ -154,6 +187,16 @@ export function tenterResolutionCascade(
     // Horaires de référence JsType (indépendants des trajets de l'agent initial)
     const jsTypeDebut = conflictingEvent.heureDebutJsType ?? conflictingEvent.heureDebut;
     const jsTypeFin   = conflictingEvent.heureFinJsType   ?? conflictingEvent.heureFin;
+
+    // Garde-fou combinatoire : décompter puis vérifier le budget global
+    if (--budget.evaluationsRestantes < 0) {
+      budget.epuise = true;
+      console.warn("[cascade] CASCADE_BUDGET_EXHAUSTED", {
+        depth,
+        conflictDate: jsDebut.toISOString().slice(0, 10),
+      });
+      return echec;
+    }
 
     const resultat = evaluerMobilisabilite(
       autre.context, autre.events, simulationInput, rules, effectiveService ?? undefined
@@ -242,12 +285,24 @@ export function tenterResolutionCascade(
         npoExclusionCodes,
         lpaContext,
         rules,
-        newEngages
+        newEngages,
+        budget
       );
 
       if (!subResult.resolu) continue;
+      if (budget.epuise) return echec;
 
       // Le sous-problème est résolu → réévaluer cet agent sans l'événement causant
+      if (--budget.evaluationsRestantes < 0) {
+        budget.epuise = true;
+        console.warn("[cascade] CASCADE_BUDGET_EXHAUSTED", {
+          depth,
+          conflictDate: jsDebut.toISOString().slice(0, 10),
+          phase: "reevaluation-liberee",
+        });
+        return echec;
+      }
+
       const eventsLiberes = autre.events.filter((e) => e !== eventCausant);
       const resultatLibere = evaluerMobilisabilite(
         autre.context, eventsLiberes, simulationInput, rules, effectiveService ?? undefined
@@ -321,8 +376,14 @@ export function resoudreTousConflits(
   // Agents déjà engagés globalement dans ce passage (anti-cycle inter-conflits)
   const agentsEngagesGlobal = new Set<string>();
 
+  // Budget partagé entre tous les conflits de ce candidat : si la résolution
+  // du 1er conflit a déjà consommé des milliers d'évaluations, le 2e ne relance
+  // pas une explosion en cascade.
+  const budget = createCascadeBudget();
+
   for (const conflit of conflitsResolvables) {
     if (!conflit.resolvable) continue;
+    if (budget.epuise) break;
 
     const evConflictuel = eventsApresJs.find((e) => {
       const dateStr = e.dateDebut.toISOString().slice(0, 10);
@@ -341,7 +402,8 @@ export function resoudreTousConflits(
       npoExclusionCodes,
       lpaContext,
       rules,
-      new Set(agentsEngagesGlobal)
+      new Set(agentsEngagesGlobal),
+      budget
     );
 
     if (res.resolu) {

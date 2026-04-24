@@ -86,6 +86,10 @@ const nextConfig: NextConfig = {
       // Clé stable entre builds : évite les erreurs "Failed to find Server Action"
       // quand les clients ont une ancienne version en cache après redéploiement.
       // Définir NEXT_SERVER_ACTIONS_ENCRYPTION_KEY dans .env (openssl rand -base64 32).
+      //
+      // @ts-expect-error — supportée par le runtime Next.js 16.1.6 mais absente
+      // du typage `ServerActionsConfig` dans cette version. À retirer quand les
+      // types seront synchronisés.
       encryptionKey: process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY,
     },
   },

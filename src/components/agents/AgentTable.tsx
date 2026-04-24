@@ -44,6 +44,7 @@ export default function AgentTable({ agents, initialFilter }: Props) {
   );
   const [isActive, setIsActive] = useState(initialFilter.isActive);
   const [modalSearch, setModalSearch] = useState("");
+  const [modalUchFilter, setModalUchFilter] = useState<string>("__all__");
   const [, startTransition] = useTransition();
 
   const uchOptions = useMemo(() => {
@@ -72,27 +73,44 @@ export default function AgentTable({ agents, initialFilter }: Props) {
     });
   };
 
-  const selectAll = () => setSelectedIds(new Set(agents.map((a) => a.id)));
-  const selectNone = () => setSelectedIds(new Set());
+  const modalAgents = useMemo(() => {
+    const q = modalSearch.trim().toLowerCase();
+    return agents.filter((a) => {
+      if (modalUchFilter !== "__all__" && (a.uch ?? "") !== modalUchFilter) return false;
+      if (q && !`${a.nom} ${a.prenom} ${a.matricule}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [agents, modalSearch, modalUchFilter]);
+
+  // "Tout sélectionner / désélectionner" n'agit que sur les agents visibles
+  // (après filtres équipe + recherche) : permet la sélection en masse par équipe
+  // tout en préservant les sélections des autres équipes.
+  const selectAll = () =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const a of modalAgents) next.add(a.id);
+      return next;
+    });
+
+  const selectNone = () =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const a of modalAgents) next.delete(a.id);
+      return next;
+    });
 
   const saveAndClose = () => {
     persist(selectedIds, isActive);
     setFilterPanel(false);
     setModalSearch("");
+    setModalUchFilter("__all__");
   };
 
   const closePanel = () => {
     setFilterPanel(false);
     setModalSearch("");
+    setModalUchFilter("__all__");
   };
-
-  const modalAgents = useMemo(() => {
-    const q = modalSearch.trim().toLowerCase();
-    if (!q) return agents;
-    return agents.filter((a) =>
-      `${a.nom} ${a.prenom} ${a.matricule}`.toLowerCase().includes(q)
-    );
-  }, [agents, modalSearch]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -282,9 +300,9 @@ export default function AgentTable({ agents, initialFilter }: Props) {
               </button>
             </div>
 
-            {/* Barre de recherche dans la modal */}
-            <div className="px-4 py-2.5 border-b border-[#e2e8f5]">
-              <div className="relative">
+            {/* Barre de recherche + filtre équipe */}
+            <div className="px-4 py-2.5 border-b border-[#e2e8f5] flex gap-2">
+              <div className="relative flex-1">
                 <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8b93b8]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
@@ -302,13 +320,30 @@ export default function AgentTable({ agents, initialFilter }: Props) {
                   >×</button>
                 )}
               </div>
+              {uchOptions.length > 1 && (
+                <select
+                  value={modalUchFilter}
+                  onChange={(e) => setModalUchFilter(e.target.value)}
+                  className="border border-[#e2e8f5] rounded-lg px-2 py-1.5 text-[12px] bg-white focus:outline-none focus:border-[#2563eb] focus:ring-1 focus:ring-[rgba(37,99,235,0.15)] text-[#0f1b4c] max-w-[45%]"
+                  title="Filtrer par équipe"
+                >
+                  <option value="__all__">Toutes les équipes</option>
+                  {uchOptions.map((u) => (
+                    <option key={u} value={u}>{u}</option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {/* Actions rapides */}
             <div className="px-5 py-2 border-b border-[#e2e8f5] flex items-center gap-3 text-[12px]">
-              <button onClick={selectAll} className="text-[#2563eb] hover:underline font-[500]">Tout sélectionner</button>
+              <button onClick={selectAll} className="text-[#2563eb] hover:underline font-[500]">
+                {modalUchFilter !== "__all__" || modalSearch ? "Sélectionner visibles" : "Tout sélectionner"}
+              </button>
               <span className="text-[#e2e8f5]">|</span>
-              <button onClick={selectNone} className="text-[#2563eb] hover:underline font-[500]">Tout désélectionner</button>
+              <button onClick={selectNone} className="text-[#2563eb] hover:underline font-[500]">
+                {modalUchFilter !== "__all__" || modalSearch ? "Désélectionner visibles" : "Tout désélectionner"}
+              </button>
               <span className="ml-auto text-[#8b93b8]">{selectedIds.size} / {agents.length}</span>
             </div>
 

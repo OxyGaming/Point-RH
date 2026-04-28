@@ -65,7 +65,9 @@ export function trouverCandidatsPourJs(
   /** Si true, un agent dont la JS source est DERNIER_RECOURS peut être libéré par figeage */
   autoriserFigeage = false,
   /** Map JsType.code → FlexibiliteJs, requise si autoriserFigeage */
-  jsTypeFlexibiliteMap?: Map<string, FlexibiliteJs>
+  jsTypeFlexibiliteMap?: Map<string, FlexibiliteJs>,
+  /** Préfixes additionnels assimilés JS Z (table ZeroLoadPrefix) */
+  zeroLoadPrefixes: readonly string[] = []
 ): CandidatsEtExclusions {
   const imprevu = buildImprevu(js, remplacement, deplacement);
   const debutImprevu = combineDateTime(js.date, js.heureDebut);
@@ -149,7 +151,7 @@ export function trouverCandidatsPourJs(
     // Exception : figeage autorisé + JS source DERNIER_RECOURS → agent libérable
     const conflitEvent = events.find((e) => {
       if (e.jsNpo !== "JS") return false;
-      if (isZeroLoadJs(e.codeJs, e.typeJs)) return false;
+      if (isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes)) return false;
       return e.dateDebut < finImprevu && e.dateFin > debutImprevu;
     });
 
@@ -186,7 +188,7 @@ export function trouverCandidatsPourJs(
     const jsZOrigine = eventsBase.find(
       (e) =>
         e.jsNpo === "JS" &&
-        isZeroLoadJs(e.codeJs, e.typeJs) &&
+        isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes) &&
         e.dateDebut < finImprevu &&
         e.dateFin > debutImprevu
     ) ?? null;

@@ -10,6 +10,7 @@
 
 import { loadWorkRules } from "@/lib/rules/workRulesLoader";
 import { loadNpoExclusionCodes } from "@/lib/simulation/npoExclusionLoader";
+import { loadZeroLoadPrefixes } from "@/lib/simulation/zeroLoadPrefixLoader";
 import type { JsCible, FlexibiliteJs } from "@/types/js-simulation";
 import type { MultiJsSimulationResultat, CandidateScope } from "@/types/multi-js-simulation";
 import { trouverCandidatsPourJs } from "./multiJsCandidateFinder";
@@ -39,6 +40,7 @@ export async function executerSimulationMultiJs(
 
   const rules = await loadWorkRules();
   const npoExclusionCodes = await loadNpoExclusionCodes();
+  const zeroLoadPrefixes = await loadZeroLoadPrefixes();
 
   // Toujours charger la map de flexibilité pour les scénarios avec figeage
   const jsTypeFlexibiliteMap: Map<string, FlexibiliteJs> =
@@ -81,7 +83,8 @@ export async function executerSimulationMultiJs(
       const { candidats, exclusions } = trouverCandidatsPourJs(
         js, agents, scope, rules, remplacement, deplacement,
         effectiveServiceMap, npoExclusionCodes,
-        avecFigeage, avecFigeage ? jsTypeFlexibiliteMap : undefined
+        avecFigeage, avecFigeage ? jsTypeFlexibiliteMap : undefined,
+        zeroLoadPrefixes
       );
       candidatesPerJs.set(js.planningLigneId, candidats);
       exclusionsPerJs.set(js.planningLigneId, exclusions);
@@ -90,7 +93,8 @@ export async function executerSimulationMultiJs(
     return allouerJsMultiple(
       jsSelectionnees, candidatesPerJs, agentsMap, rules, scope,
       titre, description, remplacement, deplacement,
-      effectiveServiceMap, npoExclusionCodes, exclusionsPerJs, lpaContext, logger
+      effectiveServiceMap, npoExclusionCodes, exclusionsPerJs, lpaContext, logger,
+      zeroLoadPrefixes
     );
   }
 

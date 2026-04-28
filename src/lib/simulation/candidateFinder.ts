@@ -33,7 +33,8 @@ export function preFilterCandidats(
   imprevu: ImpreuvuConfig,
   agentInitialId: string,
   effectiveServiceMap?: Map<string, EffectiveServiceInfo>,
-  npoExclusionCodes: string[] = []
+  npoExclusionCodes: string[] = [],
+  zeroLoadPrefixes: readonly string[] = []
 ): { eligible: AgentWithPlanning[]; exclus: { agent: AgentWithPlanning; raison: string }[] } {
   const eligible: AgentWithPlanning[] = [];
   const exclus: { agent: AgentWithPlanning; raison: string }[] = [];
@@ -110,7 +111,7 @@ export function preFilterCandidats(
     // (les JS de type Z = sans charge réelle sont autorisées à être réaffectées)
     const conflit = a.events.find((e) => {
       if (e.jsNpo !== "JS") return false;
-      if (isZeroLoadJs(e.codeJs, e.typeJs)) return false; // JS Z : ne bloque pas la mobilisation
+      if (isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes)) return false; // JS Z : ne bloque pas la mobilisation
       const overlap = e.dateDebut < finImprevu && e.dateFin > debutImprevu;
       return overlap;
     });
@@ -179,7 +180,8 @@ export function trouverCandidatsParFigeage(
   exclus: { agent: AgentWithPlanning; raison: string }[],
   jsCible: JsCible,
   imprevu: ImpreuvuConfig,
-  jsTypeFlexibiliteMap: Map<string, FlexibiliteJs>
+  jsTypeFlexibiliteMap: Map<string, FlexibiliteJs>,
+  zeroLoadPrefixes: readonly string[] = []
 ): CandidatFigeage[] {
   const debutImprevu = combineDateTime(jsCible.date, imprevu.heureDebutReel);
   const finImprevu   = combineDateTime(getDateFinJs(jsCible.date, imprevu.heureDebutReel, imprevu.heureFinEstimee), imprevu.heureFinEstimee);
@@ -193,7 +195,7 @@ export function trouverCandidatsParFigeage(
     // Trouver la JS conflictuelle (non-Z, chevauchant l'imprévu)
     const jsConflictuelle = agent.events.find((e) => {
       if (e.jsNpo !== "JS") return false;
-      if (isZeroLoadJs(e.codeJs, e.typeJs)) return false;
+      if (isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes)) return false;
       return e.dateDebut < finImprevu && e.dateFin > debutImprevu;
     });
 

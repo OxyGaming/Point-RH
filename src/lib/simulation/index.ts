@@ -14,6 +14,7 @@ import { construireScenarios } from "./scenarioBuilder";
 import { scorerCandidatDetail } from "./scenarioScorer";
 import { isZeroLoadJs } from "./jsUtils";
 import { loadNpoExclusionCodes } from "./npoExclusionLoader";
+import { loadZeroLoadPrefixes } from "./zeroLoadPrefixLoader";
 import { loadLpaContext } from "@/lib/deplacement/loadLpaContext";
 import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
@@ -60,6 +61,9 @@ export async function executerSimulationJS(
   // ─── Chargement des codes NPO exclus des simulations ─────────────────────────
   const npoExclusionCodes = await loadNpoExclusionCodes();
 
+  // ─── Chargement des préfixes additionnels assimilés JS Z ─────────────────────
+  const zeroLoadPrefixes = await loadZeroLoadPrefixes();
+
   // ─── Chargement du contexte LPA ──────────────────────────────────────────────
   const agentIds = agents.map((a) => a.context.id);
   const lpaContext = await loadLpaContext(agentIds);
@@ -93,7 +97,7 @@ export async function executerSimulationJS(
   // ─── Étape 1 : pré-filtre ────────────────────────────────────────────────────
   const agentInitialId = jsCible.agentId;
   const { eligible, exclus } = preFilterCandidats(
-    agents, jsCible, imprevu, agentInitialId, effectiveServiceMap, npoExclusionCodes
+    agents, jsCible, imprevu, agentInitialId, effectiveServiceMap, npoExclusionCodes, zeroLoadPrefixes
   );
   mark("PREFILTER_DONE", { nbEligible: eligible.length, nbExclus: exclus.length });
 
@@ -122,7 +126,7 @@ export async function executerSimulationJS(
     const jsZOrigine = events.find(
       (e) =>
         e.jsNpo === "JS" &&
-        isZeroLoadJs(e.codeJs, e.typeJs) &&
+        isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes) &&
         e.dateDebut < finImprevu &&
         e.dateFin > debutImprevu
     ) ?? null;
@@ -234,7 +238,7 @@ export async function executerSimulationJS(
   // ─── Étape 2bis : candidats libérés par figeage (DERNIER_RECOURS) ─────────────
   // Toujours calculé (pour les deux résultats sansFigeage / avecFigeage).
   const jsTypeFlexibiliteMap = await loadJsTypeFlexibiliteMap();
-  const candidatsFigeage = trouverCandidatsParFigeage(exclus, jsCible, imprevu, jsTypeFlexibiliteMap);
+  const candidatsFigeage = trouverCandidatsParFigeage(exclus, jsCible, imprevu, jsTypeFlexibiliteMap, zeroLoadPrefixes);
 
   logger.info("FIGEAGE_CANDIDATS", {
     data: { nbCandidatsFigeage: candidatsFigeage.length },
@@ -247,7 +251,7 @@ export async function executerSimulationJS(
     const jsZOrigine = eventsAvecFigeage.find(
       (e) =>
         e.jsNpo === "JS" &&
-        isZeroLoadJs(e.codeJs, e.typeJs) &&
+        isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes) &&
         e.dateDebut < finImprevu &&
         e.dateFin > debutImprevu
     ) ?? null;

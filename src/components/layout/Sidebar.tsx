@@ -63,6 +63,11 @@ const IconNpo = () => (
     <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
   </svg>
 );
+const IconZeroLoad = () => (
+  <svg className="w-[17px] h-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9H9v6"/>
+  </svg>
+);
 const IconAgentsSupprimes = () => (
   <svg className="w-[17px] h-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
     <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
@@ -111,6 +116,7 @@ const NAV_ADMIN = [
   { href: "/admin/js-types",         label: "Flexibilité JS",         Icon: IconFlex },
   { href: "/admin/habilitations",    label: "Préfixes JS",            Icon: IconHabilitations },
   { href: "/admin/npo-exclusions",   label: "Exclusions NPO",         Icon: IconNpo },
+  { href: "/admin/zero-load-prefixes", label: "Préfixes JS Z",        Icon: IconZeroLoad },
   { href: "/admin/agents-supprimes", label: "Agents supprimés",       Icon: IconAgentsSupprimes },
   { href: "/admin/parametrage",      label: "Import/Export config",   Icon: IconParametrage },
   { href: "/admin/users",            label: "Utilisateurs",           Icon: IconUsers },

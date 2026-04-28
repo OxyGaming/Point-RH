@@ -2,14 +2,20 @@
  * Service de propositions d'habilitations (préfixes JS) après import planning.
  *
  * Principe : pour chaque agent, lister les `codeJs` qu'il a tenus (historique complet,
- * hors NPO) qui ne sont couverts par AUCUN de ses préfixes actuels, puis proposer
- * chaque code tel quel (le plus restrictif possible).
+ * hors NPO et hors JS sans charge réelle) qui ne sont couverts par AUCUN de ses
+ * préfixes actuels, puis proposer chaque code tel quel (le plus restrictif possible).
+ *
+ * Les JS Z (suffixe " Z", préfixe "FO", typeJs="DIS", préfixes ZeroLoadPrefix admin)
+ * sont exclues : un agent placé sur une JS sans charge n'y a pas vraiment "tenu" le code,
+ * ça génère du bruit d'inviter à l'habiliter dessus.
  *
  * Logique idempotente : valider un ajout le fait disparaître des propositions suivantes.
  */
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 import type { SessionUser } from "@/lib/session";
+import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
+import { loadZeroLoadPrefixes } from "@/lib/simulation/zeroLoadPrefixLoader";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,33 +95,56 @@ export async function calculerPropositionsHabilitations(): Promise<AgentProposal
     },
   });
 
-  // 2. Aggregation SQL : (agentId, codeJs) → COUNT + MAX(jourPlanning)
-  //    Filtre : jsNpo = "JS" (exclut NPO) + codeJs non null/vide.
+  // 2. Aggregation SQL : (agentId, codeJs, typeJs) → COUNT + MAX(jourPlanning)
+  //    Filtres SQL :
+  //      - jsNpo = "JS"            (exclut NPO)
+  //      - codeJs non null/vide
+  //      - codeJs ne commence PAS par "FO" et ne se termine PAS par " Z"
+  //        (built-in JS Z déjà exclues côté SQL pour réduire le volume)
+  //    Le filtrage final (typeJs="DIS" + préfixes admin ZeroLoadPrefix) se fait
+  //    après le groupBy via isZeroLoadJs() — option 3 : SQL pré-filtre + JS post-filtre.
+  const zeroLoadPrefixes = await loadZeroLoadPrefixes();
   const rows = await prisma.planningLigne.groupBy({
-    by: ["agentId", "codeJs"],
+    by: ["agentId", "codeJs", "typeJs"],
     where: {
       agentId: { not: null },
       jsNpo: "JS",
       codeJs: { not: null },
+      NOT: [
+        { codeJs: { startsWith: "FO" } },
+        { codeJs: { endsWith: " Z" } },
+      ],
     },
     _count: { _all: true },
     _max: { jourPlanning: true },
   });
 
   // 3. Indexation par agentId pour accès O(1)
-  const byAgent = new Map<string, CodeJsTenu[]>();
+  //    Filtrage final via isZeroLoadJs (typeJs="DIS" + préfixes admin),
+  //    puis reconsolidation par (agentId, codeJs) car le groupBy par typeJs peut
+  //    dédoubler les lignes pour un même code (typeJs variant entre jours).
+  const consolide = new Map<string, Map<string, CodeJsTenu>>();
   for (const row of rows) {
     if (!row.agentId || !row.codeJs) continue;
     const code = row.codeJs.trim();
     if (code.length === 0) continue;
-    const tenu: CodeJsTenu = {
+    if (isZeroLoadJs(code, row.typeJs, zeroLoadPrefixes)) continue;
+
+    const codeMap = consolide.get(row.agentId) ?? new Map<string, CodeJsTenu>();
+    const existing = codeMap.get(code);
+    const dernierJour = row._max.jourPlanning ?? new Date(0);
+    codeMap.set(code, {
       codeJs: code,
-      nbJoursTenus: row._count._all,
-      dernierJour: row._max.jourPlanning ?? new Date(0),
-    };
-    const list = byAgent.get(row.agentId) ?? [];
-    list.push(tenu);
-    byAgent.set(row.agentId, list);
+      nbJoursTenus: (existing?.nbJoursTenus ?? 0) + row._count._all,
+      dernierJour:
+        existing && existing.dernierJour > dernierJour ? existing.dernierJour : dernierJour,
+    });
+    consolide.set(row.agentId, codeMap);
+  }
+
+  const byAgent = new Map<string, CodeJsTenu[]>();
+  for (const [agentId, codeMap] of consolide) {
+    byAgent.set(agentId, Array.from(codeMap.values()));
   }
 
   // 4. Calcul par agent → garder ceux avec ≥ 1 proposition

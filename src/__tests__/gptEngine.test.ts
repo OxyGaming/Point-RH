@@ -964,3 +964,24 @@ describe("isZeroLoadJs — typeJs DIS assimilé JS Z", () => {
   it("typeJs \"DISP\" (≠ DIS exact) → pas JS Z", () =>
     expect(isZeroLoadJs("GIV", "DISP")).toBe(false));
 });
+
+describe("isZeroLoadJs — préfixes additionnels (ZeroLoadPrefix admin)", () => {
+  it("préfixe admin \"DISP\" + codeJs \"DISP01\" → JS Z", () =>
+    expect(isZeroLoadJs("DISP01", null, ["DISP"])).toBe(true));
+  it("préfixe admin \"DISP\" + codeJs \"DISP\" exact → JS Z", () =>
+    expect(isZeroLoadJs("DISP", null, ["DISP"])).toBe(true));
+  it("préfixe admin minuscule en source matché par codeJs majuscule", () =>
+    expect(isZeroLoadJs("DISPO_FORMATION", null, ["DISP"])).toBe(true));
+  it("plusieurs préfixes admin : 1er ne match pas, 2ème oui → JS Z", () =>
+    expect(isZeroLoadJs("PSE001", null, ["DISP", "PSE"])).toBe(true));
+  it("préfixe admin sans match → pas JS Z (et règles built-in toujours OK)", () =>
+    expect(isZeroLoadJs("GIV", null, ["DISP"])).toBe(false));
+  it("préfixe admin vide ignoré", () =>
+    expect(isZeroLoadJs("GIV", null, [""])).toBe(false));
+  it("préfixe admin présent mais règle built-in suffit (suffixe Z)", () =>
+    expect(isZeroLoadJs("GIV Z", null, ["DISP"])).toBe(true));
+  it("customPrefixes undefined → comportement built-in seul", () =>
+    expect(isZeroLoadJs("DISP01", null, undefined)).toBe(false));
+  it("customPrefixes vide [] → comportement built-in seul", () =>
+    expect(isZeroLoadJs("DISP01", null, [])).toBe(false));
+});

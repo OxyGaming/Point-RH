@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { checkAuth } from "@/lib/session";
 import { isJsDeNuit } from "@/lib/utils";
 import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
+import { loadZeroLoadPrefixes } from "@/lib/simulation/zeroLoadPrefixLoader";
 import type { JsTimeline } from "@/types/multi-js-simulation";
 
 export const runtime = "nodejs";
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const [lignes, jsTypes] = await Promise.all([
+    const [lignes, jsTypes, zeroLoadPrefixes] = await Promise.all([
       prisma.planningLigne.findMany({
         where: {
           importId,
@@ -35,6 +36,7 @@ export async function GET(req: NextRequest) {
       }),
       // Charger tous les JsTypes actifs pour résoudre les horaires standard
       prisma.jsType.findMany({ where: { actif: true } }),
+      loadZeroLoadPrefixes(),
     ]);
 
     /**
@@ -90,7 +92,7 @@ export async function GET(req: NextRequest) {
         codeJs: ligne.codeJs,
         typeJs: ligne.typeJs,
         isNuit: isJsDeNuit(heureDebut, heureFin),
-        isZ: isZeroLoadJs(ligne.codeJs, ligne.typeJs),
+        isZ: isZeroLoadJs(ligne.codeJs, ligne.typeJs, zeroLoadPrefixes),
         agentId: ligne.agentId,
         agentNom: ligne.agent?.nom ?? ligne.nom,
         agentPrenom: ligne.agent?.prenom ?? ligne.prenom,

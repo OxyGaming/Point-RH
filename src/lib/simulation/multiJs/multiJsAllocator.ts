@@ -55,7 +55,8 @@ function generateScenarioId(): string {
 function determinerJsOriginale(
   events: PlanningEvent[],
   js: JsCible,
-  agentReserve: boolean
+  agentReserve: boolean,
+  zeroLoadPrefixes: readonly string[] = []
 ): JsOriginaleAgent {
   const debutJs = combineDateTime(js.date, js.heureDebut);
   const finJs   = combineDateTime(getDateFinJs(js.date, js.heureDebut, js.heureFin), js.heureFin);
@@ -70,7 +71,7 @@ function determinerJsOriginale(
       : { type: "LIBRE",   codeJs: null, heureDebut: null, heureFin: null, description: "Aucune JS prévue" };
   }
 
-  if (isZeroLoadJs(event.codeJs, event.typeJs)) {
+  if (isZeroLoadJs(event.codeJs, event.typeJs, zeroLoadPrefixes)) {
     return {
       type: "JS_Z",
       codeJs: event.codeJs,
@@ -109,7 +110,9 @@ export function allouerJsMultiple(
   /** Contexte LPA pour calcul déplacement dynamique dans les résolutions cascade */
   lpaContext?: LpaContext,
   /** Logger de traçabilité — optionnel, aucun log si absent */
-  logger?: LogCollector
+  logger?: LogCollector,
+  /** Préfixes additionnels assimilés JS Z (table ZeroLoadPrefix) */
+  zeroLoadPrefixes: readonly string[] = []
 ): MultiJsScenario {
   // Helper : priorité de flexibilité pour le tri des JS cibles
   const flexPrio = (f: FlexibiliteJs) => f === "OBLIGATOIRE" ? 0 : 1;
@@ -249,7 +252,8 @@ export function allouerJsMultiple(
         jsOriginaleAgent: determinerJsOriginale(
           agentData!.events,
           js,
-          candidat.agentReserve
+          candidat.agentReserve,
+          zeroLoadPrefixes
         ),
         // Initialisés à vide, remplis lors de la passe cascade ci-dessous
         cascadeModifications: [],
@@ -402,7 +406,7 @@ export function allouerJsMultiple(
         score:         affExistante.score,
         justification: `Réaffecté via swap 2-opt (libéré de ${jsAffecteeCible.codeJs ?? jsAffecteeId})`,
         conflitsInduits,
-        jsOriginaleAgent: determinerJsOriginale(agentData.events, jsNonCouverte, agentData.context.agentReserve),
+        jsOriginaleAgent: determinerJsOriginale(agentData.events, jsNonCouverte, agentData.context.agentReserve, zeroLoadPrefixes),
         cascadeModifications: [],
         cascadeImpacts: [],
         nbCascadesResolues: 0,
@@ -441,7 +445,7 @@ export function allouerJsMultiple(
         score:         candidatRemplagant?.score ?? 0,
         justification: `Affecté via swap 2-opt (remplace ${affExistante.agentNom} ${affExistante.agentPrenom})`,
         conflitsInduits: conflitsInd,
-        jsOriginaleAgent: determinerJsOriginale(agentRemplacantData.events, jsAffecteeCible, agentRemplacantData.context.agentReserve),
+        jsOriginaleAgent: determinerJsOriginale(agentRemplacantData.events, jsAffecteeCible, agentRemplacantData.context.agentReserve, zeroLoadPrefixes),
         cascadeModifications: [],
         cascadeImpacts: [],
         nbCascadesResolues: 0,

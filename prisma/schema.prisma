@@ -287,6 +287,19 @@ model NpoExclusionCode {
   createdAt DateTime @default(now())
 }
 
+/// Préfixes de codes JS additionnels assimilés à des JS Z (sans charge réelle).
+/// S'ajoutent aux règles built-in (suffixe " Z", préfixe "FO", typeJs="DIS").
+/// Un agent sur un code matchant un de ces préfixes est mobilisable sans cascade
+/// (réaffectation directe, +15 pts au scoring, exclusion des propositions
+/// d'habilitation post-import). Configurables par l'administrateur.
+model ZeroLoadPrefix {
+  id        String   @id @default(cuid())
+  prefixe   String   @unique // préfixe, ex : "DISP", "FORM", "PSE"
+  libelle   String // ex : "Disponibilité programmée"
+  actif     Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
 // ─── Règles de déplacement agent ──────────────────────────────────────────────
 
 /// Règles spécifiques de déplacement par agent.

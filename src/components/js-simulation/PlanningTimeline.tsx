@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { cn, isJsDeNuit } from "@/lib/utils";
 import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
+import { useZeroLoadPrefixes } from "@/hooks/useZeroLoadPrefixes";
 import type { JsCible, FlexibiliteJs } from "@/types/js-simulation";
 
 interface PlanningLigne {
@@ -116,6 +117,7 @@ export default function PlanningTimeline({
   selectedJsId,
 }: PlanningTimelineProps) {
   const gptMap = computeGptMap(lignes);
+  const zeroLoadPrefixes = useZeroLoadPrefixes();
 
   if (lignes.length === 0) {
     return (
@@ -205,7 +207,7 @@ export default function PlanningTimeline({
               {isJs && /^FO/i.test(l.codeJs ?? "") && (
                 <span className="text-xs bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded font-semibold shrink-0">JS FO</span>
               )}
-              {isJs && isZeroLoadJs(l.codeJs, l.typeJs) && !/^FO/i.test(l.codeJs ?? "") && (
+              {isJs && isZeroLoadJs(l.codeJs, l.typeJs, zeroLoadPrefixes) && !/^FO/i.test(l.codeJs ?? "") && (
                 <span className="text-xs bg-purple-100 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded font-semibold shrink-0">JS Z</span>
               )}
               {isJsDeNuit(l.heureDebutPop, l.heureFinPop) && isJs && (

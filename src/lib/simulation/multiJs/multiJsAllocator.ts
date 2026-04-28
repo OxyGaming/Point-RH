@@ -70,7 +70,7 @@ function determinerJsOriginale(
       : { type: "LIBRE",   codeJs: null, heureDebut: null, heureFin: null, description: "Aucune JS prévue" };
   }
 
-  if (isZeroLoadJs(event.codeJs)) {
+  if (isZeroLoadJs(event.codeJs, event.typeJs)) {
     return {
       type: "JS_Z",
       codeJs: event.codeJs,

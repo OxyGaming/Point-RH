@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
         codeJs: ligne.codeJs,
         typeJs: ligne.typeJs,
         isNuit: isJsDeNuit(heureDebut, heureFin),
-        isZ: isZeroLoadJs(ligne.codeJs),
+        isZ: isZeroLoadJs(ligne.codeJs, ligne.typeJs),
         agentId: ligne.agentId,
         agentNom: ligne.agent?.nom ?? ligne.nom,
         agentPrenom: ligne.agent?.prenom ?? ligne.prenom,

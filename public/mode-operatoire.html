@@ -970,11 +970,21 @@
     </div>
     <div class="term-card" style="border-left-color:var(--info)">
       <div class="term">JS Z / JS de type Z</div>
-      <div class="def">Journée de service sans charge réelle (placeholder). Un agent prévu sur une JS Z peut être réaffecté sans avoir besoin de trouver un remplaçant pour cette JS d'origine. <strong>Bonus +15 pts</strong> au score.</div>
+      <div class="def">Journée de service sans charge réelle (placeholder). Un agent prévu sur une JS Z peut être réaffecté sans avoir besoin de trouver un remplaçant pour cette JS d'origine. <strong>Bonus +15 pts</strong> au score.<br><br>Trois familles sont assimilées JS Z :
+        <ul style="margin-top:6px">
+          <li><strong>Suffixe « Z »</strong> sur le code JS — ex. <code>GIV Z</code>, <code>GIC Z</code>, <code>PEY Z</code></li>
+          <li><strong>Préfixe « FO »</strong> sur le code JS (formation) — ex. <code>FO123</code>, <code>FOX</code></li>
+          <li><strong>typeJs = « DIS »</strong> (famille Disponibilité, sans charge) — quel que soit le code JS</li>
+        </ul>
+      </div>
     </div>
     <div class="term-card" style="border-left-color:#ea580c">
       <div class="term">JS FO</div>
       <div class="def">Journée de service de type Formation/Organisation. Identifiée par le préfixe "FO". Peut être réaffectée comme une JS Z si l'agent est mobilisé sur un imprévu.</div>
+    </div>
+    <div class="term-card" style="border-left-color:var(--info)">
+      <div class="term">DIS (typeJs)</div>
+      <div class="def">Famille de journée de service marquée comme sans charge réelle dans le SI source (colonne <code>TYPE JS / FAM. NPO</code>). Toute ligne dont le typeJs vaut « DIS » est traitée par le moteur exactement comme une JS Z : pas de cascade, +15 pts au score, badge violet « JS Z » à l'affichage.</div>
     </div>
     <div class="term-card">
       <div class="term">JsType</div>
@@ -1743,7 +1753,7 @@
       <tr><td>Par violation bloquante</td><td class="red">−25 points</td></tr>
       <tr><td>Par conflit induit</td><td class="red">−15 points</td></tr>
       <tr><td>Agent de réserve</td><td class="green">+10 points (bonus)</td></tr>
-      <tr><td>Agent sur JS Z (réaffectation directe)</td><td class="green">+15 points (bonus)</td></tr>
+      <tr><td>Agent sur JS Z (réaffectation directe — incl. <code>FO*</code>, <code>* Z</code>, <code>typeJs=DIS</code>)</td><td class="green">+15 points (bonus)</td></tr>
       <tr><td>Marge repos &lt; 2h</td><td class="orange">−10 points max (progressif)</td></tr>
       <tr><td>GPT chargé &gt; 80%</td><td class="orange">−10 points</td></tr>
       <tr><td>GPT chargé &gt; 90%</td><td class="orange">−10 points supplémentaires</td></tr>
@@ -1788,7 +1798,7 @@
   <div class="two-col">
     <div class="card" style="border-left:4px solid #d97706">
       <h4>Sans figeage</h4>
-      <p>Seuls les agents libres ou sur JS Z sont candidats. Les agents sur JS planifiées restent sur leur poste.</p>
+      <p>Seuls les agents libres ou sur JS Z (suffixe <code>Z</code>, préfixe <code>FO</code>, ou <code>typeJs = DIS</code>) sont candidats. Les agents sur JS planifiées restent sur leur poste.</p>
     </div>
     <div class="card" style="border-left:4px solid #7c3aed">
       <h4>Avec figeage</h4>
@@ -1973,7 +1983,7 @@
     <li>Date, horaires de début et fin</li>
     <li>Amplitude et durée effective</li>
     <li>Code JS ou code NPO</li>
-    <li>Badges spéciaux : <code>Nuit</code> (JS nocturne), <code>JS FO</code> (force opérationnelle), <code>JS Z</code> (zéro charge)</li>
+    <li>Badges spéciaux : <code>Nuit</code> (JS nocturne), <code>JS FO</code> (force opérationnelle), <code>JS Z</code> (zéro charge — suffixe <code>Z</code> ou <code>typeJs = DIS</code>)</li>
     <li>Badge <span class="badge badge-orange">DERNIER RECOURS</span> si la JS est de flexibilité DERNIER_RECOURS</li>
     <li>Position dans la GPT en cours (niv. X/6) — le symbole <strong>↺</strong> marque le début d'une nouvelle GPT</li>
   </ul>

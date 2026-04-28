@@ -945,3 +945,22 @@ describe("isZeroLoadJs — codes FO assimilés JS Z", () => {
   it("undefined → false", () => expect(isZeroLoadJs(undefined)).toBe(false));
   it("\"\" → false", () => expect(isZeroLoadJs("")).toBe(false));
 });
+
+describe("isZeroLoadJs — typeJs DIS assimilé JS Z", () => {
+  it("typeJs \"DIS\" + codeJs banal → JS Z", () =>
+    expect(isZeroLoadJs("GIV", "DIS")).toBe(true));
+  it("typeJs \"DIS\" + codeJs null → JS Z", () =>
+    expect(isZeroLoadJs(null, "DIS")).toBe(true));
+  it("typeJs \"dis\" insensible à la casse → JS Z", () =>
+    expect(isZeroLoadJs("GIV", "dis")).toBe(true));
+  it("typeJs \"  DIS  \" trim → JS Z", () =>
+    expect(isZeroLoadJs("GIV", "  DIS  ")).toBe(true));
+  it("typeJs \"FIX\" + codeJs banal → pas JS Z", () =>
+    expect(isZeroLoadJs("GIV", "FIX")).toBe(false));
+  it("typeJs null + codeJs banal → pas JS Z", () =>
+    expect(isZeroLoadJs("GIV", null)).toBe(false));
+  it("typeJs \"DIS\" combiné avec codeJs FO → JS Z (l'un suffit)", () =>
+    expect(isZeroLoadJs("FO123", "DIS")).toBe(true));
+  it("typeJs \"DISP\" (≠ DIS exact) → pas JS Z", () =>
+    expect(isZeroLoadJs("GIV", "DISP")).toBe(false));
+});

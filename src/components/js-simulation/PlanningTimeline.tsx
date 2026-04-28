@@ -205,7 +205,7 @@ export default function PlanningTimeline({
               {isJs && /^FO/i.test(l.codeJs ?? "") && (
                 <span className="text-xs bg-orange-100 text-orange-700 border border-orange-200 px-1.5 py-0.5 rounded font-semibold shrink-0">JS FO</span>
               )}
-              {isJs && isZeroLoadJs(l.codeJs) && !/^FO/i.test(l.codeJs ?? "") && (
+              {isJs && isZeroLoadJs(l.codeJs, l.typeJs) && !/^FO/i.test(l.codeJs ?? "") && (
                 <span className="text-xs bg-purple-100 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded font-semibold shrink-0">JS Z</span>
               )}
               {isJsDeNuit(l.heureDebutPop, l.heureFinPop) && isJs && (

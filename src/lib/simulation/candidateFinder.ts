@@ -110,7 +110,7 @@ export function preFilterCandidats(
     // (les JS de type Z = sans charge réelle sont autorisées à être réaffectées)
     const conflit = a.events.find((e) => {
       if (e.jsNpo !== "JS") return false;
-      if (isZeroLoadJs(e.codeJs)) return false; // JS Z : ne bloque pas la mobilisation
+      if (isZeroLoadJs(e.codeJs, e.typeJs)) return false; // JS Z : ne bloque pas la mobilisation
       const overlap = e.dateDebut < finImprevu && e.dateFin > debutImprevu;
       return overlap;
     });
@@ -193,7 +193,7 @@ export function trouverCandidatsParFigeage(
     // Trouver la JS conflictuelle (non-Z, chevauchant l'imprévu)
     const jsConflictuelle = agent.events.find((e) => {
       if (e.jsNpo !== "JS") return false;
-      if (isZeroLoadJs(e.codeJs)) return false;
+      if (isZeroLoadJs(e.codeJs, e.typeJs)) return false;
       return e.dateDebut < finImprevu && e.dateFin > debutImprevu;
     });
 

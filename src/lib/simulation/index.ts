@@ -122,7 +122,7 @@ export async function executerSimulationJS(
     const jsZOrigine = events.find(
       (e) =>
         e.jsNpo === "JS" &&
-        isZeroLoadJs(e.codeJs) &&
+        isZeroLoadJs(e.codeJs, e.typeJs) &&
         e.dateDebut < finImprevu &&
         e.dateFin > debutImprevu
     ) ?? null;
@@ -247,7 +247,7 @@ export async function executerSimulationJS(
     const jsZOrigine = eventsAvecFigeage.find(
       (e) =>
         e.jsNpo === "JS" &&
-        isZeroLoadJs(e.codeJs) &&
+        isZeroLoadJs(e.codeJs, e.typeJs) &&
         e.dateDebut < finImprevu &&
         e.dateFin > debutImprevu
     ) ?? null;

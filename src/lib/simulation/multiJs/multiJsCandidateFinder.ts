@@ -149,7 +149,7 @@ export function trouverCandidatsPourJs(
     // Exception : figeage autorisé + JS source DERNIER_RECOURS → agent libérable
     const conflitEvent = events.find((e) => {
       if (e.jsNpo !== "JS") return false;
-      if (isZeroLoadJs(e.codeJs)) return false;
+      if (isZeroLoadJs(e.codeJs, e.typeJs)) return false;
       return e.dateDebut < finImprevu && e.dateFin > debutImprevu;
     });
 
@@ -186,7 +186,7 @@ export function trouverCandidatsPourJs(
     const jsZOrigine = eventsBase.find(
       (e) =>
         e.jsNpo === "JS" &&
-        isZeroLoadJs(e.codeJs) &&
+        isZeroLoadJs(e.codeJs, e.typeJs) &&
         e.dateDebut < finImprevu &&
         e.dateFin > debutImprevu
     ) ?? null;

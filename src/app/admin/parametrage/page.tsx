@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import ParametrageManager from "@/components/parametrage/ParametrageManager";
 import PurgePlanningCard from "@/components/parametrage/PurgePlanningCard";
+import PurgeHabilitationsCard from "@/components/parametrage/PurgeHabilitationsCard";
 
 export default async function ParametragePage() {
   const session = await getSession();
@@ -22,6 +23,8 @@ export default async function ParametragePage() {
       <ParametrageManager />
 
       <PurgePlanningCard />
+
+      <PurgeHabilitationsCard />
     </div>
   );
 }

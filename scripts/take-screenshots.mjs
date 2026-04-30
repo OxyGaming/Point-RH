@@ -59,6 +59,7 @@ const CAPTURES = [
   { file: "14-admin-npo-exclusions.png", route: "/admin/npo-exclusions",    auth: true,  mask: false },
   { file: "15-admin-parametrage.png",    route: "/admin/parametrage",       auth: true,  mask: false },
   { file: "16-admin-agents-supprimes.png",route: "/admin/agents-supprimes", auth: true,  mask: true  },
+  { file: "17-admin-zero-load-prefixes.png", route: "/admin/zero-load-prefixes", auth: true,  mask: false },
 ];
 
 // ── Utilitaires ───────────────────────────────────────────────────────────────

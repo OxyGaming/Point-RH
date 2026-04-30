@@ -2,6 +2,8 @@ import {
   isCouvert,
   mergerHabilitations,
   computeAgentProposals,
+  computeAgentRemoveProposals,
+  appliquerSuppressions,
   type CodeJsTenu,
 } from "@/services/habilitation-proposals.service";
 
@@ -107,5 +109,83 @@ describe("computeAgentProposals", () => {
     ];
     const res = computeAgentProposals([], tenus);
     expect(res.map((p) => p.codeJs)).toEqual(["AAA001", "MMM001", "ZEB001"]);
+  });
+});
+
+describe("computeAgentRemoveProposals", () => {
+  const j = (iso: string) => new Date(iso);
+
+  it("aucune habilitation actuelle → aucune suppression", () => {
+    expect(computeAgentRemoveProposals([], [])).toEqual([]);
+  });
+
+  it("préfixe sans match dans l'historique → proposé au retrait", () => {
+    expect(computeAgentRemoveProposals(["GIC", "BAD"], [])).toEqual(["BAD", "GIC"]);
+  });
+
+  it("préfixe avec au moins un match → conservé", () => {
+    const tenus: CodeJsTenu[] = [
+      { codeJs: "GIC015", nbJoursTenus: 5, dernierJour: j("2026-04-10") },
+    ];
+    expect(computeAgentRemoveProposals(["GIC", "BAD"], tenus)).toEqual(["BAD"]);
+  });
+
+  it("préfixe long sans match dans des codes plus courts → proposé au retrait", () => {
+    const tenus: CodeJsTenu[] = [
+      { codeJs: "GIC", nbJoursTenus: 3, dernierJour: j("2026-04-10") },
+    ];
+    // GIC015 ne matche pas "GIC" tout court (startsWith "GIC015")
+    expect(computeAgentRemoveProposals(["GIC015"], tenus)).toEqual(["GIC015"]);
+  });
+
+  it("résultat trié alphabétiquement", () => {
+    expect(computeAgentRemoveProposals(["ZEB", "AAA", "MMM"], [])).toEqual([
+      "AAA",
+      "MMM",
+      "ZEB",
+    ]);
+  });
+
+  it("préfixes en double dans l'entrée → dédoublonnés en sortie via Set au consumer", () => {
+    // computeAgentRemoveProposals ne dédoublonne pas (entrée supposée déjà unique côté DB)
+    expect(computeAgentRemoveProposals(["GIC", "GIC"], [])).toEqual(["GIC", "GIC"]);
+  });
+
+  it("préfixes vides ignorés", () => {
+    expect(computeAgentRemoveProposals(["", "GIC"], [])).toEqual(["GIC"]);
+  });
+
+  it("ne propose pas le retrait d'un préfixe qui matche partiellement", () => {
+    // "GI" matche "GIC015" (startsWith), donc il reste
+    const tenus: CodeJsTenu[] = [
+      { codeJs: "GIC015", nbJoursTenus: 1, dernierJour: j("2026-04-10") },
+    ];
+    expect(computeAgentRemoveProposals(["GI"], tenus)).toEqual([]);
+  });
+});
+
+describe("appliquerSuppressions", () => {
+  it("retire les préfixes demandés (idempotent si absent)", () => {
+    expect(appliquerSuppressions(["GIC", "BAD", "PEY"], ["BAD"])).toEqual(["GIC", "PEY"]);
+  });
+
+  it("idempotent : retirer un préfixe absent ne change rien", () => {
+    expect(appliquerSuppressions(["GIC"], ["NOT_HERE"])).toEqual(["GIC"]);
+  });
+
+  it("retraits vides après trim ignorés", () => {
+    expect(appliquerSuppressions(["GIC", "BAD"], ["  ", ""])).toEqual(["BAD", "GIC"]);
+  });
+
+  it("retire plusieurs préfixes en une passe", () => {
+    expect(appliquerSuppressions(["GIC", "BAD", "PEY"], ["GIC", "PEY"])).toEqual(["BAD"]);
+  });
+
+  it("résultat trié alphabétiquement", () => {
+    expect(appliquerSuppressions(["ZEB", "AAA", "MMM"], [])).toEqual(["AAA", "MMM", "ZEB"]);
+  });
+
+  it("dédoublonne l'entrée actuel (cas dégradé)", () => {
+    expect(appliquerSuppressions(["GIC", "GIC", "BAD"], [])).toEqual(["BAD", "GIC"]);
   });
 });

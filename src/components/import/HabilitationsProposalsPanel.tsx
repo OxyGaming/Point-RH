@@ -15,12 +15,14 @@ interface AgentProposals {
   prenom: string;
   habilitationsActuelles: string[];
   propositions: Proposal[];
+  suppressions: string[];
 }
 
 interface ApiResponse {
   agents: AgentProposals[];
   totalAgents: number;
   totalPropositions: number;
+  totalSuppressions: number;
 }
 
 type Phase =
@@ -29,12 +31,19 @@ type Phase =
   | { status: "empty" }
   | { status: "ready"; data: ApiResponse };
 
+const ADD_PREFIX = "A";    // namespace pour clés de checkbox "ajout"
+const REMOVE_PREFIX = "R"; // namespace pour clés de checkbox "retrait"
+
 export default function HabilitationsProposalsPanel() {
   const [phase, setPhase] = useState<Phase>({ status: "loading" });
   const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitSuccess, setSubmitSuccess] = useState<{ agents: number; prefixes: number } | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<{
+    agents: number;
+    ajouts: number;
+    retraits: number;
+  } | null>(null);
   const [search, setSearch] = useState("");
 
   // ── Fetch initial ──────────────────────────────────────────────────────────
@@ -55,18 +64,11 @@ export default function HabilitationsProposalsPanel() {
         }
         const data: ApiResponse = await res.json();
         if (cancelled) return;
-        if (data.totalPropositions === 0) {
+        if (data.totalPropositions === 0 && data.totalSuppressions === 0) {
           setPhase({ status: "empty" });
           return;
         }
-        // Cases cochées par défaut (optimiste)
-        const initialChecked: Record<string, boolean> = {};
-        for (const a of data.agents) {
-          for (const p of a.propositions) {
-            initialChecked[key(a.agentId, p.codeJs)] = true;
-          }
-        }
-        setChecked(initialChecked);
+        setChecked(buildInitialChecked(data));
         setPhase({ status: "ready", data });
       } catch (err) {
         if (!cancelled) {
@@ -77,7 +79,9 @@ export default function HabilitationsProposalsPanel() {
         }
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ── Agents filtrés par recherche ──────────────────────────────────────────
@@ -100,17 +104,25 @@ export default function HabilitationsProposalsPanel() {
   );
 
   // ── Actions ────────────────────────────────────────────────────────────────
-  function toggleOne(agentId: string, codeJs: string) {
-    setChecked((prev) => ({ ...prev, [key(agentId, codeJs)]: !prev[key(agentId, codeJs)] }));
+  function toggleAdd(agentId: string, codeJs: string) {
+    setChecked((prev) => {
+      const k = addKey(agentId, codeJs);
+      return { ...prev, [k]: !prev[k] };
+    });
+  }
+  function toggleRemove(agentId: string, prefixe: string) {
+    setChecked((prev) => {
+      const k = removeKey(agentId, prefixe);
+      return { ...prev, [k]: !prev[k] };
+    });
   }
 
   function setAllVisible(value: boolean) {
     setChecked((prev) => {
       const next = { ...prev };
       for (const a of filteredAgents) {
-        for (const p of a.propositions) {
-          next[key(a.agentId, p.codeJs)] = value;
-        }
+        for (const p of a.propositions) next[addKey(a.agentId, p.codeJs)] = value;
+        for (const r of a.suppressions) next[removeKey(a.agentId, r)] = value;
       }
       return next;
     });
@@ -122,13 +134,16 @@ export default function HabilitationsProposalsPanel() {
     setSubmitSuccess(null);
 
     const validations = phase.data.agents
-      .map((a) => ({
-        agentId: a.agentId,
-        prefixesAAjouter: a.propositions
-          .filter((p) => checked[key(a.agentId, p.codeJs)])
-          .map((p) => p.codeJs),
-      }))
-      .filter((v) => v.prefixesAAjouter.length > 0);
+      .map((a) => {
+        const prefixesAAjouter = a.propositions
+          .filter((p) => checked[addKey(a.agentId, p.codeJs)])
+          .map((p) => p.codeJs);
+        const prefixesARetirer = a.suppressions.filter((r) =>
+          checked[removeKey(a.agentId, r)],
+        );
+        return { agentId: a.agentId, prefixesAAjouter, prefixesARetirer };
+      })
+      .filter((v) => v.prefixesAAjouter.length > 0 || v.prefixesARetirer.length > 0);
 
     if (validations.length === 0) {
       setSubmitError("Aucune proposition sélectionnée.");
@@ -147,21 +162,19 @@ export default function HabilitationsProposalsPanel() {
         setSubmitError(body?.error ?? `HTTP ${res.status}`);
         return;
       }
-      setSubmitSuccess({ agents: body.agentsMisAJour, prefixes: body.prefixesAjoutes });
-      // Retirer les propositions validées : re-fetch pour refléter l'état réel
+      setSubmitSuccess({
+        agents: body.agentsMisAJour ?? 0,
+        ajouts: body.prefixesAjoutes ?? 0,
+        retraits: body.prefixesRetires ?? 0,
+      });
+      // Re-fetch pour refléter l'état réel post-validation
       const refetch = await fetch("/api/habilitations/propositions");
       if (refetch.ok) {
         const newData: ApiResponse = await refetch.json();
-        if (newData.totalPropositions === 0) {
+        if (newData.totalPropositions === 0 && newData.totalSuppressions === 0) {
           setPhase({ status: "empty" });
         } else {
-          const initialChecked: Record<string, boolean> = {};
-          for (const a of newData.agents) {
-            for (const p of a.propositions) {
-              initialChecked[key(a.agentId, p.codeJs)] = true;
-            }
-          }
-          setChecked(initialChecked);
+          setChecked(buildInitialChecked(newData));
           setPhase({ status: "ready", data: newData });
         }
       }
@@ -192,21 +205,28 @@ export default function HabilitationsProposalsPanel() {
   if (phase.status === "empty") {
     return (
       <div className="mt-6 rounded-xl p-5 border bg-green-50 border-green-200 text-sm text-green-800">
-        ✓ Aucune habilitation à ajuster — toutes les JS tenues sont déjà couvertes.
+        ✓ Aucun ajustement d&apos;habilitations à proposer — tout est cohérent avec l&apos;historique.
       </div>
     );
   }
 
-  const { agents, totalAgents, totalPropositions } = phase.data;
+  const { agents, totalAgents, totalPropositions, totalSuppressions } = phase.data;
   const showSearch = totalAgents >= 20;
 
   return (
     <div className="mt-6 rounded-xl p-5 border bg-white border-gray-200">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div>
-          <h3 className="font-semibold text-gray-900">Habilitations proposées</h3>
+          <h3 className="font-semibold text-gray-900">Habilitations — ajustements proposés</h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            {totalAgents} agent{totalAgents > 1 ? "s" : ""} — {totalPropositions} préfixe{totalPropositions > 1 ? "s" : ""} à examiner
+            {totalAgents} agent{totalAgents > 1 ? "s" : ""} —{" "}
+            {totalPropositions} ajout{totalPropositions > 1 ? "s" : ""}
+            {totalSuppressions > 0 && (
+              <>
+                {" "}· {totalSuppressions} retrait{totalSuppressions > 1 ? "s" : ""}
+              </>
+            )}{" "}
+            à examiner
           </p>
         </div>
         <div className="flex gap-2">
@@ -244,7 +264,18 @@ export default function HabilitationsProposalsPanel() {
       )}
       {submitSuccess && (
         <div className="mb-3 rounded-lg px-3 py-2 text-xs bg-green-50 border border-green-200 text-green-800">
-          ✓ {submitSuccess.agents} agent{submitSuccess.agents > 1 ? "s" : ""} mis à jour, {submitSuccess.prefixes} préfixe{submitSuccess.prefixes > 1 ? "s" : ""} ajouté{submitSuccess.prefixes > 1 ? "s" : ""}.
+          ✓ {submitSuccess.agents} agent{submitSuccess.agents > 1 ? "s" : ""} mis à jour
+          {submitSuccess.ajouts > 0 && (
+            <>
+              {" "}· {submitSuccess.ajouts} ajout{submitSuccess.ajouts > 1 ? "s" : ""}
+            </>
+          )}
+          {submitSuccess.retraits > 0 && (
+            <>
+              {" "}· {submitSuccess.retraits} retrait{submitSuccess.retraits > 1 ? "s" : ""}
+            </>
+          )}
+          .
         </div>
       )}
 
@@ -264,35 +295,73 @@ export default function HabilitationsProposalsPanel() {
           <div key={a.agentId} className="border border-gray-100 rounded-lg p-3">
             <div className="flex items-baseline justify-between gap-3">
               <div>
-                <span className="font-medium text-gray-900">{a.nom} {a.prenom}</span>
+                <span className="font-medium text-gray-900">
+                  {a.nom} {a.prenom}
+                </span>
                 <span className="ml-2 font-mono text-xs text-gray-400">{a.matricule}</span>
               </div>
               <div className="text-xs text-gray-500">
                 Actuelles :{" "}
-                {a.habilitationsActuelles.length === 0
-                  ? <span className="italic">aucune</span>
-                  : a.habilitationsActuelles.join(", ")}
+                {a.habilitationsActuelles.length === 0 ? (
+                  <span className="italic">aucune</span>
+                ) : (
+                  a.habilitationsActuelles.join(", ")
+                )}
               </div>
             </div>
-            <ul className="mt-2 space-y-1">
-              {a.propositions.map((p) => (
-                <li key={p.codeJs} className="flex items-center gap-3 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={!!checked[key(a.agentId, p.codeJs)]}
-                    onChange={() => toggleOne(a.agentId, p.codeJs)}
-                    disabled={submitting}
-                    className="h-4 w-4"
-                    aria-label={`${p.codeJs} pour ${a.nom} ${a.prenom}`}
-                  />
-                  <span className="font-mono font-medium text-blue-700">{p.codeJs}</span>
-                  <span className="text-xs text-gray-500">
-                    {p.nbJoursTenus} jour{p.nbJoursTenus > 1 ? "s" : ""}, dernier le{" "}
-                    {formatDateFr(p.dernierJour)}
-                  </span>
-                </li>
-              ))}
-            </ul>
+
+            {a.propositions.length > 0 && (
+              <div className="mt-2">
+                <div className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">
+                  À ajouter
+                </div>
+                <ul className="space-y-1">
+                  {a.propositions.map((p) => (
+                    <li key={`add-${p.codeJs}`} className="flex items-center gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={!!checked[addKey(a.agentId, p.codeJs)]}
+                        onChange={() => toggleAdd(a.agentId, p.codeJs)}
+                        disabled={submitting}
+                        className="h-4 w-4 accent-blue-600"
+                        aria-label={`Ajouter ${p.codeJs} pour ${a.nom} ${a.prenom}`}
+                      />
+                      <span className="font-mono font-medium text-blue-700">{p.codeJs}</span>
+                      <span className="text-xs text-gray-500">
+                        {p.nbJoursTenus} jour{p.nbJoursTenus > 1 ? "s" : ""}, dernier le{" "}
+                        {formatDateFr(p.dernierJour)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {a.suppressions.length > 0 && (
+              <div className="mt-3">
+                <div className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">
+                  À retirer (aucun match dans l&apos;historique)
+                </div>
+                <ul className="space-y-1">
+                  {a.suppressions.map((r) => (
+                    <li key={`rm-${r}`} className="flex items-center gap-3 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={!!checked[removeKey(a.agentId, r)]}
+                        onChange={() => toggleRemove(a.agentId, r)}
+                        disabled={submitting}
+                        className="h-4 w-4 accent-amber-600"
+                        aria-label={`Retirer ${r} pour ${a.nom} ${a.prenom}`}
+                      />
+                      <span className="font-mono font-medium text-amber-700 line-through decoration-amber-400/60">
+                        {r}
+                      </span>
+                      <span className="text-xs text-gray-500">jamais utilisé</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -300,8 +369,22 @@ export default function HabilitationsProposalsPanel() {
   );
 }
 
-function key(agentId: string, codeJs: string) {
-  return `${agentId}|${codeJs}`;
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function addKey(agentId: string, codeJs: string) {
+  return `${ADD_PREFIX}|${agentId}|${codeJs}`;
+}
+function removeKey(agentId: string, prefixe: string) {
+  return `${REMOVE_PREFIX}|${agentId}|${prefixe}`;
+}
+
+function buildInitialChecked(data: ApiResponse): Record<string, boolean> {
+  const initial: Record<string, boolean> = {};
+  for (const a of data.agents) {
+    for (const p of a.propositions) initial[addKey(a.agentId, p.codeJs)] = true;
+    for (const r of a.suppressions) initial[removeKey(a.agentId, r)] = true;
+  }
+  return initial;
 }
 
 function formatDateFr(iso: string): string {

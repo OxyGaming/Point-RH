@@ -15,10 +15,12 @@ export async function GET(req: NextRequest) {
   try {
     const agents = await calculerPropositionsHabilitations();
     const totalPropositions = agents.reduce((sum, a) => sum + a.propositions.length, 0);
+    const totalSuppressions = agents.reduce((sum, a) => sum + a.suppressions.length, 0);
     return NextResponse.json({
       agents,
       totalAgents: agents.length,
       totalPropositions,
+      totalSuppressions,
     });
   } catch (err) {
     console.error("[API/habilitations/propositions GET]", err);

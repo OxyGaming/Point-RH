@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   const validations = parseValidations(body.validations);
   if (validations === null) {
     return NextResponse.json(
-      { error: "Format invalide : `validations` doit être un tableau de { agentId, prefixesAAjouter[] }." },
+      { error: "Format invalide : `validations` doit être un tableau de { agentId, prefixesAAjouter[], prefixesARetirer?[] }." },
       { status: 400 },
     );
   }
@@ -63,11 +63,18 @@ function parseValidations(raw: unknown): ValidationInput[] | null {
   const out: ValidationInput[] = [];
   for (const item of raw) {
     if (!item || typeof item !== "object") return null;
-    const { agentId, prefixesAAjouter } = item as Record<string, unknown>;
+    const { agentId, prefixesAAjouter, prefixesARetirer } = item as Record<string, unknown>;
     if (typeof agentId !== "string" || agentId.length === 0) return null;
     if (!Array.isArray(prefixesAAjouter)) return null;
     if (!prefixesAAjouter.every((p) => typeof p === "string")) return null;
-    out.push({ agentId, prefixesAAjouter });
+    // prefixesARetirer optionnel pour rétro-compat ; si présent doit être string[]
+    let retraits: string[] | undefined;
+    if (prefixesARetirer !== undefined) {
+      if (!Array.isArray(prefixesARetirer)) return null;
+      if (!prefixesARetirer.every((p) => typeof p === "string")) return null;
+      retraits = prefixesARetirer as string[];
+    }
+    out.push({ agentId, prefixesAAjouter: prefixesAAjouter as string[], ...(retraits ? { prefixesARetirer: retraits } : {}) });
   }
   return out;
 }

@@ -1,15 +1,21 @@
 /**
  * Service de propositions d'habilitations (préfixes JS) après import planning.
  *
- * Principe : pour chaque agent, lister les `codeJs` qu'il a tenus (historique complet,
- * hors NPO et hors JS sans charge réelle) qui ne sont couverts par AUCUN de ses
- * préfixes actuels, puis proposer chaque code tel quel (le plus restrictif possible).
+ * Deux logiques symétriques, basées sur l'historique complet de PlanningLigne
+ * (hors NPO, hors JS sans charge réelle) :
+ *
+ *   – AJOUTS    : pour chaque codeJs tenu non couvert par les habilitations
+ *                  actuelles → proposer d'ajouter le code tel quel (le plus
+ *                  restrictif possible).
+ *   – SUPPRESSIONS : pour chaque préfixe d'habilitation actuel n'ayant
+ *                     AUCUN match dans l'historique → proposer de le retirer.
  *
  * Les JS Z (suffixe " Z", préfixe "FO", typeJs="DIS", préfixes ZeroLoadPrefix admin)
  * sont exclues : un agent placé sur une JS sans charge n'y a pas vraiment "tenu" le code,
- * ça génère du bruit d'inviter à l'habiliter dessus.
+ * ça génère du bruit dans les deux sens.
  *
- * Logique idempotente : valider un ajout le fait disparaître des propositions suivantes.
+ * Logique idempotente : valider un ajout/suppression le fait disparaître des
+ * propositions suivantes.
  */
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
@@ -33,17 +39,23 @@ export interface AgentProposals {
   nom: string;
   prenom: string;
   habilitationsActuelles: string[];
+  /** Préfixes proposés à l'ajout (codes tenus non couverts). */
   propositions: HabilitationProposal[];
+  /** Préfixes proposés à la suppression (aucun match dans l'historique). */
+  suppressions: string[];
 }
 
 export interface ValidationInput {
   agentId: string;
   prefixesAAjouter: string[];
+  /** Préfixes à retirer des habilitations actuelles. Optionnel pour rétro-compat. */
+  prefixesARetirer?: string[];
 }
 
 export interface ValidationResult {
   agentsMisAJour: number;
   prefixesAjoutes: number;
+  prefixesRetires: number;
   erreurs: Array<{ agentId: string; message: string }>;
 }
 
@@ -73,6 +85,38 @@ export function computeAgentProposals(
   return codesJsTenus
     .filter((c) => !isCouvert(c.codeJs, habilitationsActuelles))
     .sort((a, b) => a.codeJs.localeCompare(b.codeJs));
+}
+
+/**
+ * Calcule les habilitations qu'on peut proposer à la SUPPRESSION (logique pure).
+ *
+ * Critère : un préfixe est candidat au retrait s'il n'a strictement AUCUN match
+ * dans la liste des codes tenus (un préfixe qui matche au moins un code reste
+ * conservé, même couvert par un préfixe plus large — la déduplication des
+ * habilitations redondantes est une autre concern).
+ *
+ * Retourne les préfixes triés alphabétiquement.
+ */
+export function computeAgentRemoveProposals(
+  habilitationsActuelles: string[],
+  codesJsTenus: CodeJsTenu[],
+): string[] {
+  const codes = codesJsTenus.map((c) => c.codeJs);
+  return habilitationsActuelles
+    .filter((p) => p.length > 0)
+    .filter((p) => !codes.some((c) => c.startsWith(p)))
+    .slice()
+    .sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Applique des suppressions à une liste d'habilitations, avec dédup et tri.
+ * Idempotent : retirer un préfixe absent ne change rien.
+ */
+export function appliquerSuppressions(actuel: string[], retraits: string[]): string[] {
+  const toRemove = new Set(retraits.map((p) => p.trim()).filter((p) => p.length > 0));
+  return Array.from(new Set(actuel.map((p) => p.trim()).filter((p) => p.length > 0 && !toRemove.has(p))))
+    .sort((a, b) => a.localeCompare(b));
 }
 
 // ─── Accès DB ─────────────────────────────────────────────────────────────────
@@ -147,13 +191,14 @@ export async function calculerPropositionsHabilitations(): Promise<AgentProposal
     byAgent.set(agentId, Array.from(codeMap.values()));
   }
 
-  // 4. Calcul par agent → garder ceux avec ≥ 1 proposition
+  // 4. Calcul par agent → garder ceux avec ≥ 1 proposition (ajout OU suppression)
   const result: AgentProposals[] = [];
   for (const agent of agents) {
     const actuelles = parseHabilitations(agent.habilitations);
     const tenus = byAgent.get(agent.id) ?? [];
     const propositions = computeAgentProposals(actuelles, tenus);
-    if (propositions.length === 0) continue;
+    const suppressions = computeAgentRemoveProposals(actuelles, tenus);
+    if (propositions.length === 0 && suppressions.length === 0) continue;
     result.push({
       agentId: agent.id,
       matricule: agent.matricule,
@@ -161,6 +206,7 @@ export async function calculerPropositionsHabilitations(): Promise<AgentProposal
       prenom: agent.prenom,
       habilitationsActuelles: actuelles,
       propositions,
+      suppressions,
     });
   }
 
@@ -192,16 +238,19 @@ export async function validerPropositions(
   const result: ValidationResult = {
     agentsMisAJour: 0,
     prefixesAjoutes: 0,
+    prefixesRetires: 0,
     erreurs: [],
   };
 
-  for (const { agentId, prefixesAAjouter } of validations) {
+  for (const { agentId, prefixesAAjouter, prefixesARetirer } of validations) {
     try {
-      // Filtrage des préfixes vides en amont
-      const cleaned = prefixesAAjouter
+      const cleanedAjouts = (prefixesAAjouter ?? [])
         .map((p) => p.trim())
         .filter((p) => p.length > 0);
-      if (cleaned.length === 0) continue;
+      const cleanedRetraits = (prefixesARetirer ?? [])
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+      if (cleanedAjouts.length === 0 && cleanedRetraits.length === 0) continue;
 
       const agent = await prisma.agent.findUnique({
         where: { id: agentId },
@@ -218,9 +267,14 @@ export async function validerPropositions(
       }
 
       const actuelles = parseHabilitations(agent.habilitations);
-      const nouvelles = mergerHabilitations(actuelles, cleaned);
+      // Application : retraits d'abord, puis ajouts (ordre sans incidence sur le résultat
+      // mais cohérent : on nettoie puis on enrichit)
+      const apresRetrait = appliquerSuppressions(actuelles, cleanedRetraits);
+      const nouvelles = mergerHabilitations(apresRetrait, cleanedAjouts);
+
       const ajoutesEffectivement = nouvelles.filter((p) => !actuelles.includes(p));
-      if (ajoutesEffectivement.length === 0) continue; // tout déjà présent
+      const retiresEffectivement = actuelles.filter((p) => !nouvelles.includes(p));
+      if (ajoutesEffectivement.length === 0 && retiresEffectivement.length === 0) continue;
 
       await prisma.agent.update({
         where: { id: agentId },
@@ -232,6 +286,7 @@ export async function validerPropositions(
         entityId: agentId,
         details: {
           prefixesAjoutes: ajoutesEffectivement,
+          prefixesRetires: retiresEffectivement,
           habilitationsApres: nouvelles,
           source: "import-proposal",
         },
@@ -239,6 +294,7 @@ export async function validerPropositions(
 
       result.agentsMisAJour += 1;
       result.prefixesAjoutes += ajoutesEffectivement.length;
+      result.prefixesRetires += retiresEffectivement.length;
     } catch (err) {
       result.erreurs.push({
         agentId,

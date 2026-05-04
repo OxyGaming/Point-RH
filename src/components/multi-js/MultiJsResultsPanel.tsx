@@ -141,25 +141,41 @@ function ChaineRemplacementBadge({
         </span>
       </p>
       <ol className="space-y-1">
-        {chaine.maillons.map((m, i) => (
-          <li key={i} className="text-[10px] text-sky-900 flex items-start gap-1.5">
-            <span className="font-mono text-sky-500 shrink-0 mt-0.5">{i + 1}.</span>
-            <span>
-              <span className="font-semibold">
-                {m.agentPrenom} {m.agentNom}
-              </span>{" "}
-              libère{" "}
-              <span className="font-mono">{m.jsLiberee.codeJs ?? "—"}</span>
-              {" "}({m.jsLiberee.heureDebut}–{m.jsLiberee.heureFin}) pour reprendre{" "}
-              <span className="font-mono">{m.jsRepriseCodeJs ?? "—"}</span>
-              {m.statut === "VIGILANCE" && (
-                <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded">
-                  vigilance
-                </span>
-              )}
-            </span>
-          </li>
-        ))}
+        {chaine.maillons.map((m, i) => {
+          // Agent libre = fin de chaîne, jsLiberee pointe sur la JS reprise (cas non-cascadant).
+          const etaitLibre =
+            m.jsLiberee.codeJs === m.jsRepriseCodeJs &&
+            m.jsLiberee.planningLigneId !== "" &&
+            i === chaine.maillons.length - 1;
+          return (
+            <li key={i} className="text-[10px] text-sky-900 flex items-start gap-1.5">
+              <span className="font-mono text-sky-500 shrink-0 mt-0.5">{i + 1}.</span>
+              <span>
+                <span className="font-semibold">
+                  {m.agentPrenom} {m.agentNom}
+                </span>{" "}
+                {etaitLibre ? (
+                  <>
+                    (libre) reprend{" "}
+                    <span className="font-mono">{m.jsRepriseCodeJs ?? "—"}</span>
+                  </>
+                ) : (
+                  <>
+                    libère{" "}
+                    <span className="font-mono">{m.jsLiberee.codeJs ?? "—"}</span>
+                    {" "}({m.jsLiberee.heureDebut}–{m.jsLiberee.heureFin}) pour reprendre{" "}
+                    <span className="font-mono">{m.jsRepriseCodeJs ?? "—"}</span>
+                  </>
+                )}
+                {m.statut === "VIGILANCE" && (
+                  <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded">
+                    vigilance
+                  </span>
+                )}
+              </span>
+            </li>
+          );
+        })}
       </ol>
     </div>
   );
@@ -904,7 +920,7 @@ function ExclusionsPanel({ exclusionsParJs }: { exclusionsParJs: ExclusionsParJs
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 
-type ScenarioKey = "reserveDirect" | "reserveFigeage" | "tousDirect" | "tousFigeage";
+type ScenarioKey = "reserveDirect" | "reserveFigeage" | "tousDirect" | "tousFigeage" | "tousCascade" | "tousCascadeFigeage";
 
 function ScenarioIcon({ cfgKey }: { cfgKey: ScenarioKey }) {
   const shieldCls = "w-3.5 h-3.5";
@@ -924,10 +940,12 @@ const SCENARIO_CONFIG: {
   figeage: boolean;
   scope: "reserve_only" | "all_agents";
 }[] = [
-  { key: "reserveDirect",  label: "Réserve — Direct",      figeage: false, scope: "reserve_only" },
-  { key: "reserveFigeage", label: "Réserve + Figeage",     figeage: true,  scope: "reserve_only" },
-  { key: "tousDirect",     label: "Tous agents — Direct",  figeage: false, scope: "all_agents"   },
-  { key: "tousFigeage",    label: "Tous agents + Figeage", figeage: true,  scope: "all_agents"   },
+  { key: "reserveDirect",       label: "Réserve — Direct",                figeage: false, scope: "reserve_only" },
+  { key: "reserveFigeage",      label: "Réserve + Figeage",               figeage: true,  scope: "reserve_only" },
+  { key: "tousDirect",          label: "Tous agents — Direct",            figeage: false, scope: "all_agents"   },
+  { key: "tousFigeage",         label: "Tous agents + Figeage",           figeage: true,  scope: "all_agents"   },
+  { key: "tousCascade",         label: "Tous agents — Cascade",           figeage: false, scope: "all_agents"   },
+  { key: "tousCascadeFigeage",  label: "Tous agents + Cascade + Figeage", figeage: true,  scope: "all_agents"   },
 ];
 
 export default function MultiJsResultsPanel({ resultat }: Props) {
@@ -935,10 +953,12 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("resume");
 
   const scenarioByKey: Record<ScenarioKey, typeof resultat.scenarioReserveOnly> = {
-    reserveDirect:  resultat.scenarioReserveOnly,
-    reserveFigeage: resultat.scenarioReserveOnlyFigeage,
-    tousDirect:     resultat.scenarioTousAgents,
-    tousFigeage:    resultat.scenarioTousAgentsFigeage,
+    reserveDirect:       resultat.scenarioReserveOnly,
+    reserveFigeage:      resultat.scenarioReserveOnlyFigeage,
+    tousDirect:          resultat.scenarioTousAgents,
+    tousFigeage:         resultat.scenarioTousAgentsFigeage,
+    tousCascade:         resultat.scenarioTousAgentsCascade,
+    tousCascadeFigeage:  resultat.scenarioTousAgentsCascadeFigeage,
   };
 
   const scenario = scenarioByKey[activeKey];
@@ -963,8 +983,8 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* ─── Sélecteur 4 scénarios ───────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      {/* ─── Sélecteur 6 scénarios ───────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
         {SCENARIO_CONFIG.map((cfg) => {
           const s = scenarioByKey[cfg.key];
           const isActive = activeKey === cfg.key;

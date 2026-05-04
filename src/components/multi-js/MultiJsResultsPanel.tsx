@@ -10,6 +10,7 @@ import type {
   AffectationJs,
   AffectationsParAgent,
   AlternativesParJs,
+  CascadeAlternative,
   JsOriginaleAgent,
   ExclusionsParJs,
   TypeSolutionAlternative,
@@ -294,6 +295,75 @@ function CascadeChain({
   );
 }
 
+// ─── Cascades alternatives (autres séquences possibles) ──────────────────────
+
+function CascadeAlternativesBlock({ alternatives }: { alternatives: CascadeAlternative[] }) {
+  const [open, setOpen] = useState(false);
+  if (alternatives.length === 0) return null;
+
+  return (
+    <div className="mt-2 rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-2">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between text-left"
+      >
+        <span className="text-[10px] font-semibold text-indigo-700 flex items-center gap-1">
+          <IconLinkIcon className="w-3 h-3 shrink-0" aria-hidden="true" />
+          {alternatives.length} cascade{alternatives.length > 1 ? "s" : ""} alternative{alternatives.length > 1 ? "s" : ""}
+        </span>
+        <span className="text-[10px] text-indigo-500">{open ? "▾" : "▸"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-1.5 space-y-2">
+          {alternatives.map((alt, i) => (
+            <div key={i} className="border-t border-indigo-200 pt-1.5 first:border-t-0 first:pt-0">
+              <p className="text-[10px] text-indigo-700">
+                <span className="font-semibold">Alt. {i + 1}</span>
+                <span className="text-indigo-500"> · </span>
+                <AgentLink
+                  agentId={alt.agentN1.agentId}
+                  nom={alt.agentN1.agentNom}
+                  prenom={alt.agentN1.agentPrenom}
+                  className="font-semibold"
+                />
+                {alt.profondeur > 1 && (
+                  <span className="ml-1 text-[9px] bg-indigo-100 text-indigo-700 px-1 rounded">
+                    sous-cascade niv. {alt.profondeur}
+                  </span>
+                )}
+              </p>
+              {alt.modifications.map((m, j) => (
+                <p key={j} className="text-[10px] text-indigo-800 flex items-start gap-1 pl-2 mt-0.5">
+                  <span className="shrink-0 text-indigo-400">{"→".repeat(j + 1)}</span>
+                  <span>
+                    <AgentLink agentId={m.agentId} nom={m.agentNom} prenom={m.agentPrenom} className="font-semibold" />{" "}
+                    {m.description}
+                    {!m.conforme && (
+                      <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 rounded">vigilance</span>
+                    )}
+                  </span>
+                </p>
+              ))}
+              {alt.impacts.length > 0 && (
+                <div className="pl-2 mt-0.5 space-y-0.5">
+                  {alt.impacts.map((imp, k) => (
+                    <p key={k} className="text-[10px] text-amber-700 flex items-start gap-1">
+                      <span className="shrink-0">⚠</span>
+                      <span>{imp.description}</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Résumé d'un scénario ─────────────────────────────────────────────────────
 
 function ScenarioResume({ scenario }: { scenario: MultiJsScenario }) {
@@ -466,6 +536,11 @@ function AffectationsTable({ affectations }: { affectations: AffectationJs[] }) 
               impacts={aff.cascadeImpacts}
             />
 
+            {/* Cascades alternatives (autres séquences possibles) */}
+            {aff.cascadeAlternatives && aff.cascadeAlternatives.length > 0 && (
+              <CascadeAlternativesBlock alternatives={aff.cascadeAlternatives} />
+            )}
+
             {/* Figeage JS source */}
             {aff.jsSourceFigee && (
               <FigeageBadge justification={aff.jsSourceFigee.justification} />
@@ -574,6 +649,11 @@ function AgentCard({ agent }: { agent: AffectationsParAgent }) {
                   modifications={aff.cascadeModifications}
                   impacts={aff.cascadeImpacts}
                 />
+
+                {/* Cascades alternatives (autres séquences possibles) */}
+                {aff.cascadeAlternatives && aff.cascadeAlternatives.length > 0 && (
+                  <CascadeAlternativesBlock alternatives={aff.cascadeAlternatives} />
+                )}
 
                 {/* Chaîne de remplacement (mode Cascade) */}
                 {aff.chaineRemplacement && (
@@ -937,6 +1017,13 @@ function AlternativesPanel({ alternativesParJs }: { alternativesParJs: Alternati
                               <span className="shrink-0">⚠</span>
                               <span>Cascade non résoluble — aucun agent disponible pour couvrir les conflits induits</span>
                             </p>
+                          )}
+
+                          {/* Cascades alternatives (autres séquences possibles pour cet agent) */}
+                          {alt.cascadeAlternatives && alt.cascadeAlternatives.length > 0 && (
+                            <div className="mt-1.5 pl-6">
+                              <CascadeAlternativesBlock alternatives={alt.cascadeAlternatives} />
+                            </div>
                           )}
 
                           {/* Figeage */}

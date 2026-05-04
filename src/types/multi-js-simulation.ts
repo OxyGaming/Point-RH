@@ -113,6 +113,35 @@ export interface ChaineRemplacement {
   complete: boolean;
 }
 
+// ─── Cascade conflits induits : alternatives ─────────────────────────────────
+
+/**
+ * Cascade alternative pour résoudre un conflit induit donné.
+ * L'agent N1 est l'agent qui prend la JS imprévue à la place de l'agent
+ * principal de la cascade retenue. Les sous-niveaux sont les agents
+ * mobilisés pour libérer N1, le cas échéant.
+ */
+export interface CascadeAlternative {
+  /** Conflit induit que cette cascade résout (date + horaires de la JS bloquante). */
+  conflitDate: string;
+  conflitHeureDebut: string | null;
+  conflitHeureFin: string | null;
+  conflitDescription: string;
+  /** Agent N1 — visible en tête de l'alternative dans l'UI. */
+  agentN1: {
+    agentId: string;
+    agentNom: string;
+    agentPrenom: string;
+    agentMatricule: string;
+  };
+  /** Modifications complètes (sous-niveaux d'abord, N1 en dernier). */
+  modifications: ModificationPlanning[];
+  /** Impacts résiduels (vigilances/avertissements) de cette alternative. */
+  impacts: ImpactCascade[];
+  /** Profondeur effective (1 = direct, 2+ = sous-cascade). */
+  profondeur: number;
+}
+
 // ─── Affectation d'une JS à un agent dans le scénario ────────────────────────
 
 export interface AffectationJs {
@@ -152,6 +181,14 @@ export interface AffectationJs {
    * Renseigné uniquement dans les scénarios `tousAgentsCascade*`.
    */
   chaineRemplacement: ChaineRemplacement | null;
+  /**
+   * Cascades alternatives non retenues — autres séquences d'agents capables
+   * de résoudre les mêmes conflits induits. Chaque alternative correspond à
+   * un agent N1 différent de la cascade principale.
+   * Permet d'exposer plusieurs options au décideur (ex: Martin+Franz vs
+   * Brouillat+Leguay pour un même repos insuffisant).
+   */
+  cascadeAlternatives?: CascadeAlternative[];
 }
 
 // ─── Conflit détecté dans le scénario global ─────────────────────────────────
@@ -228,6 +265,12 @@ export interface AlternativeJs {
     impacts: import("./js-simulation").ImpactCascade[];
     nbResolu: number;
   };
+  /**
+   * Cascades alternatives non retenues pour cet agent — autres séquences
+   * d'agents capables de résoudre les mêmes conflits induits.
+   * Présent uniquement pour les alternatives de type CASCADE.
+   */
+  cascadeAlternatives?: CascadeAlternative[];
   /**
    * Chaîne de remplacement proposée pour les alternatives de type CHAINE.
    * Présente quand l'agent était exclu pour CONFLIT_HORAIRE mais qu'une chaîne

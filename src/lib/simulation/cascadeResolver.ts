@@ -380,7 +380,74 @@ export function tenterResolutionCascade(
 }
 
 /**
+ * Énumère jusqu'à `maxResults` résolutions valides **distinctes** pour un
+ * même conflit, en excluant successivement l'agent de niveau 1 de chaque
+ * résolution déjà trouvée.
+ *
+ * Permet d'exposer plusieurs cascades alternatives au décideur (ex: Martin+Franz
+ * vs Brouillat+Leguay pour le même conflit de repos quotidien). Coût borné par
+ * `maxResults` × budget partagé — pas d'explosion combinatoire car chaque
+ * itération réutilise l'algorithme de recherche déjà optimisé.
+ */
+export function enumererResolutionsCascade(
+  conflit: ConflitInduit,
+  conflictingEvent: PlanningEvent | null,
+  autresAgents: { context: AgentContext; events: PlanningEvent[] }[],
+  maxResults: number = 5,
+  npoExclusionCodes: string[] = [],
+  lpaContext?: LpaContext,
+  rules: WorkRulesMinutes = DEFAULT_WORK_RULES_MINUTES,
+  agentsEngages: Set<string> = new Set(),
+  budget: CascadeBudget = createCascadeBudget()
+): ResolutionResultat[] {
+  const resultats: ResolutionResultat[] = [];
+  const exclusionsLocal = new Set<string>(agentsEngages);
+
+  for (let i = 0; i < maxResults; i++) {
+    if (budget.epuise) break;
+
+    const r = tenterResolutionCascade(
+      conflit,
+      conflictingEvent,
+      autresAgents,
+      1,
+      npoExclusionCodes,
+      lpaContext,
+      rules,
+      new Set(exclusionsLocal),
+      budget
+    );
+    if (!r.resolu) break;
+    resultats.push(r);
+
+    // L'agent de niveau 1 (= celui qui prend la JS imprévue) est la dernière
+    // modification dans le tableau (cf. ordonnancement dans tenterResolutionCascade
+    // qui place les sous-niveaux d'abord puis le niveau courant).
+    const n1Mod = r.modifications[r.modifications.length - 1];
+    if (!n1Mod) break;
+    exclusionsLocal.add(n1Mod.agentId);
+  }
+
+  return resultats;
+}
+
+/**
+ * Une résolution alternative trouvée pour un conflit donné, exposée au-delà
+ * de la cascade principale retenue.
+ */
+export interface AlternativeParConflit {
+  conflit: ConflitInduit;
+  /** Résolutions alternatives (≠ principale) trouvées en excluant successivement
+   *  l'agent N1 de la principale puis ceux des alternatives déjà trouvées. */
+  resolutions: ResolutionResultat[];
+}
+
+/**
  * Résout tous les conflits résolvables en cascade pour un candidat.
+ *
+ * Énumère également jusqu'à `maxAlternativesParConflit` cascades alternatives
+ * (N1 distinct de la principale) pour chaque conflit résolu — utilisé par
+ * l'UI pour proposer plusieurs séquences au décideur.
  */
 export function resoudreTousConflits(
   conflitsResolvables: ConflitInduit[],
@@ -388,10 +455,18 @@ export function resoudreTousConflits(
   autresAgents: { context: AgentContext; events: PlanningEvent[] }[],
   npoExclusionCodes: string[] = [],
   lpaContext?: LpaContext,
-  rules: WorkRulesMinutes = DEFAULT_WORK_RULES_MINUTES
-): { modifications: ModificationPlanning[]; impactsCascade: ImpactCascade[]; nbResolu: number; profondeurMax: number } {
+  rules: WorkRulesMinutes = DEFAULT_WORK_RULES_MINUTES,
+  maxAlternativesParConflit: number = 3
+): {
+  modifications: ModificationPlanning[];
+  impactsCascade: ImpactCascade[];
+  nbResolu: number;
+  profondeurMax: number;
+  alternativesParConflit: AlternativeParConflit[];
+} {
   const modifications: ModificationPlanning[] = [];
   const impactsCascade: ImpactCascade[] = [];
+  const alternativesParConflit: AlternativeParConflit[] = [];
   let nbResolu = 0;
   let profondeurMax = 0;
 
@@ -434,6 +509,45 @@ export function resoudreTousConflits(
       for (const mod of res.modifications) agentsEngagesGlobal.add(mod.agentId);
       if (res.profondeur > profondeurMax) profondeurMax = res.profondeur;
       nbResolu++;
+
+      // Énumération des alternatives — N1 principal exclu, on cherche d'autres
+      // séquences possibles. On REPART du même set d'engagements global que la
+      // principale (sans inclure ses agents) pour ne pas biaiser la recherche.
+      if (maxAlternativesParConflit > 0 && !budget.epuise) {
+        const n1Principal = res.modifications[res.modifications.length - 1];
+        if (n1Principal) {
+          const alternatives: ResolutionResultat[] = [];
+          // Exclure l'agent N1 de la principale + ceux déjà engagés AVANT la principale
+          const exclusionsAlt = new Set<string>(agentsEngagesGlobal);
+          // agentsEngagesGlobal vient d'être enrichi avec les modifs de la principale
+          // → on accepte ce comportement : les alternatives ne réutilisent pas non plus
+          // les sous-niveaux de la principale, ce qui force des séquences vraiment distinctes.
+
+          for (let i = 0; i < maxAlternativesParConflit; i++) {
+            if (budget.epuise) break;
+            const altRes = tenterResolutionCascade(
+              conflit,
+              evConflictuel,
+              autresAgents,
+              1,
+              npoExclusionCodes,
+              lpaContext,
+              rules,
+              new Set(exclusionsAlt),
+              budget
+            );
+            if (!altRes.resolu) break;
+            alternatives.push(altRes);
+            const n1Alt = altRes.modifications[altRes.modifications.length - 1];
+            if (!n1Alt) break;
+            exclusionsAlt.add(n1Alt.agentId);
+          }
+
+          if (alternatives.length > 0) {
+            alternativesParConflit.push({ conflit, resolutions: alternatives });
+          }
+        }
+      }
     } else {
       impactsCascade.push({
         agentId:     "",
@@ -447,5 +561,5 @@ export function resoudreTousConflits(
     }
   }
 
-  return { modifications, impactsCascade, nbResolu, profondeurMax };
+  return { modifications, impactsCascade, nbResolu, profondeurMax, alternativesParConflit };
 }

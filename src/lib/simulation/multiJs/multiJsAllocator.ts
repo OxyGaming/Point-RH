@@ -15,6 +15,7 @@ import type {
   AlternativeJs,
   AlternativesParJs,
   CandidatMultiJs,
+  CascadeAlternative,
   ConflitMultiJs,
   ExclusionsParJs,
   MultiJsScenario,
@@ -691,7 +692,7 @@ export function allouerJsMultiple(
         return { ...a, events: eventsAvecScenario };
       });
 
-    const { modifications, impactsCascade, nbResolu } = resoudreTousConflits(
+    const { modifications, impactsCascade, nbResolu, alternativesParConflit } = resoudreTousConflits(
       conflitsResolvables,
       eventsSimules,
       agentsCascade,
@@ -708,6 +709,30 @@ export function allouerJsMultiple(
     const nouveauStatut: "DIRECT" | "VIGILANCE" =
       nbNonResolu === 0 && !aNonResolvables ? "DIRECT" : "VIGILANCE";
 
+    // Mise à plat des alternatives par conflit en CascadeAlternative[] pour l'UI.
+    const cascadeAlternatives: CascadeAlternative[] = [];
+    for (const { conflit, resolutions } of alternativesParConflit) {
+      for (const r of resolutions) {
+        const n1 = r.modifications[r.modifications.length - 1];
+        if (!n1) continue;
+        cascadeAlternatives.push({
+          conflitDate:        conflit.date,
+          conflitHeureDebut:  conflit.heureDebut ?? null,
+          conflitHeureFin:    conflit.heureFin ?? null,
+          conflitDescription: conflit.description,
+          agentN1: {
+            agentId:      n1.agentId,
+            agentNom:     n1.agentNom,
+            agentPrenom:  n1.agentPrenom,
+            agentMatricule: agentsMap.get(n1.agentId)?.context.matricule ?? "",
+          },
+          modifications: r.modifications,
+          impacts:       r.impactsCascade,
+          profondeur:    r.profondeur,
+        });
+      }
+    }
+
     affectations.set(jsId, {
       ...aff,
       statut: nouveauStatut,
@@ -715,6 +740,7 @@ export function allouerJsMultiple(
       cascadeImpacts: impactsCascade,
       nbCascadesResolues: nbResolu,
       nbCascadesNonResolues: nbNonResolu,
+      cascadeAlternatives: cascadeAlternatives.length > 0 ? cascadeAlternatives : undefined,
     });
 
     logger?.info("MULTI_CASCADE_DONE", {
@@ -890,6 +916,7 @@ export function allouerJsMultiple(
       // Pré-calculer la chaîne cascade pour les alternatives de type CASCADE
       // (cap à 3 par JS pour éviter tout impact sur la performance)
       let cascadeResolution: AlternativeJs["cascadeResolution"];
+      const cascadeAlternativesAlt: CascadeAlternative[] = [];
       if (typeSolution === "CASCADE" && alternatives.filter(a => a.typeSolution === "CASCADE").length < 3) {
         const agentData = agentsMap.get(candidat.agentId);
         const conflitsResolvables = candidat.conflitsInduits.filter((c) => c.resolvable);
@@ -901,7 +928,7 @@ export function allouerJsMultiple(
               a.context.id !== candidat.agentId &&
               (candidateScope !== "reserve_only" || a.context.agentReserve)
           );
-          const { modifications, impactsCascade, nbResolu } = resoudreTousConflits(
+          const { modifications, impactsCascade, nbResolu, alternativesParConflit } = resoudreTousConflits(
             conflitsResolvables,
             eventsSimAlt,
             agentsCascadeAlt,
@@ -910,6 +937,29 @@ export function allouerJsMultiple(
             rules
           );
           cascadeResolution = { modifications, impacts: impactsCascade, nbResolu };
+
+          // Aplatir les alternatives en CascadeAlternative[] pour exposition UI.
+          for (const { conflit, resolutions } of alternativesParConflit) {
+            for (const r of resolutions) {
+              const n1 = r.modifications[r.modifications.length - 1];
+              if (!n1) continue;
+              cascadeAlternativesAlt.push({
+                conflitDate:        conflit.date,
+                conflitHeureDebut:  conflit.heureDebut ?? null,
+                conflitHeureFin:    conflit.heureFin ?? null,
+                conflitDescription: conflit.description,
+                agentN1: {
+                  agentId:        n1.agentId,
+                  agentNom:       n1.agentNom,
+                  agentPrenom:    n1.agentPrenom,
+                  agentMatricule: agentsMap.get(n1.agentId)?.context.matricule ?? "",
+                },
+                modifications: r.modifications,
+                impacts:       r.impactsCascade,
+                profondeur:    r.profondeur,
+              });
+            }
+          }
         }
       }
 
@@ -929,6 +979,7 @@ export function allouerJsMultiple(
         jsSourceFigee:   candidat.jsSourceFigee ?? null,
         detail:          candidat.detail,
         cascadeResolution,
+        cascadeAlternatives: cascadeAlternativesAlt.length > 0 ? cascadeAlternativesAlt : undefined,
       });
     }
 

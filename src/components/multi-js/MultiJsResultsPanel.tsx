@@ -1117,10 +1117,123 @@ const SCENARIO_CONFIG: {
   { key: "tousCascadeFigeage",  label: "Tous agents + Cascade + Figeage", figeage: true,  scope: "all_agents"   },
 ];
 
-export default function MultiJsResultsPanel({ resultat }: Props) {
-  const [activeKey, setActiveKey] = useState<ScenarioKey>("reserveDirect");
-  const [activeTab, setActiveTab] = useState<Tab>("resume");
+/**
+ * Décrit en une phrase la stratégie utilisée par un scénario pour atteindre
+ * son taux de couverture. Affichée sous le pourcentage pour lever l'ambiguïté
+ * "comment c'est obtenu".
+ */
+function strategieEffective(s: MultiJsScenario): string {
+  if (s.affectations.length === 0) return "aucune solution";
 
+  const nbChaines  = s.affectations.filter((a) => a.chaineRemplacement !== null).length;
+  const nbFigeages = s.affectations.filter((a) => a.jsSourceFigee !== null).length;
+  const nbReserves = s.affectations.filter((a) => a.agentReserve).length;
+  const nbDirect   = s.affectations.length - nbChaines - nbFigeages;
+
+  const parts: string[] = [];
+  if (nbChaines > 0) {
+    const totalMaillons = s.affectations.reduce(
+      (sum, a) => sum + (a.chaineRemplacement?.maillons.length ?? 0), 0
+    );
+    parts.push(`${nbChaines} chaîne${nbChaines > 1 ? "s" : ""} (${totalMaillons} maillon${totalMaillons > 1 ? "s" : ""})`);
+  }
+  if (nbFigeages > 0) {
+    parts.push(`${nbFigeages} figeage${nbFigeages > 1 ? "s" : ""}`);
+  }
+  if (nbDirect > 0) {
+    const suffixe = nbReserves > 0
+      ? ` (${nbReserves} rés.)`
+      : "";
+    parts.push(`${nbDirect} direct${nbDirect > 1 ? "s" : ""}${suffixe}`);
+  }
+  return "via " + parts.join(" + ");
+}
+
+/** Mappe une clé de config vers la propriété correspondante dans le résultat. */
+const KEY_TO_FIELD: Record<ScenarioKey, keyof MultiJsSimulationResultat> = {
+  reserveDirect:      "scenarioReserveOnly",
+  reserveFigeage:     "scenarioReserveOnlyFigeage",
+  tousDirect:         "scenarioTousAgents",
+  tousFigeage:        "scenarioTousAgentsFigeage",
+  tousCascade:        "scenarioTousAgentsCascade",
+  tousCascadeFigeage: "scenarioTousAgentsCascadeFigeage",
+};
+
+/**
+ * Carte d'un scénario. Variante "compacte" pour les non-recommandés (5 autres),
+ * variante "large" pour le scénario recommandé en tête.
+ */
+function ScenarioCard({
+  cfg,
+  scenario,
+  isActive,
+  isRecommended = false,
+  variant = "compact",
+  onClick,
+}: {
+  cfg: typeof SCENARIO_CONFIG[number];
+  scenario: MultiJsScenario;
+  isActive: boolean;
+  isRecommended?: boolean;
+  variant?: "compact" | "large";
+  onClick: () => void;
+}) {
+  const coverageColor =
+    scenario.tauxCouverture === 100
+      ? "text-emerald-600"
+      : scenario.tauxCouverture >= 70
+      ? "text-amber-600"
+      : "text-red-600";
+
+  const isLarge = variant === "large";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-xl border text-left transition-all relative",
+        isLarge ? "p-4" : "p-3",
+        isActive
+          ? "border-blue-500 bg-blue-50 shadow-sm"
+          : isRecommended
+          ? "border-emerald-300 bg-white shadow-sm hover:border-emerald-500"
+          : "border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50"
+      )}
+    >
+      {isRecommended && (
+        <span className="absolute -top-2 left-3 inline-flex items-center gap-1 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">
+          <IconCheckCircle className="w-3 h-3" aria-hidden="true" />
+          Recommandé
+        </span>
+      )}
+      <div className="flex items-center justify-between mb-1.5">
+        <ScenarioIcon cfgKey={cfg.key} />
+        <RobustesseBadge robustesse={scenario.robustesse} />
+      </div>
+      <p className={cn(isLarge ? "text-3xl" : "text-xl", "font-bold", coverageColor)}>
+        {scenario.tauxCouverture}%
+      </p>
+      <p className={cn(
+        "font-semibold text-slate-700 leading-tight mt-0.5",
+        isLarge ? "text-sm" : "text-[10px]"
+      )}>
+        {cfg.label}
+      </p>
+      <p className={cn("text-slate-500 italic", isLarge ? "text-[11px] mt-1" : "text-[9px] mt-1")}>
+        {strategieEffective(scenario)}
+      </p>
+      <div className={cn("flex items-center justify-between", isLarge ? "mt-2.5" : "mt-1.5")}>
+        <span className="text-[9px] text-slate-400">
+          {scenario.nbJsCouvertes}/{scenario.nbJsCouvertes + scenario.nbJsNonCouvertes} JS · {scenario.nbAgentsMobilises} agent{scenario.nbAgentsMobilises > 1 ? "s" : ""}
+        </span>
+        <ScoreBadge score={scenario.score} />
+      </div>
+    </button>
+  );
+}
+
+export default function MultiJsResultsPanel({ resultat }: Props) {
   const scenarioByKey: Record<ScenarioKey, typeof resultat.scenarioReserveOnly> = {
     reserveDirect:       resultat.scenarioReserveOnly,
     reserveFigeage:      resultat.scenarioReserveOnlyFigeage,
@@ -1129,6 +1242,20 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
     tousCascade:         resultat.scenarioTousAgentsCascade,
     tousCascadeFigeage:  resultat.scenarioTousAgentsCascadeFigeage,
   };
+
+  // Trouver la clé du scénario recommandé (= meilleur, déjà en tête de scenarios[]).
+  // Comparaison par `id` car les références peuvent être cassées par sérialisation
+  // serveur→client (page demo). Si pas de meilleur, fallback sur le 1er scénario.
+  const meilleurId = resultat.scenarioMeilleur?.id ?? resultat.scenarios[0]?.id;
+  const recommendedKey: ScenarioKey =
+    (Object.entries(KEY_TO_FIELD).find(([, field]) => {
+      const sc = resultat[field] as MultiJsScenario | null | undefined;
+      return sc?.id === meilleurId;
+    })?.[0] as ScenarioKey | undefined) ?? "reserveDirect";
+
+  const [activeKey, setActiveKey] = useState<ScenarioKey>(recommendedKey);
+  const [activeTab, setActiveTab] = useState<Tab>("resume");
+  const [showOthers, setShowOthers] = useState(false);
 
   const scenario = scenarioByKey[activeKey];
   if (!scenario) return null;
@@ -1167,57 +1294,72 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* ─── Sélecteur 6 scénarios ───────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        {SCENARIO_CONFIG.map((cfg) => {
-          const s = scenarioByKey[cfg.key];
-          const isActive = activeKey === cfg.key;
-          if (!s) return null;
-          const coverageColor =
-            s.tauxCouverture === 100
-              ? "text-emerald-600"
-              : s.tauxCouverture >= 70
-              ? "text-amber-600"
-              : "text-red-600";
-          return (
-            <button
-              key={cfg.key}
-              type="button"
-              onClick={() => { setActiveKey(cfg.key); setActiveTab("resume"); }}
-              className={cn(
-                "rounded-xl border p-3 text-left transition-all",
-                isActive
-                  ? "border-blue-500 bg-blue-50 shadow-sm"
-                  : "border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50"
-              )}
-            >
-              <div className="flex items-center justify-between mb-1.5">
-                <ScenarioIcon cfgKey={cfg.key} />
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold bg-amber-100 text-amber-700 px-1 py-0.5 rounded">
-                  CASCADE
-                  {s.nbCascadesResolues > 0 && (
-                    <span className="bg-amber-700 text-amber-100 rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] font-bold leading-none">
-                      {s.nbCascadesResolues}
-                    </span>
-                  )}
-                </span>
-              </div>
-              <p className={cn("text-xl font-bold", coverageColor)}>
-                {s.tauxCouverture}%
+      {/* ─── Scénario recommandé en grand ─────────────────────────────── */}
+      {(() => {
+        const recoCfg = SCENARIO_CONFIG.find((c) => c.key === recommendedKey);
+        const recoScenario = scenarioByKey[recommendedKey];
+        if (!recoCfg || !recoScenario) return null;
+        return (
+          <div className="grid sm:grid-cols-2 gap-3">
+            <ScenarioCard
+              cfg={recoCfg}
+              scenario={recoScenario}
+              isActive={activeKey === recommendedKey}
+              isRecommended
+              variant="large"
+              onClick={() => { setActiveKey(recommendedKey); setActiveTab("resume"); }}
+            />
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600 space-y-1.5">
+              <p className="font-semibold text-slate-700 text-sm">Pourquoi ce scénario ?</p>
+              <p>
+                Score le plus élevé parmi les 6 stratégies évaluées. Le moteur a
+                arbitré entre périmètre (réserve / tous agents) et leviers
+                autorisés (figeage DERNIER_RECOURS, chaîne de remplacement).
               </p>
-              <p className="text-[10px] font-semibold text-slate-600 leading-tight mt-0.5">
-                {cfg.label}
+              <p className="text-[11px] text-slate-500 italic">
+                Vous pouvez explorer les 5 autres options ci-dessous pour
+                comparer.
               </p>
-              <p className="text-[9px] text-slate-400 mt-1">
-                {s.nbJsCouvertes}/{s.nbJsCouvertes + s.nbJsNonCouvertes} JS · {s.nbAgentsMobilises} agents
-              </p>
-              <div className="mt-1.5 flex items-center justify-between">
-                <RobustesseBadge robustesse={s.robustesse} />
-                <ScoreBadge score={s.score} />
-              </div>
-            </button>
-          );
-        })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ─── Accordéon : les 5 autres scénarios ─────────────────────── */}
+      <div>
+        <button
+          type="button"
+          onClick={() => setShowOthers((v) => !v)}
+          className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors"
+        >
+          <span>
+            {showOthers ? "Masquer" : "Voir"} les 5 autres scénarios
+            {activeKey !== recommendedKey && !showOthers && (
+              <span className="ml-2 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">
+                actif : {SCENARIO_CONFIG.find((c) => c.key === activeKey)?.label}
+              </span>
+            )}
+          </span>
+          <span className="text-slate-400">{showOthers ? "▴" : "▾"}</span>
+        </button>
+        {showOthers && (
+          <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            {SCENARIO_CONFIG.filter((cfg) => cfg.key !== recommendedKey).map((cfg) => {
+              const s = scenarioByKey[cfg.key];
+              if (!s) return null;
+              return (
+                <ScenarioCard
+                  key={cfg.key}
+                  cfg={cfg}
+                  scenario={s}
+                  isActive={activeKey === cfg.key}
+                  variant="compact"
+                  onClick={() => { setActiveKey(cfg.key); setActiveTab("resume"); }}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ─── Onglets ──────────────────────────────────────────────────── */}

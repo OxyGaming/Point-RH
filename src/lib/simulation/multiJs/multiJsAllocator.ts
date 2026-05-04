@@ -39,7 +39,7 @@ import type { Exclusion } from "@/engine/ruleTypes";
 import type { MultiJsExclusion } from "@/types/multi-js-simulation";
 import type { LogCollector } from "@/engine/logger";
 import type { ChaineContexte } from "./chaineRemplacement";
-import { tenterChaineRemplacement } from "./chaineRemplacement";
+import { tenterChaineRemplacement, enumererChainesRemplacement } from "./chaineRemplacement";
 
 /**
  * Génère un identifiant de scénario unique et thread-safe.
@@ -950,12 +950,20 @@ export function allouerJsMultiple(
         imprevuJs.heureFinEstimee
       );
 
+      // Cap global d'alternatives chaîne par JS (toutes chaînes confondues)
+      const MAX_TOTAL_CHAINES_PAR_JS = 15;
+      // Cap par agent bloqué : nombre max de combinaisons N1/N2 distinctes
+      // explorées pour un même agent. Volontairement large : sur des datasets
+      // denses (ex : Brouillat 6ᵉ candidat de niveau 1 derrière Bouziges, Panel,
+      // Ollier, Buratto, Martin), un cap trop bas exclut des chaînes pertinentes.
+      const MAX_CHAINES_PAR_AGENT = 10;
+
       let nbChaineAdded = 0;
       for (const excl of exclusionsConflit) {
-        if (nbChaineAdded >= 5) break;
+        if (nbChaineAdded >= MAX_TOTAL_CHAINES_PAR_JS) break;
         if (excl.agentId === assignedAgentId) continue;
         // Skip si déjà dans alternatives (typeSolution autre que CHAINE)
-        if (alternatives.some((a) => a.agentId === excl.agentId)) continue;
+        if (alternatives.some((a) => a.agentId === excl.agentId && a.typeSolution !== "CHAINE")) continue;
 
         const candidat = agentsMap.get(excl.agentId);
         if (!candidat) continue;
@@ -970,28 +978,40 @@ export function allouerJsMultiple(
         });
         if (!eventConflit) continue;
 
-        const chaine = tenterChaineRemplacement(excl.agentId, eventConflit, cascadeContext);
-        if (!chaine) continue;
+        const chaines = enumererChainesRemplacement(
+          excl.agentId,
+          eventConflit,
+          cascadeContext,
+          MAX_CHAINES_PAR_AGENT
+        );
+        if (chaines.length === 0) continue;
 
-        alternatives.push({
-          rang: 0,
-          agentId:      excl.agentId,
-          nom:          excl.agentNom,
-          prenom:       excl.agentPrenom,
-          matricule:    excl.agentMatricule,
-          agentReserve: candidat.context.agentReserve,
-          statut:       "DIRECT",
-          score:        0,
-          typeSolution: "CHAINE",
-          raisonNonRetention: assignedAgentId !== null
-            ? `Plan B via cascade — non sélectionné car la JS est déjà couverte`
-            : `Chaîne de remplacement disponible mais non retenue par l'allocateur`,
-          motif:        excl.raison,
-          conflitsInduits: [],
-          jsSourceFigee:   null,
-          chaineRemplacementProposee: chaine,
-        });
-        nbChaineAdded++;
+        for (let i = 0; i < chaines.length; i++) {
+          if (nbChaineAdded >= MAX_TOTAL_CHAINES_PAR_JS) break;
+          const chaine = chaines[i];
+          const variantSuffix = chaines.length > 1 ? ` — variante ${i + 1}/${chaines.length}` : "";
+          alternatives.push({
+            rang: 0,
+            agentId:      excl.agentId,
+            nom:          excl.agentNom,
+            prenom:       excl.agentPrenom,
+            matricule:    excl.agentMatricule,
+            agentReserve: candidat.context.agentReserve,
+            statut:       "DIRECT",
+            score:        0,
+            typeSolution: "CHAINE",
+            raisonNonRetention:
+              (assignedAgentId !== null
+                ? `Plan B via cascade — non sélectionné car la JS est déjà couverte`
+                : `Chaîne de remplacement disponible mais non retenue par l'allocateur`)
+              + variantSuffix,
+            motif:        excl.raison,
+            conflitsInduits: [],
+            jsSourceFigee:   null,
+            chaineRemplacementProposee: chaine,
+          });
+          nbChaineAdded++;
+        }
       }
     }
 

@@ -15,7 +15,7 @@ import type { JsCible } from "@/types/js-simulation";
 import type { WorkRulesMinutes } from "@/lib/rules/workRules";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
 import type { MaillonChaine, ChaineRemplacement } from "@/types/multi-js-simulation";
-import { isJsDeNuit, getEventInterval } from "@/lib/utils";
+import { isJsDeNuit, getEventInterval, combineDateTime } from "@/lib/utils";
 import { canAssignJsToAgentInScenario } from "./agentScenarioValidator";
 import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
@@ -106,25 +106,33 @@ function trouverEventConflit(
 }
 
 /**
- * Tente de constituer une chaîne de remplacement pour combler la JS `trou`
- * (que l'agent du niveau précédent libère pour rejoindre sa propre cible).
+ * Énumère jusqu'à `maxResults` chaînes valides comblant le `trou`. Chaque
+ * résultat est une liste de maillons (1 si candidat libre, ≥ 2 si récursion
+ * pour libérer le candidat de son propre conflit).
+ *
+ * `maxResults = 1` reproduit l'ancien comportement DFS premier-trouvé,
+ * utilisé par le greedy. Pour exposer plusieurs alternatives à l'utilisateur,
+ * passer `maxResults = 5` (ou plus).
  *
  * @param trou             JS à reprendre par un agent de cette profondeur.
  * @param ctx              Contexte commun.
  * @param niveauActuel     Niveau de récursion (1 pour le 1er maillon).
  * @param agentsEngages    Set anti-cycle : agents déjà utilisés en amont.
+ * @param maxResults       Plafond du nombre de chaînes collectées (défaut 1).
  *
- * @returns Liste de maillons (1 ou plusieurs si récursion) si la chaîne existe,
- *          null si aucun candidat n'a pu être trouvé.
+ * @returns Liste de chaînes (chacune = liste de maillons). Vide si aucune.
  */
-export function chercherMaillon(
+export function chercherMaillons(
   trou: JsCible,
   ctx: ChaineContexte,
   niveauActuel: number,
-  agentsEngages: Set<string>
-): MaillonChaine[] | null {
-  if (niveauActuel > ctx.profondeurMax) return null;
-  if (ctx.budget.remaining <= 0) return null;
+  agentsEngages: Set<string>,
+  maxResults: number = 1
+): MaillonChaine[][] {
+  const resultats: MaillonChaine[][] = [];
+  if (niveauActuel > ctx.profondeurMax) return resultats;
+  if (ctx.budget.remaining <= 0) return resultats;
+  if (maxResults <= 0) return resultats;
 
   // Pré-filtre structurel : préfixe + nuit + déplacement
   const eligibles = findEligibleAgentsForJs(
@@ -148,12 +156,17 @@ export function chercherMaillon(
     return bRes - aRes;
   });
 
-  const trouStart = new Date(`${trou.date}T${trou.heureDebut}:00`);
-  const trouEnd   = new Date(`${trou.date}T${trou.heureFin}:00`);
-  if (trouEnd <= trouStart) trouEnd.setDate(trouEnd.getDate() + 1);
+  // Aligné en UTC via combineDateTime pour cohérence avec getEventInterval
+  // (sinon décalage entre interprétation locale du serveur et UTC des events).
+  const trouStart = combineDateTime(trou.date, trou.heureDebut);
+  let trouEnd = combineDateTime(trou.date, trou.heureFin);
+  if (trouEnd.getTime() <= trouStart.getTime()) {
+    trouEnd = new Date(trouEnd.getTime() + 24 * 3600 * 1000);
+  }
 
   for (const candidatId of candidats) {
-    if (ctx.budget.remaining <= 0) return null;
+    if (resultats.length >= maxResults) break;
+    if (ctx.budget.remaining <= 0) break;
     ctx.budget.remaining -= 1;
 
     const candidat = ctx.agentsMap.get(candidatId);
@@ -192,7 +205,8 @@ export function chercherMaillon(
         jsRepriseCodeJs: trou.codeJs,
         statut: compat.statut === "VIGILANCE" ? "VIGILANCE" : "DIRECT",
       };
-      return [maillon];
+      resultats.push([maillon]);
+      continue;
     }
 
     // Cas profondeur N+1 : ce candidat est lui-même bloqué — peut-on cascader ?
@@ -201,13 +215,18 @@ export function chercherMaillon(
     const sousTrou = eventToJsCibleSource(conflit, candidat, ctx.importId);
     if (sousTrou === null) continue;
 
-    const sousChaine = chercherMaillon(
+    // Récursivement, ne demander qu'**une** sous-chaîne par candidat de niveau N
+    // (sinon explosion combinatoire ; les utilisateurs voient déjà la diversité
+    // au niveau 1 via maxResults).
+    const sousChaines = chercherMaillons(
       sousTrou,
       ctx,
       niveauActuel + 1,
-      new Set([...agentsEngages, candidatId])
+      new Set([...agentsEngages, candidatId]),
+      1
     );
-    if (sousChaine === null) continue;
+    if (sousChaines.length === 0) continue;
+    const sousChaine = sousChaines[0];
 
     // Le candidat peut-il prendre le trou en supposant qu'il a libéré son conflit ?
     const candidatSansConflit: AgentDataMultiJs = {
@@ -226,6 +245,7 @@ export function chercherMaillon(
     );
     if (!compat.compatible) continue;
 
+    const { start: conflitStart } = getEventInterval(conflit);
     const maillon: MaillonChaine = {
       niveau: niveauActuel,
       agentId: candidat.context.id,
@@ -235,50 +255,66 @@ export function chercherMaillon(
       jsLiberee: {
         planningLigneId: conflit.planningLigneId ?? "",
         codeJs: conflit.codeJs,
-        date: conflit.dateDebut.toISOString().slice(0, 10),
+        date: conflitStart.toISOString().slice(0, 10),
         heureDebut: conflit.heureDebut,
         heureFin: conflit.heureFin,
       },
       jsRepriseCodeJs: trou.codeJs,
       statut: compat.statut === "VIGILANCE" ? "VIGILANCE" : "DIRECT",
     };
-    return [maillon, ...sousChaine];
+    resultats.push([maillon, ...sousChaine]);
   }
 
-  return null;
+  return resultats;
 }
 
 /**
- * Point d'entrée principal : tente de constituer une chaîne pour libérer
- * `agentBloqueId` de son `eventConflit`, afin qu'il puisse rejoindre la JS cible.
- *
- * Retourne :
- * - `{ maillons, complete: true }` si la chaîne couvre tous les trous induits
- * - `null` si aucune chaîne valide n'a pu être trouvée
+ * Point d'entrée principal — variante 1 chaîne : tente de constituer la
+ * première chaîne valide pour libérer `agentBloqueId` de son `eventConflit`.
+ * Conserve l'ancien comportement (DFS premier-trouvé) pour le greedy.
  */
 export function tenterChaineRemplacement(
   agentBloqueId: string,
   eventConflit: PlanningEvent,
   ctx: ChaineContexte
 ): ChaineRemplacement | null {
+  const chaines = enumererChainesRemplacement(agentBloqueId, eventConflit, ctx, 1);
+  return chaines[0] ?? null;
+}
+
+/**
+ * Variante N chaînes : énumère jusqu'à `maxResults` alternatives de chaîne
+ * pour libérer `agentBloqueId`. Utilisé pour exposer plusieurs plans B dans
+ * l'onglet Alternatives — le décideur compare et choisit.
+ *
+ * Cap par défaut à 5, suffisant pour montrer la diversité sans saturer l'UI
+ * ni exploser le budget récursif.
+ */
+export function enumererChainesRemplacement(
+  agentBloqueId: string,
+  eventConflit: PlanningEvent,
+  ctx: ChaineContexte,
+  maxResults: number = 5
+): ChaineRemplacement[] {
   const agentBloque = ctx.agentsMap.get(agentBloqueId);
-  if (!agentBloque) return null;
+  if (!agentBloque) return [];
 
   const sousTrou = eventToJsCibleSource(eventConflit, agentBloque, ctx.importId);
-  if (sousTrou === null) return null;
+  if (sousTrou === null) return [];
 
-  const maillons = chercherMaillon(
+  const maillonsListe = chercherMaillons(
     sousTrou,
     ctx,
     1,
-    new Set([agentBloqueId])
+    new Set([agentBloqueId]),
+    maxResults
   );
 
-  if (maillons === null || maillons.length === 0) return null;
-
-  return {
-    maillons,
-    profondeur: maillons.length,
-    complete: true,
-  };
+  return maillonsListe
+    .filter((maillons) => maillons.length > 0)
+    .map((maillons) => ({
+      maillons,
+      profondeur: maillons.length,
+      complete: true,
+    }));
 }

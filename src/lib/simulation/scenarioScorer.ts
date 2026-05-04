@@ -192,13 +192,19 @@ export const POIDS_SCORE_SCENARIO_MULTI = {
   penaliteJsDernierRecours: 5,
   /** Pénalité par conflit AVERTISSEMENT */
   penaliteConflitAvert:   3,
-  /** Coût par figeage appliqué (impact sur le score scénario, pas le score candidat) */
-  penaliteParFigeage:     3,
+  /**
+   * Coût par figeage appliqué (impact sur le score scénario, pas le score candidat).
+   *
+   * Calibrage métier : un figeage = une JS DERNIER_RECOURS qui reste découverte.
+   * Le terrain ferroviaire préfère mobiliser plusieurs agents en cascade pour
+   * préserver toutes les JS plutôt que d'en abandonner une, même DERNIER_RECOURS.
+   * → On pénalise le figeage à un niveau supérieur au coût d'une chaîne de 2 maillons
+   *   (4 + 4 = 8 < 10), pour que la cascade soit préférée quand elle existe.
+   */
+  penaliteParFigeage:     10,
   /**
    * Coût par maillon de chaîne de remplacement (mode Cascade).
    * Chaque maillon = 1 agent supplémentaire à mobiliser = 1 appel téléphonique de plus.
-   * Volontairement plus élevé que le figeage : on préfère figer une JS DERNIER_RECOURS
-   * que mobiliser plusieurs agents en cascade quand c'est possible.
    */
   penaliteParMaillonChaine: 4,
 } as const;

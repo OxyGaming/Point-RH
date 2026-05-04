@@ -1256,6 +1256,30 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
   const [activeKey, setActiveKey] = useState<ScenarioKey>(recommendedKey);
   const [activeTab, setActiveTab] = useState<Tab>("resume");
   const [showOthers, setShowOthers] = useState(false);
+  /** Toggle "Préserver toutes les JS" : masque les scénarios qui figent une JS DERNIER_RECOURS. */
+  const [preserveAllJs, setPreserveAllJs] = useState(false);
+
+  // Filtrage selon le toggle "Préserver toutes les JS".
+  // Les scénarios SCENARIO_CONFIG marqués figeage sont écartés quand le toggle est ON.
+  const visibleConfigs = preserveAllJs
+    ? SCENARIO_CONFIG.filter((c) => !c.figeage)
+    : SCENARIO_CONFIG;
+
+  // Recommandé recalculé sur le sous-ensemble visible.
+  const recommendedKeyVisible: ScenarioKey = (() => {
+    const visibleScenarios = visibleConfigs
+      .map((c) => ({ key: c.key, sc: scenarioByKey[c.key] }))
+      .filter((x): x is { key: ScenarioKey; sc: MultiJsScenario } => x.sc !== null);
+    if (visibleScenarios.length === 0) return recommendedKey;
+    visibleScenarios.sort((a, b) => b.sc.score - a.sc.score);
+    return visibleScenarios[0].key;
+  })();
+
+  // Si l'utilisateur active le toggle alors qu'un scénario figeage est sélectionné,
+  // on retombe sur le recommandé visible pour éviter un état invalide.
+  if (preserveAllJs && !visibleConfigs.some((c) => c.key === activeKey)) {
+    setTimeout(() => setActiveKey(recommendedKeyVisible), 0);
+  }
 
   const scenario = scenarioByKey[activeKey];
   if (!scenario) return null;
@@ -1294,73 +1318,102 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* ─── Toggle "Préserver toutes les JS" ─────────────────────────── */}
+      <div className="flex items-center justify-end gap-3 px-1">
+        <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={preserveAllJs}
+            onChange={(e) => setPreserveAllJs(e.target.checked)}
+            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+          />
+          <span>
+            <span className="font-semibold">Préserver toutes les JS</span>
+            <span className="text-slate-400 ml-1">— masque les scénarios qui figent une JS DERNIER_RECOURS</span>
+          </span>
+        </label>
+      </div>
+
       {/* ─── Scénario recommandé en grand ─────────────────────────────── */}
       {(() => {
-        const recoCfg = SCENARIO_CONFIG.find((c) => c.key === recommendedKey);
-        const recoScenario = scenarioByKey[recommendedKey];
+        const recoCfg = visibleConfigs.find((c) => c.key === recommendedKeyVisible);
+        const recoScenario = recoCfg ? scenarioByKey[recoCfg.key] : null;
         if (!recoCfg || !recoScenario) return null;
         return (
           <div className="grid sm:grid-cols-2 gap-3">
             <ScenarioCard
               cfg={recoCfg}
               scenario={recoScenario}
-              isActive={activeKey === recommendedKey}
+              isActive={activeKey === recommendedKeyVisible}
               isRecommended
               variant="large"
-              onClick={() => { setActiveKey(recommendedKey); setActiveTab("resume"); }}
+              onClick={() => { setActiveKey(recommendedKeyVisible); setActiveTab("resume"); }}
             />
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600 space-y-1.5">
               <p className="font-semibold text-slate-700 text-sm">Pourquoi ce scénario ?</p>
               <p>
-                Score le plus élevé parmi les 6 stratégies évaluées. Le moteur a
-                arbitré entre périmètre (réserve / tous agents) et leviers
-                autorisés (figeage DERNIER_RECOURS, chaîne de remplacement).
+                {preserveAllJs
+                  ? "Meilleur scénario parmi ceux qui ne figent aucune JS DERNIER_RECOURS. Les options avec figeage sont temporairement masquées."
+                  : "Score le plus élevé parmi les 6 stratégies évaluées. Le moteur a arbitré entre périmètre (réserve / tous agents) et leviers autorisés (figeage DERNIER_RECOURS, chaîne de remplacement)."}
               </p>
               <p className="text-[11px] text-slate-500 italic">
-                Vous pouvez explorer les 5 autres options ci-dessous pour
-                comparer.
+                {preserveAllJs
+                  ? "Décochez « Préserver toutes les JS » pour voir aussi les scénarios avec figeage."
+                  : "Vous pouvez explorer les autres options ci-dessous pour comparer."}
               </p>
             </div>
           </div>
         );
       })()}
 
-      {/* ─── Accordéon : les 5 autres scénarios ─────────────────────── */}
-      <div>
-        <button
-          type="button"
-          onClick={() => setShowOthers((v) => !v)}
-          className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors"
-        >
-          <span>
-            {showOthers ? "Masquer" : "Voir"} les 5 autres scénarios
-            {activeKey !== recommendedKey && !showOthers && (
-              <span className="ml-2 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">
-                actif : {SCENARIO_CONFIG.find((c) => c.key === activeKey)?.label}
+      {/* ─── Accordéon : les autres scénarios visibles ────────────────── */}
+      {(() => {
+        const otherConfigs = visibleConfigs.filter((cfg) => cfg.key !== recommendedKeyVisible);
+        if (otherConfigs.length === 0) return null;
+        const nbOthers = otherConfigs.length;
+        return (
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowOthers((v) => !v)}
+              className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors"
+            >
+              <span>
+                {showOthers ? "Masquer" : "Voir"} les {nbOthers} autre{nbOthers > 1 ? "s" : ""} scénario{nbOthers > 1 ? "s" : ""}
+                {activeKey !== recommendedKeyVisible && !showOthers && (
+                  <span className="ml-2 text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">
+                    actif : {SCENARIO_CONFIG.find((c) => c.key === activeKey)?.label}
+                  </span>
+                )}
               </span>
+              <span className="text-slate-400">{showOthers ? "▴" : "▾"}</span>
+            </button>
+            {showOthers && (
+              <div className={cn(
+                "mt-2 grid gap-2",
+                nbOthers >= 4
+                  ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5"
+                  : "grid-cols-2 sm:grid-cols-3"
+              )}>
+                {otherConfigs.map((cfg) => {
+                  const s = scenarioByKey[cfg.key];
+                  if (!s) return null;
+                  return (
+                    <ScenarioCard
+                      key={cfg.key}
+                      cfg={cfg}
+                      scenario={s}
+                      isActive={activeKey === cfg.key}
+                      variant="compact"
+                      onClick={() => { setActiveKey(cfg.key); setActiveTab("resume"); }}
+                    />
+                  );
+                })}
+              </div>
             )}
-          </span>
-          <span className="text-slate-400">{showOthers ? "▴" : "▾"}</span>
-        </button>
-        {showOthers && (
-          <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-            {SCENARIO_CONFIG.filter((cfg) => cfg.key !== recommendedKey).map((cfg) => {
-              const s = scenarioByKey[cfg.key];
-              if (!s) return null;
-              return (
-                <ScenarioCard
-                  key={cfg.key}
-                  cfg={cfg}
-                  scenario={s}
-                  isActive={activeKey === cfg.key}
-                  variant="compact"
-                  onClick={() => { setActiveKey(cfg.key); setActiveTab("resume"); }}
-                />
-              );
-            })}
           </div>
-        )}
-      </div>
+        );
+      })()}
 
       {/* ─── Onglets ──────────────────────────────────────────────────── */}
       <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">

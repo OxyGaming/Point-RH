@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import type { JsTimeline } from "@/types/multi-js-simulation";
 import AgentLink from "@/components/ui/AgentLink";
 import { IconMoon } from "@/components/icons/Icons";
+import { formatInTimeZone } from "date-fns-tz";
+import { fr } from "date-fns/locale";
 
 interface Props {
   js: JsTimeline;
@@ -18,12 +20,10 @@ function formatMinutes(min: number): string {
 }
 
 function formatDate(dateStr: string): string {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("fr-FR", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-  });
+  // dateStr est "YYYY-MM-DD" Paris — on force la timezone Paris pour l'affichage
+  // afin que le jour ne décale pas selon le navigateur de l'utilisateur.
+  const d = new Date(`${dateStr}T00:00:00`);
+  return formatInTimeZone(d, "Europe/Paris", "EEE dd MMM", { locale: fr });
 }
 
 export default function JsTimelineItem({ js, selected, onToggle }: Props) {

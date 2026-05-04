@@ -13,6 +13,8 @@ import type { JsTimeline, MultiJsSimulationResultat } from "@/types/multi-js-sim
 import type { JsCible } from "@/types/js-simulation";
 import { isJsDeNuit } from "@/lib/utils";
 import { IconZap } from "@/components/icons/Icons";
+import { formatInTimeZone } from "date-fns-tz";
+import { fr } from "date-fns/locale";
 
 interface PlanningImport {
   id: string;
@@ -24,10 +26,7 @@ interface PlanningImport {
 }
 
 function formatDateFr(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "short",
-  });
+  return formatInTimeZone(new Date(`${dateStr}T00:00:00`), "Europe/Paris", "dd MMM", { locale: fr });
 }
 
 // Groupe les JS par date pour la timeline
@@ -338,11 +337,7 @@ export default function MultiJsPage() {
                   <div className="flex items-center gap-3 mb-2">
                     <div className="h-px flex-1 bg-slate-200" />
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide px-2">
-                      {new Date(date).toLocaleDateString("fr-FR", {
-                        weekday: "long",
-                        day: "2-digit",
-                        month: "long",
-                      })}
+                      {formatInTimeZone(new Date(`${date}T00:00:00`), "Europe/Paris", "EEEE dd MMMM", { locale: fr })}
                     </span>
                     <div className="h-px flex-1 bg-slate-200" />
                   </div>

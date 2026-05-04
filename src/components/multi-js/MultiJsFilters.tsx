@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { formatDateParis } from "@/lib/timezone";
 import type { JsTimeline } from "@/types/multi-js-simulation";
 import { IconMoon } from "@/components/icons/Icons";
 
@@ -25,7 +26,9 @@ interface Props {
 }
 
 function toIsoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  // Force l'extraction du jour Paris pour cohérence avec les heures Paris
+  // affichées (cf. rapport Phase 1.A).
+  return formatDateParis(d);
 }
 
 export function defaultFilters(): FiltersState {

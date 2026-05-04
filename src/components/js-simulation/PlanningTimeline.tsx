@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { cn, isJsDeNuit } from "@/lib/utils";
+import { formatDateParis } from "@/lib/timezone";
+import { formatInTimeZone } from "date-fns-tz";
+import { fr } from "date-fns/locale";
 import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
 import { useZeroLoadPrefixes } from "@/hooks/useZeroLoadPrefixes";
 import type { JsCible, FlexibiliteJs } from "@/types/js-simulation";
@@ -140,7 +143,7 @@ export default function PlanningTimeline({
       agentNom,
       agentPrenom,
       agentMatricule,
-      date: new Date(ligne.dateDebutPop).toISOString().slice(0, 10),
+      date: formatDateParis(new Date(ligne.dateDebutPop)),
       heureDebut: ligne.heureDebutPop,
       heureFin: ligne.heureFinPop,
       heureDebutJsType: ligne.heureDebutJsType,
@@ -178,10 +181,7 @@ export default function PlanningTimeline({
           >
             {/* Date */}
             <div className={cn("w-16 sm:w-24 text-xs shrink-0", isJs ? "text-slate-700 font-medium" : "text-slate-400")}>
-              {new Date(l.dateDebutPop).toLocaleDateString("fr-FR", {
-                day: "numeric",
-                month: "short",
-              })}
+              {formatInTimeZone(new Date(l.dateDebutPop), "Europe/Paris", "d MMM", { locale: fr })}
             </div>
 
             {/* Horaires */}

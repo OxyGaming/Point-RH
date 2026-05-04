@@ -4,6 +4,8 @@ import { useState } from "react";
 import type { Scenario, ModificationPlanning } from "@/types/js-simulation";
 import AgentLink from "@/components/ui/AgentLink";
 import DetailRegles from "@/components/js-simulation/DetailRegles";
+import { formatInTimeZone } from "date-fns-tz";
+import { fr } from "date-fns/locale";
 import {
   IconLock,
   IconAlertTriangle,
@@ -31,17 +33,16 @@ const SEVERITY_STYLES: Record<string, string> = {
 
 /** Extrait la date et les horaires depuis une description de modification. */
 function parseJsInfo(desc: string): { date: string | null; horaires: string | null } {
+  const fmtJourCourt = (yyyymmdd: string): string =>
+    formatInTimeZone(new Date(`${yyyymmdd}T00:00:00`), "Europe/Paris", "d MMM", { locale: fr });
+
   const full = desc.match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}[–\-]\d{2}:\d{2})/);
   if (full) {
-    const d = new Date(full[1] + "T00:00:00");
-    const date = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-    return { date, horaires: full[2].replace("-", "–") };
+    return { date: fmtJourCourt(full[1]), horaires: full[2].replace("-", "–") };
   }
   const du = desc.match(/du\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})[–\-](\d{2}:\d{2})/);
   if (du) {
-    const d = new Date(du[1] + "T00:00:00");
-    const date = d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
-    return { date, horaires: `${du[2]}–${du[3]}` };
+    return { date: fmtJourCourt(du[1]), horaires: `${du[2]}–${du[3]}` };
   }
   const t = desc.match(/(\d{2}:\d{2})[–\-](\d{2}:\d{2})/);
   if (t) return { date: null, horaires: `${t[1]}–${t[2]}` };
@@ -67,8 +68,7 @@ interface ChainNodeProps {
 }
 
 function formatDateCourt(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  return formatInTimeZone(new Date(`${dateStr}T00:00:00`), "Europe/Paris", "d MMM", { locale: fr });
 }
 
 function JsBadge({ date, heureDebut, heureFin, codeJs, variant = "neutral" }: {

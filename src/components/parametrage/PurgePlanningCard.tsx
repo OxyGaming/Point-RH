@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatInTimeZone } from "date-fns-tz";
 
 interface PurgeResult {
   success: true;
@@ -81,7 +82,7 @@ export default function PurgePlanningCard() {
 }
 
 function PurgeReport({ result }: { result: PurgeResult }) {
-  const cutoffDate = new Date(result.cutoff).toLocaleDateString("fr-FR");
+  const cutoffDate = formatInTimeZone(new Date(result.cutoff), "Europe/Paris", "dd/MM/yyyy");
   const nothing = result.lignesDeleted === 0 && result.importsDeleted === 0;
 
   return (

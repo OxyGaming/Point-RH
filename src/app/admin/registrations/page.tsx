@@ -6,6 +6,8 @@
  * Permet : consulter, approuver, refuser les demandes.
  */
 import { useEffect, useState, useCallback } from "react";
+import { formatInTimeZone } from "date-fns-tz";
+import { fr } from "date-fns/locale";
 
 interface RegistrationUser {
   id: string;
@@ -183,13 +185,7 @@ export default function RegistrationsAdminPage() {
                     )}
 
                     <p className="text-xs text-gray-400">
-                      Demande reçue le {new Date(user.createdAt).toLocaleDateString("fr-FR", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      Demande reçue le {formatInTimeZone(new Date(user.createdAt), "Europe/Paris", "d MMMM yyyy, HH:mm", { locale: fr })}
                     </p>
                     {!isPending && (
                       <p className="text-xs text-gray-400 mt-0.5">

@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { formatInTimeZone } from "date-fns-tz";
+import { fr } from "date-fns/locale";
 
 export default async function ActiveDataBanner() {
   const [stats, agentCount] = await Promise.all([
@@ -15,8 +17,10 @@ export default async function ActiveDataBanner() {
   const dateMax = stats._max.dateFinPop;
   const isEmpty = nbLignes === 0;
 
+  // Affichage forcé en Europe/Paris pour cohérence avec les heures Paris
+  // stockées dans heureDebutPop/heureFinPop (cf. rapport Phase 1.A).
   const formatDate = (d: Date) =>
-    d.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+    formatInTimeZone(d, "Europe/Paris", "d MMM yyyy", { locale: fr });
 
   return (
     <div className="rounded-xl border border-[#e2e8f5] bg-white p-5 flex flex-col">

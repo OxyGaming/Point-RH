@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { formatInTimeZone } from "date-fns-tz";
+import { fr } from "date-fns/locale";
 import type {
   MultiJsSimulationResultat,
   MultiJsScenario,
@@ -15,6 +17,11 @@ import type {
 import type { ModificationPlanning, ImpactCascade } from "@/types/js-simulation";
 import AgentLink from "@/components/ui/AgentLink";
 import DetailReglesShared from "@/components/js-simulation/DetailRegles";
+
+/** Affiche une date "YYYY-MM-DD" Paris en "dd MMM" Paris (locale FR). */
+function jourCourtParis(dateStr: string): string {
+  return formatInTimeZone(new Date(`${dateStr}T00:00:00`), "Europe/Paris", "dd MMM", { locale: fr });
+}
 import {
   IconLock,
   IconShield,
@@ -397,7 +404,7 @@ function AffectationsTable({ affectations }: { affectations: AffectationJs[] }) 
             {/* Ligne principale */}
             <div className="flex items-center gap-3 flex-wrap">
               <span className="font-mono text-[10px] text-slate-500 min-w-[60px]">
-                {new Date(aff.jsCible.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
+                {jourCourtParis(aff.jsCible.date)}
               </span>
               <span className="font-mono text-xs text-slate-600">
                 {aff.jsCible.heureDebutJsType ?? aff.jsCible.heureDebut}–{aff.jsCible.heureFinJsType ?? aff.jsCible.heureFin}
@@ -530,7 +537,7 @@ function AgentCard({ agent }: { agent: AffectationsParAgent }) {
                 <div className="flex items-center gap-3 flex-wrap">
                   <span className="text-[10px] font-bold text-slate-400 w-4">{i + 1}</span>
                   <span className="font-mono text-slate-600 min-w-[70px]">
-                    {new Date(aff.jsCible.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
+                    {jourCourtParis(aff.jsCible.date)}
                   </span>
                   <span className="font-mono text-slate-500">{aff.jsCible.heureDebutJsType ?? aff.jsCible.heureDebut}–{aff.jsCible.heureFinJsType ?? aff.jsCible.heureFin}</span>
                   <span className="font-bold font-mono text-slate-800">{aff.jsCible.codeJs ?? "—"}</span>
@@ -814,7 +821,7 @@ function AlternativesPanel({ alternativesParJs }: { alternativesParJs: Alternati
                   {jsAlt.codeJs ?? "JS sans code"}
                 </span>
                 <span className="text-[10px] text-slate-500">
-                  {new Date(jsAlt.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })}
+                  {jourCourtParis(jsAlt.date)}
                   {" · "}{jsAlt.heureDebut}–{jsAlt.heureFin}
                 </span>
                 {jsAlt.agentAffecte && (
@@ -1033,10 +1040,7 @@ function ExclusionsPanel({ exclusionsParJs }: { exclusionsParJs: ExclusionsParJs
                   {jsExcl.codeJs ?? "JS sans code"}
                 </span>
                 <span className="text-[10px] text-slate-500">
-                  {new Date(jsExcl.date).toLocaleDateString("fr-FR", {
-                    day: "2-digit",
-                    month: "short",
-                  })}{" "}
+                  {jourCourtParis(jsExcl.date)}{" "}
                   · {jsExcl.heureDebut}–{jsExcl.heureFin}
                 </span>
               </div>
@@ -1528,11 +1532,7 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
                           <FlexibiliteBadge flexibilite={js.flexibilite} />
                         </div>
                         <p className="text-[10px] text-slate-500">
-                          {new Date(js.date).toLocaleDateString("fr-FR", {
-                            weekday: "long",
-                            day: "2-digit",
-                            month: "long",
-                          })}{" "}
+                          {formatInTimeZone(new Date(`${js.date}T00:00:00`), "Europe/Paris", "EEEE dd MMMM", { locale: fr })}{" "}
                           · {js.heureDebut}–{js.heureFin}
                         </p>
                         <p className="text-[10px] text-slate-400">

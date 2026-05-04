@@ -8,6 +8,10 @@
  *  2. Utilisateurs actifs / désactivés
  */
 import { useEffect, useState, useCallback } from "react";
+import { formatInTimeZone } from "date-fns-tz";
+
+const fmtJourParis = (iso: string) =>
+  formatInTimeZone(new Date(iso), "Europe/Paris", "dd/MM/yyyy");
 
 interface User {
   id: string;
@@ -234,7 +238,7 @@ export default function UsersAdminPage() {
                         <p className="font-medium text-gray-900">{user.name}</p>
                         <p className="text-xs text-gray-500">{user.email}</p>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          Demande le {new Date(user.createdAt).toLocaleDateString("fr-FR")}
+                          Demande le {fmtJourParis(user.createdAt)}
                         </p>
                         {user.registrationComment && (
                           <p className="mt-2 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 leading-snug">
@@ -307,7 +311,7 @@ export default function UsersAdminPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-gray-500 text-xs hidden md:table-cell">
-                          {new Date(user.createdAt).toLocaleDateString("fr-FR")}
+                          {fmtJourParis(user.createdAt)}
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1">

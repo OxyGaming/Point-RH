@@ -6,6 +6,8 @@ import type { JsCible, ImpreuvuConfig, JsSimulationResultatDouble } from "@/type
 import JsResultatsTabs from "./JsResultatsTabs";
 import AgentLink from "@/components/ui/AgentLink";
 import { IconMoon, IconZap } from "@/components/icons/Icons";
+import { formatInTimeZone } from "date-fns-tz";
+import { fr } from "date-fns/locale";
 
 interface JsAnalysisPanelProps {
   jsCible: JsCible;
@@ -94,7 +96,7 @@ export default function JsAnalysisPanel({ jsCible, onClose }: JsAnalysisPanelPro
               { label: "Matricule", value: jsCible.agentMatricule },
               { label: "Code JS", value: jsCible.codeJs ?? "—" },
               { label: "Amplitude", value: minutesToTime(jsCible.amplitudeMin) },
-              { label: "Date", value: new Date(jsCible.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) },
+              { label: "Date", value: formatInTimeZone(new Date(`${jsCible.date}T00:00:00`), "Europe/Paris", "d MMMM yyyy", { locale: fr }) },
               { label: "Horaires", value: `${jsCible.heureDebut} → ${jsCible.heureFin}` },
             ].map(({ label, value }) => (
               <div key={label}>

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { formatInTimeZone } from "date-fns-tz";
+import { fr } from "date-fns/locale";
 import type { DetailCalcul } from "@/types/simulation";
 import {
   IconMoon,
@@ -22,11 +24,10 @@ export function fmtMin(minutes: number): string {
 }
 
 export function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("fr-FR", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-  });
+  // iso est généralement une string "YYYY-MM-DD" Paris — affichage forcé en
+  // Europe/Paris pour cohérence quel que soit le navigateur de l'utilisateur.
+  const d = iso.length === 10 ? new Date(`${iso}T00:00:00`) : new Date(iso);
+  return formatInTimeZone(d, "Europe/Paris", "EEE dd MMM", { locale: fr });
 }
 
 // ─── RuleRow ──────────────────────────────────────────────────────────────────

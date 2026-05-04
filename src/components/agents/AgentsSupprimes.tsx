@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { formatInTimeZone } from "date-fns-tz";
 
 interface AgentSupprime {
   id: string;
@@ -209,11 +210,7 @@ function AgentRow({
   isRestoring: boolean;
   onRestore: () => void;
 }) {
-  const deletedDate = new Date(agent.deletedAt).toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  const deletedDate = formatInTimeZone(new Date(agent.deletedAt), "Europe/Paris", "dd/MM/yyyy");
 
   return (
     <tr className="hover:bg-slate-50 transition-colors">

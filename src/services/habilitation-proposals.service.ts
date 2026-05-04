@@ -66,6 +66,22 @@ export function isCouvert(codeJs: string, prefixes: string[]): boolean {
   return prefixes.some((p) => p.length > 0 && codeJs.startsWith(p));
 }
 
+/**
+ * Préfixes / suffixes des codes JS exclus des PROPOSITIONS D'AJOUT
+ * (audience, IP, véhicules de manœuvre, codes terminant par "/").
+ * N'impacte ni la simulation ni les suppressions : un agent peut conserver
+ * ces préfixes en habilitation et continuer à les voir proposer au retrait.
+ */
+const PROPOSAL_EXCLUDED_PREFIXES = ["AUDIENC", "IP", "VM"] as const;
+const PROPOSAL_EXCLUDED_SUFFIXES = ["/"] as const;
+
+export function isExcluDesPropositions(codeJs: string): boolean {
+  return (
+    PROPOSAL_EXCLUDED_PREFIXES.some((p) => codeJs.startsWith(p)) ||
+    PROPOSAL_EXCLUDED_SUFFIXES.some((s) => codeJs.endsWith(s))
+  );
+}
+
 /** Union dédoublonnée + trim + tri alphabétique. */
 export function mergerHabilitations(actuel: string[], ajouts: string[]): string[] {
   const cleaned = [...actuel, ...ajouts]
@@ -84,6 +100,7 @@ export function computeAgentProposals(
 ): HabilitationProposal[] {
   return codesJsTenus
     .filter((c) => !isCouvert(c.codeJs, habilitationsActuelles))
+    .filter((c) => !isExcluDesPropositions(c.codeJs))
     .sort((a, b) => a.codeJs.localeCompare(b.codeJs));
 }
 

@@ -1,5 +1,6 @@
 import {
   isCouvert,
+  isExcluDesPropositions,
   mergerHabilitations,
   computeAgentProposals,
   computeAgentRemoveProposals,
@@ -109,6 +110,45 @@ describe("computeAgentProposals", () => {
     ];
     const res = computeAgentProposals([], tenus);
     expect(res.map((p) => p.codeJs)).toEqual(["AAA001", "MMM001", "ZEB001"]);
+  });
+
+  it("exclut les codes AUDIENC*, IP*, VM* et ceux terminant par '/'", () => {
+    const tenus: CodeJsTenu[] = [
+      { codeJs: "AUDIENC", nbJoursTenus: 2, dernierJour: j("2026-04-01") },
+      { codeJs: "AUDIENCE12", nbJoursTenus: 1, dernierJour: j("2026-04-01") },
+      { codeJs: "IP", nbJoursTenus: 1, dernierJour: j("2026-04-01") },
+      { codeJs: "IP042", nbJoursTenus: 1, dernierJour: j("2026-04-01") },
+      { codeJs: "VM07", nbJoursTenus: 1, dernierJour: j("2026-04-01") },
+      { codeJs: "ABC/", nbJoursTenus: 1, dernierJour: j("2026-04-01") },
+      { codeJs: "GIC015", nbJoursTenus: 5, dernierJour: j("2026-04-10") },
+    ];
+    const res = computeAgentProposals([], tenus);
+    expect(res.map((p) => p.codeJs)).toEqual(["GIC015"]);
+  });
+});
+
+describe("isExcluDesPropositions", () => {
+  it("exclut les préfixes AUDIENC, IP, VM", () => {
+    expect(isExcluDesPropositions("AUDIENC")).toBe(true);
+    expect(isExcluDesPropositions("AUDIENCE")).toBe(true);
+    expect(isExcluDesPropositions("IP")).toBe(true);
+    expect(isExcluDesPropositions("IP042")).toBe(true);
+    expect(isExcluDesPropositions("VM")).toBe(true);
+    expect(isExcluDesPropositions("VM07")).toBe(true);
+  });
+
+  it("exclut les codes terminant par '/'", () => {
+    expect(isExcluDesPropositions("ABC/")).toBe(true);
+    expect(isExcluDesPropositions("/")).toBe(true);
+  });
+
+  it("n'exclut pas les codes hors patterns", () => {
+    expect(isExcluDesPropositions("GIC015")).toBe(false);
+    expect(isExcluDesPropositions("BAD")).toBe(false);
+    expect(isExcluDesPropositions("AUDI")).toBe(false); // préfixe partiel
+    expect(isExcluDesPropositions("XIP")).toBe(false); // pas en début
+    expect(isExcluDesPropositions("AVM")).toBe(false); // pas en début
+    expect(isExcluDesPropositions("A/B")).toBe(false); // slash non terminal
   });
 });
 

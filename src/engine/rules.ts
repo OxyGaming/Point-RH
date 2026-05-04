@@ -49,16 +49,6 @@ export interface PlanningEvent {
   /** ID de la ligne de planning source — optionnel, renseigné par les routes API pour le figeage. */
   planningLigneId?: string;
   /**
-   * Date "calendaire" du planning (00:00 du jour Paris). Si renseignée, sert de
-   * référence canonique pour reconstruire le créneau en heures pures via
-   * `getEventInterval`, sans dépendre de `dateDebut`/`dateFin` qui peuvent être
-   * décalés à cause d'un bug timezone dans le pipeline d'import (cf. utils.ts).
-   *
-   * RUSTINE temporaire : à supprimer une fois l'import corrigé pour stocker
-   * `dateDebutPop`/`dateFinPop` correctement.
-   */
-  jourPlanning?: Date;
-  /**
    * Horaires standard du JsType (indépendants des trajets de l'agent).
    * Utilisés pour évaluer les remplaçants en cascade — toujours repartir du JsType,
    * pas des horaires personnels de l'agent initial (qui incluent ses déplacements).

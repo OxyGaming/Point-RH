@@ -9,7 +9,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkAuth } from "@/lib/session";
-import { combineDateTime } from "@/lib/utils";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { MultiJsSimulationRequest } from "@/types/multi-js-simulation";
 import { executerSimulationMultiJs } from "@/lib/simulation/multiJs";
@@ -101,8 +100,10 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      const dateDebut = combineDateTime(ligne.dateDebutPop, ligne.heureDebutPop);
-      const dateFin = combineDateTime(ligne.dateFinPop, ligne.heureFinPop);
+      // dateDebutPop / dateFinPop sont des UTC absolus depuis la migration
+      // (étape 3 option 1) — utilisables tels quels pour les comparaisons.
+      const dateDebut = ligne.dateDebutPop;
+      const dateFin = ligne.dateFinPop;
 
       agentsMap.get(key)!.events.push({
         dateDebut,
@@ -120,9 +121,6 @@ export async function POST(req: NextRequest) {
         codeJs: ligne.codeJs,
         typeJs: ligne.typeJs,
         planningLigneId: ligne.id,
-        // Rustine option 2 : référence canonique pour reconstruire le créneau
-        // sans dépendre de dateDebutPop/dateFinPop décalés (cf. utils.getEventInterval)
-        jourPlanning: ligne.jourPlanning,
         ...(() => {
           const jt = resolveJsType(ligne.codeJs, ligne.typeJs);
           return jt ? { heureDebutJsType: jt.heureDebutStandard, heureFinJsType: jt.heureFinStandard } : {};

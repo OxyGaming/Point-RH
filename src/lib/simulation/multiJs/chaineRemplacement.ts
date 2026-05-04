@@ -15,7 +15,7 @@ import type { JsCible } from "@/types/js-simulation";
 import type { WorkRulesMinutes } from "@/lib/rules/workRules";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
 import type { MaillonChaine, ChaineRemplacement } from "@/types/multi-js-simulation";
-import { isJsDeNuit, getEventInterval, combineDateTime } from "@/lib/utils";
+import { isJsDeNuit, combineDateTime } from "@/lib/utils";
 import { canAssignJsToAgentInScenario } from "./agentScenarioValidator";
 import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
@@ -60,10 +60,11 @@ function eventToJsCibleSource(
   importId: string
 ): JsCible | null {
   if (!event.planningLigneId) return null;
-  // Date canonique : on utilise getEventInterval pour avoir le bon jour
-  // (la rustine option 2 corrige le décalage timezone éventuel).
-  const { start } = getEventInterval(event);
-  const dateIso = start.toISOString().slice(0, 10);
+  // Le dateDebut est désormais un instant UTC absolu (post-migration étape 3).
+  // toISOString().slice(0,10) extrait le jour calendaire UTC correspondant —
+  // suffisant pour tracer la JS source dans la chaîne (la convention métier
+  // côté UI applique formatDateParis si l'affichage doit être en jour Paris).
+  const dateIso = event.dateDebut.toISOString().slice(0, 10);
   const isNuit = isJsDeNuit(event.heureDebut, event.heureFin);
   return {
     planningLigneId: event.planningLigneId,
@@ -87,8 +88,9 @@ function eventToJsCibleSource(
  * Trouve un PlanningEvent (JS non-Z) qui chevauche `[start, end]` dans la
  * liste `events`. null si aucun.
  *
- * Rustine option 2 : utilise getEventInterval pour reconstruire le créneau
- * depuis jourPlanning + heureDebut/heureFin (cf. utils.ts).
+ * Note : depuis la migration UTC absolu (étape 3), `dateDebut` / `dateFin`
+ * représentent les vrais instants UTC de prise/fin de service. Comparaison
+ * directe possible.
  */
 function trouverEventConflit(
   events: PlanningEvent[],
@@ -99,8 +101,7 @@ function trouverEventConflit(
   for (const e of events) {
     if (e.jsNpo !== "JS") continue;
     if (isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes)) continue;
-    const { start: eStart, end: eEnd } = getEventInterval(e);
-    if (eStart < end && eEnd > start) return e;
+    if (e.dateDebut < end && e.dateFin > start) return e;
   }
   return null;
 }
@@ -156,8 +157,8 @@ export function chercherMaillons(
     return bRes - aRes;
   });
 
-  // Aligné en UTC via combineDateTime pour cohérence avec getEventInterval
-  // (sinon décalage entre interprétation locale du serveur et UTC des events).
+  // Aligné en UTC via combineDateTime pour cohérence avec les events
+  // (qui sont en UTC absolu post-migration étape 3).
   const trouStart = combineDateTime(trou.date, trou.heureDebut);
   let trouEnd = combineDateTime(trou.date, trou.heureFin);
   if (trouEnd.getTime() <= trouStart.getTime()) {
@@ -245,7 +246,7 @@ export function chercherMaillons(
     );
     if (!compat.compatible) continue;
 
-    const { start: conflitStart } = getEventInterval(conflit);
+    const conflitStart = conflit.dateDebut;
     const maillon: MaillonChaine = {
       niveau: niveauActuel,
       agentId: candidat.context.id,

@@ -12,7 +12,6 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { combineDateTime } from "@/lib/utils";
 import { executerSimulationMultiJs } from "@/lib/simulation/multiJs";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { JsCible } from "@/types/js-simulation";
@@ -139,8 +138,10 @@ export default async function DemoCascadeRealPage({ searchParams }: PageProps) {
       });
     }
 
-    const dateDebut = combineDateTime(ligne.dateDebutPop, ligne.heureDebutPop);
-    const dateFin = combineDateTime(ligne.dateFinPop, ligne.heureFinPop);
+    // dateDebutPop / dateFinPop sont des UTC absolus depuis la migration
+    // (étape 3 option 1) — utilisables tels quels pour les comparaisons.
+    const dateDebut = ligne.dateDebutPop;
+    const dateFin = ligne.dateFinPop;
     const jt = resolveJsType(ligne.codeJs, ligne.typeJs);
 
     agentsMap.get(key)!.events.push({
@@ -154,7 +155,6 @@ export default async function DemoCascadeRealPage({ searchParams }: PageProps) {
       codeJs: ligne.codeJs,
       typeJs: ligne.typeJs,
       planningLigneId: ligne.id,
-      jourPlanning: ligne.jourPlanning,
       ...(jt ? { heureDebutJsType: jt.heureDebutStandard, heureFinJsType: jt.heureFinStandard } : {}),
     });
   }

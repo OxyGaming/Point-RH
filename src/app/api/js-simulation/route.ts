@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { executerSimulationJS } from "@/lib/simulation";
-import { combineDateTime } from "@/lib/utils";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { JsSimulationRequest, JsSimulationResultatDouble } from "@/types/js-simulation";
 import { checkAuth } from "@/lib/session";
@@ -111,8 +110,10 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      const dateDebut = combineDateTime(ligne.dateDebutPop, ligne.heureDebutPop);
-      const dateFin = combineDateTime(ligne.dateFinPop, ligne.heureFinPop);
+      // dateDebutPop / dateFinPop sont des UTC absolus depuis la migration
+      // (étape 3 option 1) — utilisables tels quels pour les comparaisons.
+      const dateDebut = ligne.dateDebutPop;
+      const dateFin = ligne.dateFinPop;
       const amplitudeMin = Math.max(0, Math.round((dateFin.getTime() - dateDebut.getTime()) / 60000));
 
       agentsMap.get(key)!.events.push({

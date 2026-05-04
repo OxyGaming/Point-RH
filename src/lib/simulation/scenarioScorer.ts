@@ -194,6 +194,13 @@ export const POIDS_SCORE_SCENARIO_MULTI = {
   penaliteConflitAvert:   3,
   /** Coût par figeage appliqué (impact sur le score scénario, pas le score candidat) */
   penaliteParFigeage:     3,
+  /**
+   * Coût par maillon de chaîne de remplacement (mode Cascade).
+   * Chaque maillon = 1 agent supplémentaire à mobiliser = 1 appel téléphonique de plus.
+   * Volontairement plus élevé que le figeage : on préfère figer une JS DERNIER_RECOURS
+   * que mobiliser plusieurs agents en cascade quand c'est possible.
+   */
+  penaliteParMaillonChaine: 4,
 } as const;
 
 // ─── Conformité finale ────────────────────────────────────────────────────────

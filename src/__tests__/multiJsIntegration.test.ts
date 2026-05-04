@@ -120,20 +120,20 @@ describe("executerSimulationMultiJs — couverture complète", () => {
     expect(result.scenarioMeilleur!.jsNonCouvertes).toHaveLength(0);
   });
 
-  it("4 scénarios toujours produits (réserve × figeage × tous-agents)", async () => {
+  it("6 scénarios toujours produits (réserve × figeage × tous-agents × cascade)", async () => {
     const js1 = makeJs("js-1", "2024-03-20", "08:00", "16:00");
     const agent1 = makeAgent("a1");
 
     const result = await executerSimulationMultiJs([js1], [agent1], "all_agents");
 
-    expect(result.scenarios).toHaveLength(4);
+    expect(result.scenarios).toHaveLength(6);
     // Scénarios triés par score décroissant
     for (let i = 1; i < result.scenarios.length; i++) {
       expect(result.scenarios[i - 1].score).toBeGreaterThanOrEqual(result.scenarios[i].score);
     }
   });
 
-  it("IDs distincts pour les 4 scénarios produits", async () => {
+  it("IDs distincts pour les 6 scénarios produits", async () => {
     const js1 = makeJs("js-1", "2024-03-20", "08:00", "16:00");
     const agent1 = makeAgent("a1");
 

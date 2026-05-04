@@ -65,6 +65,54 @@ export interface JsOriginaleAgent {
   description: string;
 }
 
+// ─── Chaîne de remplacement (mode Cascade) ───────────────────────────────────
+
+/**
+ * Un maillon d'une chaîne de remplacement.
+ * Représente un agent déplacé pour combler un trou créé par le maillon précédent.
+ *
+ * Niveau 0 : agent affecté à la JS cible (origine de la chaîne)
+ * Niveau 1 : agent qui reprend la JS source du niveau 0
+ * Niveau 2 : agent qui reprend la JS source du niveau 1
+ * etc.
+ */
+export interface MaillonChaine {
+  /** Profondeur dans la chaîne (0 = agent affecté à la JS cible). */
+  niveau: number;
+  agentId: string;
+  agentNom: string;
+  agentPrenom: string;
+  agentMatricule: string;
+  /**
+   * JS libérée par cet agent pour rejoindre la cible (ou la JS du maillon précédent).
+   * Pour le niveau 0, c'est la JS qu'il devait initialement tenir.
+   * Pour les niveaux ≥ 1, c'est la JS du maillon précédent qu'il vient combler.
+   */
+  jsLiberee: {
+    planningLigneId: string;
+    codeJs: string | null;
+    date: string;       // "YYYY-MM-DD"
+    heureDebut: string; // "HH:MM"
+    heureFin: string;   // "HH:MM"
+  };
+  /** JS que ce maillon va tenir (cible du niveau précédent). */
+  jsRepriseCodeJs: string | null;
+  /** Statut RH de cet agent sur la JS qu'il prend en charge. */
+  statut: "DIRECT" | "VIGILANCE";
+}
+
+/**
+ * Chaîne de remplacement complète pour une affectation.
+ * `complete=true` ssi tous les trous induits par la chaîne sont comblés.
+ */
+export interface ChaineRemplacement {
+  maillons: MaillonChaine[];
+  /** Nombre de maillons (= nombre d'agents déplacés en plus du niveau 0). */
+  profondeur: number;
+  /** True ssi la chaîne couvre tous les trous induits sans laisser de JS découverte. */
+  complete: boolean;
+}
+
 // ─── Affectation d'une JS à un agent dans le scénario ────────────────────────
 
 export interface AffectationJs {
@@ -98,6 +146,12 @@ export interface AffectationJs {
   jsSourceFigee: JsSourceFigee | null;
   /** Détail complet des règles évaluées lors de l'analyse de mobilisabilité */
   detail?: DetailCalcul;
+  /**
+   * Chaîne de remplacement appliquée pour cette affectation (mode Cascade).
+   * null si l'agent était directement disponible ou figé.
+   * Renseigné uniquement dans les scénarios `tousAgentsCascade*`.
+   */
+  chaineRemplacement: ChaineRemplacement | null;
 }
 
 // ─── Conflit détecté dans le scénario global ─────────────────────────────────
@@ -140,7 +194,7 @@ export interface AffectationsParAgent {
  * Type de solution d'un agent alternatif.
  * Reflète comment il aurait pu couvrir la JS s'il avait été retenu.
  */
-export type TypeSolutionAlternative = "DIRECT" | "VIGILANCE" | "CASCADE" | "FIGEAGE";
+export type TypeSolutionAlternative = "DIRECT" | "VIGILANCE" | "CASCADE" | "FIGEAGE" | "CHAINE";
 
 /**
  * Un agent candidat évalué et non retenu pour une JS donnée.
@@ -278,6 +332,10 @@ export interface MultiJsSimulationResultat {
   scenarioTousAgents: MultiJsScenario | null;
   /** Scénario tous agents, avec figeage DERNIER_RECOURS */
   scenarioTousAgentsFigeage: MultiJsScenario | null;
+  /** Scénario tous agents avec chaînes de remplacement (mode Cascade). */
+  scenarioTousAgentsCascade: MultiJsScenario | null;
+  /** Scénario tous agents combinant chaînes de remplacement et figeage DERNIER_RECOURS. */
+  scenarioTousAgentsCascadeFigeage: MultiJsScenario | null;
   /** Nombre total d'agents analysés */
   nbAgentsAnalyses: number;
   /**

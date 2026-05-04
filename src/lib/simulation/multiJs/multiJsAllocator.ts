@@ -31,13 +31,15 @@ import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 import { injecterJsDansPlanning } from "@/lib/simulation/candidateFinder";
 import { resoudreTousConflits } from "@/lib/simulation/cascadeResolver";
 import { buildImprevu } from "./multiJsCandidateFinder";
-import { combineDateTime, getDateFinJs } from "@/lib/utils";
+import { combineDateTime, getDateFinJs, isJsDeNuit } from "@/lib/utils";
 import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
 import type { EffectiveServiceInfo, LpaContext } from "@/types/deplacement";
 import type { PlanningEvent } from "@/engine/rules";
 import type { Exclusion } from "@/engine/ruleTypes";
 import type { MultiJsExclusion } from "@/types/multi-js-simulation";
 import type { LogCollector } from "@/engine/logger";
+import type { ChaineContexte } from "./chaineRemplacement";
+import { tenterChaineRemplacement } from "./chaineRemplacement";
 
 /**
  * Génère un identifiant de scénario unique et thread-safe.
@@ -112,7 +114,15 @@ export function allouerJsMultiple(
   /** Logger de traçabilité — optionnel, aucun log si absent */
   logger?: LogCollector,
   /** Préfixes additionnels assimilés JS Z (table ZeroLoadPrefix) */
-  zeroLoadPrefixes: readonly string[] = []
+  zeroLoadPrefixes: readonly string[] = [],
+  /**
+   * Contexte de chaîne de remplacement (mode Cascade).
+   * Si fourni, après le greedy + 2-opt, on tente une chaîne pour chaque JS
+   * encore non couverte parmi les candidats exclus pour CONFLIT_HORAIRE.
+   */
+  cascadeContext: ChaineContexte | null = null,
+  /** Pour le mode Cascade : exclusions pré-filtre par JS (pour retrouver les candidats CONFLIT_HORAIRE). */
+  exclusionsPourCascade: Map<string, MultiJsExclusion[]> = new Map()
 ): MultiJsScenario {
   // Helper : priorité de flexibilité pour le tri des JS cibles
   const flexPrio = (f: FlexibiliteJs) => f === "OBLIGATOIRE" ? 0 : 1;
@@ -266,6 +276,7 @@ export function allouerJsMultiple(
         },
         jsSourceFigee: jsSourceFigeeAff,
         detail: candidat.detail,
+        chaineRemplacement: null,
       });
 
       if (jsSourceFigeeAff) {
@@ -415,6 +426,7 @@ export function allouerJsMultiple(
         solution: { nature: "CASCADE", ajustement: "AUCUN" },
         jsSourceFigee: null,
         detail: affExistante.detail,
+        chaineRemplacement: null,
       });
 
       // 2. Réaffecter l'agent remplaçant → jsAffectee
@@ -454,6 +466,7 @@ export function allouerJsMultiple(
         solution: { nature: "DIRECTE", ajustement: "AUCUN" },
         jsSourceFigee: null,
         detail: candidatRemplagant?.detail,
+        chaineRemplacement: null,
       });
 
       // 3. Mettre à jour agentAssignments
@@ -488,6 +501,151 @@ export function allouerJsMultiple(
         jsId: jsNonCouverte.planningLigneId,
         data: { scenarioId: id, raison: "Aucun swap 2-opt valide trouvé" },
       });
+    }
+  }
+
+  // ─── Passe Cascade (mode Cascade) ─────────────────────────────────────────────
+  // Pour chaque JS toujours non couverte après greedy + 2-opt, tenter une
+  // chaîne de remplacement : prendre un agent exclu pour CONFLIT_HORAIRE,
+  // chercher un autre agent capable de reprendre sa JS source bloquante.
+  if (cascadeContext) {
+    cascadeContext.agentAssignments = agentAssignments;
+
+    const jsNonCouvertesApresSwap = sortedJs.filter(
+      (js) => !affectations.has(js.planningLigneId)
+    );
+
+    for (const jsNonCouverte of jsNonCouvertesApresSwap) {
+      // Récupérer les agents exclus pour CONFLIT_HORAIRE sur cette JS
+      const exclusions = exclusionsPourCascade.get(jsNonCouverte.planningLigneId) ?? [];
+      const candidatsConflitHoraire = exclusions
+        .filter((e) => e.regle === "CONFLIT_HORAIRE")
+        .map((e) => e.agentId);
+
+      if (candidatsConflitHoraire.length === 0) continue;
+
+      const imprevuCible = buildImprevu(jsNonCouverte, remplacement, deplacement);
+      const debutCible = combineDateTime(jsNonCouverte.date, jsNonCouverte.heureDebut);
+      const finCible = combineDateTime(
+        getDateFinJs(jsNonCouverte.date, imprevuCible.heureDebutReel, imprevuCible.heureFinEstimee),
+        imprevuCible.heureFinEstimee
+      );
+
+      let chaineAppliquee = false;
+
+      // Trier les candidats : réservistes d'abord (priorité métier)
+      const candidatsTries = candidatsConflitHoraire
+        .map((id) => ({ id, data: agentsMap.get(id) }))
+        .filter((c): c is { id: string; data: AgentDataMultiJs } => c.data !== undefined)
+        .sort((a, b) => {
+          const aRes = a.data.context.agentReserve ? 1 : 0;
+          const bRes = b.data.context.agentReserve ? 1 : 0;
+          return bRes - aRes;
+        });
+
+      for (const { id: candidatId, data: candidat } of candidatsTries) {
+        if (chaineAppliquee) break;
+
+        // Le pré-filtre habilitation/nuit doit déjà avoir été fait — on cherche
+        // l'event qui chevauche réellement la cible
+        const eventConflit = candidat.events.find((e) => {
+          if (e.jsNpo !== "JS") return false;
+          if (isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes)) return false;
+          return e.dateDebut < finCible && e.dateFin > debutCible;
+        });
+        if (!eventConflit) continue;
+
+        const chaine = tenterChaineRemplacement(candidatId, eventConflit, cascadeContext);
+        if (chaine === null) continue;
+
+        // Vérifier que le candidat (libéré) peut effectivement prendre la JS cible
+        const candidatLibere: AgentDataMultiJs = {
+          context: candidat.context,
+          events: candidat.events.filter((e) => e !== eventConflit),
+        };
+        const dejaAff = agentAssignments.get(candidatId) ?? [];
+        const compat = canAssignJsToAgentInScenario(
+          candidatLibere,
+          jsNonCouverte,
+          dejaAff,
+          rules,
+          remplacement,
+          deplacement,
+          effectiveServiceMap
+        );
+        if (!compat.compatible) continue;
+
+        // Conflits induits éventuels
+        let eventsSimules = [...candidatLibere.events];
+        for (const jsAff of dejaAff) {
+          const imprevuAff = buildImprevu(jsAff, remplacement, deplacement);
+          eventsSimules = injecterJsDansPlanning(eventsSimules, jsAff, imprevuAff);
+        }
+        const eventsAvecJs = injecterJsDansPlanning(eventsSimules, jsNonCouverte, imprevuCible);
+        const conflitsInduits = detecterConflitsInduits(
+          eventsAvecJs,
+          finCible,
+          candidat.context.agentReserve,
+          imprevuCible.remplacement,
+          rules
+        );
+
+        const statutFinal: "DIRECT" | "VIGILANCE" =
+          conflitsInduits.length > 0 ? "VIGILANCE"
+            : compat.statut === "VIGILANCE" ? "VIGILANCE" : "DIRECT";
+
+        affectations.set(jsNonCouverte.planningLigneId, {
+          jsId: jsNonCouverte.planningLigneId,
+          jsCible: jsNonCouverte,
+          agentId: candidatId,
+          agentNom: candidat.context.nom,
+          agentPrenom: candidat.context.prenom,
+          agentMatricule: candidat.context.matricule,
+          agentReserve: candidat.context.agentReserve,
+          statut: statutFinal,
+          score: 0, // pas de scorerCandidat pour les chaînes — score scénario fait le travail
+          justification: `Affecté via chaîne de remplacement (${chaine.maillons.length} maillon${chaine.maillons.length > 1 ? "s" : ""}) — JS source ${eventConflit.codeJs ?? "?"} reprise par ${chaine.maillons[0].agentNom} ${chaine.maillons[0].agentPrenom}`,
+          conflitsInduits,
+          jsOriginaleAgent: determinerJsOriginale(
+            candidat.events,
+            jsNonCouverte,
+            candidat.context.agentReserve,
+            zeroLoadPrefixes
+          ),
+          cascadeModifications: [],
+          cascadeImpacts: [],
+          nbCascadesResolues: 0,
+          nbCascadesNonResolues: 0,
+          solution: { nature: "CASCADE", ajustement: "AUCUN" },
+          jsSourceFigee: null,
+          chaineRemplacement: chaine,
+        });
+
+        agentAssignments.set(candidatId, [...dejaAff, jsNonCouverte]);
+
+        // Supprimer l'ancien conflit AUCUN_CANDIDAT
+        const idxConflit = conflitsGlobaux.findIndex(
+          (c) => c.jsId === jsNonCouverte.planningLigneId && c.type === "AUCUN_CANDIDAT"
+        );
+        if (idxConflit >= 0) conflitsGlobaux.splice(idxConflit, 1);
+
+        logger?.info("MULTI_CHAINE_APPLIED", {
+          jsId: jsNonCouverte.planningLigneId,
+          agentId: candidatId,
+          data: {
+            scenarioId: id,
+            codeJsCible: jsNonCouverte.codeJs,
+            profondeur: chaine.profondeur,
+            maillons: chaine.maillons.map((m) => ({
+              niveau: m.niveau,
+              agentId: m.agentId,
+              jsRepriseCodeJs: m.jsRepriseCodeJs,
+            })),
+          },
+        });
+
+        chaineAppliquee = true;
+      }
     }
   }
 
@@ -645,6 +803,11 @@ export function allouerJsMultiple(
   const nbFigeages = Array.from(affectations.values()).filter((a) => a.jsSourceFigee !== null).length;
   score -= nbFigeages * POIDS_SCORE_SCENARIO_MULTI.penaliteParFigeage;
 
+  // Pénalité chaîne de remplacement (mode Cascade) — chaque maillon = 1 appel téléphonique de plus
+  const nbMaillonsTotal = Array.from(affectations.values())
+    .reduce((sum, a) => sum + (a.chaineRemplacement?.maillons.length ?? 0), 0);
+  score -= nbMaillonsTotal * POIDS_SCORE_SCENARIO_MULTI.penaliteParMaillonChaine;
+
   score = Math.min(100, Math.max(0, score));
 
   // ─── Agrégats cascade ─────────────────────────────────────────────────────────
@@ -670,7 +833,7 @@ export function allouerJsMultiple(
   // les affectations finales. Pour chaque JS, liste les candidats valides qui
   // n'ont pas été retenus avec la raison métier de leur non-sélection.
   const TYPE_SOLUTION_PRIO: Record<TypeSolutionAlternative, number> = {
-    DIRECT: 0, CASCADE: 1, VIGILANCE: 2, FIGEAGE: 3,
+    DIRECT: 0, CASCADE: 1, CHAINE: 2, VIGILANCE: 3, FIGEAGE: 4,
   };
 
   const alternativesParJs: AlternativesParJs[] = jsCibles.map((js) => {

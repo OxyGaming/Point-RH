@@ -126,6 +126,45 @@ function FigeageBadge({ justification }: { justification: string }) {
   );
 }
 
+function ChaineRemplacementBadge({
+  chaine,
+}: {
+  chaine: NonNullable<AffectationJs["chaineRemplacement"]>;
+}) {
+  return (
+    <div className="mt-1.5 rounded border border-sky-200 bg-sky-50 px-2 py-1.5">
+      <p className="text-[10px] font-semibold text-sky-700 flex items-center gap-1 mb-1">
+        <IconLinkIcon className="w-3 h-3 shrink-0" aria-hidden="true" />
+        <span>
+          Chaîne de remplacement —{" "}
+          {chaine.profondeur === 1 ? "1 maillon" : `${chaine.profondeur} maillons`}
+        </span>
+      </p>
+      <ol className="space-y-1">
+        {chaine.maillons.map((m, i) => (
+          <li key={i} className="text-[10px] text-sky-900 flex items-start gap-1.5">
+            <span className="font-mono text-sky-500 shrink-0 mt-0.5">{i + 1}.</span>
+            <span>
+              <span className="font-semibold">
+                {m.agentPrenom} {m.agentNom}
+              </span>{" "}
+              libère{" "}
+              <span className="font-mono">{m.jsLiberee.codeJs ?? "—"}</span>
+              {" "}({m.jsLiberee.heureDebut}–{m.jsLiberee.heureFin}) pour reprendre{" "}
+              <span className="font-mono">{m.jsRepriseCodeJs ?? "—"}</span>
+              {m.statut === "VIGILANCE" && (
+                <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded">
+                  vigilance
+                </span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 function ScopeBadge({ scope }: { scope: string }) {
   return (
     <span className={cn(
@@ -395,6 +434,11 @@ function AffectationsTable({ affectations }: { affectations: AffectationJs[] }) 
               <FigeageBadge justification={aff.jsSourceFigee.justification} />
             )}
 
+            {/* Chaîne de remplacement (mode Cascade) */}
+            {aff.chaineRemplacement && (
+              <ChaineRemplacementBadge chaine={aff.chaineRemplacement} />
+            )}
+
             {/* Détail des règles */}
             {aff.detail && <DetailRegles detail={aff.detail} />}
           </div>
@@ -494,6 +538,11 @@ function AgentCard({ agent }: { agent: AffectationsParAgent }) {
                   impacts={aff.cascadeImpacts}
                 />
 
+                {/* Chaîne de remplacement (mode Cascade) */}
+                {aff.chaineRemplacement && (
+                  <ChaineRemplacementBadge chaine={aff.chaineRemplacement} />
+                )}
+
                 {/* Figeage JS source */}
                 {aff.jsSourceFigee && (
                   <FigeageBadge justification={aff.jsSourceFigee.justification} />
@@ -515,6 +564,7 @@ function AgentCard({ agent }: { agent: AffectationsParAgent }) {
 const TYPE_SOLUTION_CONFIG: Record<TypeSolutionAlternative, { label: string; color: string; dot: string }> = {
   DIRECT:    { label: "Valide — Direct",          color: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-400" },
   CASCADE:   { label: "Valide — Cascade requise", color: "bg-teal-100 text-teal-700",       dot: "bg-teal-400"    },
+  CHAINE:    { label: "Via chaîne de remplacement", color: "bg-sky-100 text-sky-700",       dot: "bg-sky-400"     },
   VIGILANCE: { label: "Valide — Vigilance",       color: "bg-amber-100 text-amber-700",     dot: "bg-amber-400"   },
   FIGEAGE:   { label: "Via figeage",              color: "bg-orange-100 text-orange-700",   dot: "bg-orange-400"  },
 };
@@ -522,6 +572,7 @@ const TYPE_SOLUTION_CONFIG: Record<TypeSolutionAlternative, { label: string; col
 const GROUPES_SOLUTION: { key: TypeSolutionAlternative; titre: string; description: string }[] = [
   { key: "DIRECT",    titre: "Valides directes",          description: "Agents conformes sans contrainte supplémentaire" },
   { key: "CASCADE",   titre: "Valides via cascade",       description: "Agents conformes mais dont l'affectation génère un conflit résolvable" },
+  { key: "CHAINE",    titre: "Via chaîne de remplacement", description: "Agents libérés via une cascade de déplacements (mode Cascade)" },
   { key: "VIGILANCE", titre: "Valides avec vigilance",    description: "Agents conformes avec avertissement RH (amplitude, TE…)" },
   { key: "FIGEAGE",   titre: "Possibles via figeage",     description: "Agents libérables en figeant leur JS source DERNIER_RECOURS" },
 ];

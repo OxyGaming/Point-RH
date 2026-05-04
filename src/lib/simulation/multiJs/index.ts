@@ -17,6 +17,8 @@ import { trouverCandidatsPourJs } from "./multiJsCandidateFinder";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
 import type { MultiJsExclusion } from "@/types/multi-js-simulation";
 import { allouerJsMultiple } from "./multiJsAllocator";
+import { buildCoverageIndex } from "./chaineCache";
+import type { ChaineContexte } from "./chaineRemplacement";
 import { loadLpaContext } from "@/lib/deplacement/loadLpaContext";
 import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
@@ -69,12 +71,17 @@ export async function executerSimulationMultiJs(
     }
   }
 
+  // ─── Index de couverture partagé entre les scénarios Cascade ─────────────────
+  const coverageIndex = buildCoverageIndex(agents);
+  const importIdSimu = jsSelectionnees[0]?.importId ?? "import-simu";
+
   // ─── Constructeur de scénario paramétrable ────────────────────────────────────
   function construireScenario(
     scope: CandidateScope,
     avecFigeage: boolean,
     titre: string,
-    description: string
+    description: string,
+    avecCascade = false
   ) {
     const candidatesPerJs = new Map<string, ReturnType<typeof trouverCandidatsPourJs>["candidats"]>();
     const exclusionsPerJs = new Map<string, MultiJsExclusion[]>();
@@ -90,11 +97,32 @@ export async function executerSimulationMultiJs(
       exclusionsPerJs.set(js.planningLigneId, exclusions);
     }
 
+    let cascadeContext: ChaineContexte | null = null;
+    if (avecCascade) {
+      // Budget dynamique : 3000 évaluations en base, dégressif au-delà de 10 JS cibles
+      // pour borner le pire-cas (de l'ordre de O(N agents × profondeur × nb JS)).
+      const nbJsCibles = jsSelectionnees.length;
+      const budgetBase = nbJsCibles <= 10 ? 3000 : Math.max(800, Math.round(3000 * 10 / nbJsCibles));
+      cascadeContext = {
+        agentsMap,
+        index: coverageIndex,
+        rules,
+        remplacement,
+        deplacement,
+        effectiveServiceMap,
+        zeroLoadPrefixes,
+        agentAssignments: new Map(),
+        profondeurMax: 2,
+        budget: { remaining: budgetBase },
+        importId: importIdSimu,
+      };
+    }
+
     return allouerJsMultiple(
       jsSelectionnees, candidatesPerJs, agentsMap, rules, scope,
       titre, description, remplacement, deplacement,
       effectiveServiceMap, npoExclusionCodes, exclusionsPerJs, lpaContext, logger,
-      zeroLoadPrefixes
+      zeroLoadPrefixes, cascadeContext, exclusionsPerJs
     );
   }
 
@@ -119,21 +147,41 @@ export async function executerSimulationMultiJs(
     "Tous agents + Figeage",
     "Couverture maximale : tous agents + libération DERNIER_RECOURS."
   );
+  const scenarioTousAgentsCascade = construireScenario(
+    "all_agents", false,
+    "Tous agents — Cascade",
+    "Couverture par chaîne de remplacement : un agent occupé est libéré en faisant reprendre sa JS source par un autre agent.",
+    true
+  );
+  const scenarioTousAgentsCascadeFigeage = construireScenario(
+    "all_agents", true,
+    "Tous agents + Cascade + Figeage",
+    "Couverture maximale : chaînes de remplacement combinées au figeage DERNIER_RECOURS.",
+    true
+  );
 
   const scenarios = [
     scenarioReserveOnly,
     scenarioReserveOnlyFigeage,
     scenarioTousAgents,
     scenarioTousAgentsFigeage,
+    scenarioTousAgentsCascade,
+    scenarioTousAgentsCascadeFigeage,
   ].sort((a, b) => b.score - a.score);
 
   const meilleur = scenarios[0] ?? null;
+
+  // Métriques cascade : nb total de chaînes construites sur les 2 scénarios Cascade
+  const nbChainesCascade =
+    (scenarioTousAgentsCascade.affectations.filter((a) => a.chaineRemplacement !== null).length) +
+    (scenarioTousAgentsCascadeFigeage.affectations.filter((a) => a.chaineRemplacement !== null).length);
 
   logger.info("MULTI_SIMULATION_END", {
     data: {
       nbScenarios: scenarios.length,
       meilleurScore: meilleur?.score ?? null,
       meilleurTauxCouverture: meilleur?.tauxCouverture ?? null,
+      nbChainesCascade,
     },
   });
 
@@ -146,6 +194,8 @@ export async function executerSimulationMultiJs(
     scenarioReserveOnlyFigeage,
     scenarioTousAgents,
     scenarioTousAgentsFigeage,
+    scenarioTousAgentsCascade,
+    scenarioTousAgentsCascadeFigeage,
     nbAgentsAnalyses: agents.length,
     auditLog: logger.all(),
   };

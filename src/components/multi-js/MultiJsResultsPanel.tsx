@@ -32,7 +32,7 @@ interface Props {
   resultat: MultiJsSimulationResultat;
 }
 
-type Tab = "resume" | "affectations" | "agents" | "non-couvertes" | "conflits" | "exclusions" | "alternatives";
+type Tab = "resume" | "affectations" | "agents" | "non-couvertes" | "conflits" | "exclusions" | "alternatives" | "cascade";
 
 function ScoreBadge({ score }: { score: number }) {
   const color =
@@ -126,27 +126,41 @@ function FigeageBadge({ justification }: { justification: string }) {
   );
 }
 
+/**
+ * Détecte si un maillon correspond à un agent libre (fin de chaîne).
+ * Dans ce cas, jsLiberee pointe sur la JS reprise (cas non-cascadant)
+ * et on l'affiche différemment.
+ */
+function maillonEtaitLibre(
+  m: NonNullable<AffectationJs["chaineRemplacement"]>["maillons"][number],
+  i: number,
+  total: number
+): boolean {
+  return (
+    m.jsLiberee.codeJs === m.jsRepriseCodeJs &&
+    m.jsLiberee.planningLigneId !== "" &&
+    i === total - 1
+  );
+}
+
 function ChaineRemplacementBadge({
   chaine,
 }: {
   chaine: NonNullable<AffectationJs["chaineRemplacement"]>;
 }) {
+  const summary = `Chaîne de remplacement — ${
+    chaine.profondeur === 1 ? "1 maillon" : `${chaine.profondeur} maillons`
+  }`;
   return (
-    <div className="mt-1.5 rounded border border-sky-200 bg-sky-50 px-2 py-1.5">
-      <p className="text-[10px] font-semibold text-sky-700 flex items-center gap-1 mb-1">
+    <details className="mt-1.5 rounded border border-sky-200 bg-sky-50 px-2 py-1 group">
+      <summary className="text-[10px] font-semibold text-sky-700 flex items-center gap-1 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
         <IconLinkIcon className="w-3 h-3 shrink-0" aria-hidden="true" />
-        <span>
-          Chaîne de remplacement —{" "}
-          {chaine.profondeur === 1 ? "1 maillon" : `${chaine.profondeur} maillons`}
-        </span>
-      </p>
-      <ol className="space-y-1">
+        <span>{summary}</span>
+        <span className="ml-1 text-sky-400 group-open:rotate-90 transition-transform">▸</span>
+      </summary>
+      <ol className="space-y-1 mt-1.5">
         {chaine.maillons.map((m, i) => {
-          // Agent libre = fin de chaîne, jsLiberee pointe sur la JS reprise (cas non-cascadant).
-          const etaitLibre =
-            m.jsLiberee.codeJs === m.jsRepriseCodeJs &&
-            m.jsLiberee.planningLigneId !== "" &&
-            i === chaine.maillons.length - 1;
+          const etaitLibre = maillonEtaitLibre(m, i, chaine.maillons.length);
           return (
             <li key={i} className="text-[10px] text-sky-900 flex items-start gap-1.5">
               <span className="font-mono text-sky-500 shrink-0 mt-0.5">{i + 1}.</span>
@@ -177,7 +191,7 @@ function ChaineRemplacementBadge({
           );
         })}
       </ol>
-    </div>
+    </details>
   );
 }
 
@@ -571,6 +585,161 @@ function AgentCard({ agent }: { agent: AffectationsParAgent }) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Onglet Cascade — vue opérationnelle (qui appeler dans quel ordre) ──────
+
+function CascadeTab({ affectations }: { affectations: AffectationJs[] }) {
+  const avecChaine = affectations.filter((a) => a.chaineRemplacement !== null);
+  if (avecChaine.length === 0) return null;
+
+  // Liste plate de tous les appels à passer, dans l'ordre opérationnel :
+  // niveau 0 (agent retenu) puis maillons par profondeur croissante.
+  type Appel = {
+    ordre: number;
+    niveau: number;
+    agentNom: string;
+    agentPrenom: string;
+    agentMatricule: string;
+    agentReserve: boolean;
+    jsCode: string | null;
+    jsHoraires: string;
+    jsDate: string;
+    motif: string;
+    statut: "DIRECT" | "VIGILANCE";
+  };
+
+  const appels: Appel[] = [];
+  let ordreGlobal = 1;
+  for (const aff of avecChaine) {
+    appels.push({
+      ordre: ordreGlobal++,
+      niveau: 0,
+      agentNom: aff.agentNom,
+      agentPrenom: aff.agentPrenom,
+      agentMatricule: aff.agentMatricule,
+      agentReserve: aff.agentReserve,
+      jsCode: aff.jsCible.codeJs,
+      jsHoraires: `${aff.jsCible.heureDebutJsType ?? aff.jsCible.heureDebut}–${aff.jsCible.heureFinJsType ?? aff.jsCible.heureFin}`,
+      jsDate: aff.jsCible.date,
+      motif: `Couvre la JS imprévue (en remplacement de ${aff.jsCible.agentPrenom} ${aff.jsCible.agentNom})`,
+      statut: aff.statut,
+    });
+    for (let i = 0; i < aff.chaineRemplacement!.maillons.length; i++) {
+      const m = aff.chaineRemplacement!.maillons[i];
+      const etaitLibre = maillonEtaitLibre(m, i, aff.chaineRemplacement!.maillons.length);
+      appels.push({
+        ordre: ordreGlobal++,
+        niveau: m.niveau,
+        agentNom: m.agentNom,
+        agentPrenom: m.agentPrenom,
+        agentMatricule: m.agentMatricule,
+        agentReserve: false, // info non propagée dans MaillonChaine
+        jsCode: m.jsRepriseCodeJs,
+        jsHoraires: `${m.jsLiberee.heureDebut}–${m.jsLiberee.heureFin}`,
+        jsDate: m.jsLiberee.date,
+        motif: etaitLibre
+          ? `Libre — reprend la JS pour combler la cascade`
+          : `Reprend ${m.jsRepriseCodeJs ?? "la JS"} (libère sa propre ${m.jsLiberee.codeJs ?? "JS"})`,
+        statut: m.statut,
+      });
+    }
+  }
+
+  const totalAgents = appels.length;
+  const totalCibles = avecChaine.length;
+  const profondeurMax = Math.max(...avecChaine.map((a) => a.chaineRemplacement!.profondeur));
+
+  return (
+    <div className="space-y-4">
+      {/* Vue d'ensemble */}
+      <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2.5">
+        <div className="flex items-center gap-2 mb-1.5">
+          <IconLinkIcon className="w-4 h-4 text-sky-600" aria-hidden="true" />
+          <p className="text-xs font-bold text-sky-700 uppercase tracking-wide">
+            Plan d'appels — chaînes de remplacement
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div>
+            <p className="text-lg font-bold text-sky-700">{totalCibles}</p>
+            <p className="text-[10px] text-slate-600">JS couverte{totalCibles > 1 ? "s" : ""} via cascade</p>
+          </div>
+          <div>
+            <p className="text-lg font-bold text-sky-700">{totalAgents}</p>
+            <p className="text-[10px] text-slate-600">agent{totalAgents > 1 ? "s" : ""} à mobiliser</p>
+          </div>
+          <div>
+            <p className="text-lg font-bold text-sky-700">{profondeurMax}</p>
+            <p className="text-[10px] text-slate-600">profondeur max</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Liste téléphone */}
+      <div className="space-y-1.5">
+        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide px-1">
+          Appels à passer dans l'ordre
+        </p>
+        {appels.map((a) => (
+          <div
+            key={a.ordre}
+            className={cn(
+              "flex items-start gap-3 rounded-lg border px-3 py-2",
+              a.niveau === 0
+                ? "border-blue-200 bg-blue-50"
+                : "border-slate-200 bg-white"
+            )}
+          >
+            <div className="flex flex-col items-center shrink-0 w-8 pt-0.5">
+              <span className={cn(
+                "w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold",
+                a.niveau === 0
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-200 text-slate-600"
+              )}>
+                {a.ordre}
+              </span>
+              {a.niveau > 0 && (
+                <span className="text-[8px] text-slate-400 mt-0.5 font-mono">N{a.niveau}</span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <p className="text-xs font-bold text-slate-800">
+                  <AgentLink agentId="" nom={a.agentNom} prenom={a.agentPrenom} />
+                </p>
+                {a.agentReserve && (
+                  <span className="text-[9px] bg-violet-100 text-violet-600 px-1 py-0.5 rounded font-semibold">
+                    RÉSERVE
+                  </span>
+                )}
+                <span className="text-[10px] text-slate-400 font-mono">{a.agentMatricule}</span>
+                {a.statut === "VIGILANCE" && (
+                  <span className="text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded font-semibold">
+                    VIGILANCE
+                  </span>
+                )}
+              </div>
+              <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-700 flex-wrap">
+                <span className="font-mono font-semibold">{a.jsCode ?? "—"}</span>
+                <span className="text-slate-400">·</span>
+                <span className="text-slate-500">{a.jsDate}</span>
+                <span className="text-slate-400">·</span>
+                <span className="font-mono text-slate-500">{a.jsHoraires}</span>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-0.5">{a.motif}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-[10px] text-slate-400 italic px-1">
+        Les agents <strong>N0</strong> couvrent directement la JS imprévue.
+        Les agents <strong>N1+</strong> sont déplacés en cascade pour combler les trous induits.
+      </p>
     </div>
   );
 }
@@ -971,15 +1140,30 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
     (sum, a) => sum + a.alternatives.length, 0
   );
 
+  // Onglet Cascade : visible uniquement sur les scénarios Cascade* avec au moins une chaîne.
+  const affectationsAvecChaine = scenario.affectations.filter((a) => a.chaineRemplacement !== null);
+  const showCascadeTab =
+    (activeKey === "tousCascade" || activeKey === "tousCascadeFigeage") &&
+    affectationsAvecChaine.length > 0;
+
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "resume", label: "Résumé" },
     { id: "affectations", label: "Affectations", count: scenario.affectations.length },
+    ...(showCascadeTab
+      ? [{ id: "cascade" as Tab, label: "Cascade", count: affectationsAvecChaine.length }]
+      : []),
     { id: "agents", label: "Par agent", count: scenario.affectationsParAgent.length },
     { id: "alternatives", label: "Alternatives", count: nbAlternatives },
     { id: "non-couvertes", label: "Non couvertes", count: scenario.jsNonCouvertes.length },
     { id: "conflits", label: "Conflits", count: scenario.conflitsDetectes.length },
     { id: "exclusions", label: "Exclusions", count: nbExclusions },
   ];
+
+  // Si l'utilisateur est sur l'onglet Cascade et bascule vers un scénario sans cascade,
+  // on retombe sur Résumé pour éviter un état orphelin.
+  if (activeTab === "cascade" && !showCascadeTab) {
+    setTimeout(() => setActiveTab("resume"), 0);
+  }
 
   return (
     <div className="space-y-4">
@@ -1077,6 +1261,11 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
           {/* Affectations */}
           {activeTab === "affectations" && (
             <AffectationsTable affectations={scenario.affectations} />
+          )}
+
+          {/* Cascade — vue téléphone (uniquement si scénario Cascade* avec chaînes) */}
+          {activeTab === "cascade" && (
+            <CascadeTab affectations={scenario.affectations} />
           )}
 
           {/* Par agent */}

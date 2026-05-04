@@ -21,27 +21,16 @@ import MultiJsResultsPanel from "@/components/multi-js/MultiJsResultsPanel";
 export const dynamic = "force-dynamic";
 
 /**
- * Agents écartés par défaut pour saturer les candidats Direct.
+ * Agents écartés par défaut : aucun.
  *
- * On garde OLLIER dans le pool : il est en CONFLIT_HORAIRE strict
- * (sur GIV006R 20:30→04:30 le 03/05) → c'est lui qui déclenchera la
- * passe Cascade, en tentant de libérer sa GIV006R via un autre agent.
+ * Avec les vraies données du dataset sur la JS Poncet 03/05 :
+ *  - Belabbas (libre) prend la JS en Direct → recommandé
+ *  - Ollier (sur GIV006R DERNIER_RECOURS) apparaît comme **alternative chaîne**
+ *    avec sa cascade Brouillat → Bouziges (plan B documenté)
  *
- * On exclut CHENNOUF aussi : il est en CONFLIT_HORAIRE souple (BAD015R
- * 13:00→21:00 ne chevauche pas la cible évaluée sur l'horaire standard
- * GIC006R 20:30 = pile à la jointure), donc le moteur le considère Direct.
+ * Pour forcer la cascade en couverture principale, passer ?exclus=NOM1,NOM2.
  */
-const AGENTS_INDISPONIBLES_DEFAUT = [
-  "BELABBAS",      // libre 03/05 → prendrait Direct
-  "CHENNOUF",      // évalué Direct car BAD015R termine à 21:00 = jointure GIC006R
-  "ACHILLE",       // libre → prendrait Direct
-  "MENDI",         // libre → prendrait Direct
-  "EL JAID",       // libre → prendrait Direct
-  "LEGUAY",        // sur JS Z → assimilé libre
-  "BARTHOMEUF",    // libre → prendrait Direct
-  "PINQUE",        // libre → prendrait Direct
-  "SEFOUHI",       // libre → prendrait Direct
-];
+const AGENTS_INDISPONIBLES_DEFAUT: string[] = [];
 
 interface PageProps {
   searchParams: Promise<{ exclus?: string }>;
@@ -224,21 +213,24 @@ export default async function DemoCascadeRealPage({ searchParams }: PageProps) {
           <span className="font-mono">{importActif.filename}</span> avec{" "}
           <strong>{agents.length} agents</strong>.
         </p>
-        <p className="text-[11px] text-slate-600 mt-2">
-          <strong>Contrainte démo :</strong> {Array.from(AGENTS_INDISPONIBLES).join(" et ")} sont
-          marqués indisponibles (en plus de Poncet absent), pour saturer les
-          candidats Direct/Figeage et forcer l'algo à explorer une chaîne.
-        </p>
+        {AGENTS_INDISPONIBLES.size > 0 && (
+          <p className="text-[11px] text-slate-600 mt-2">
+            <strong>Contrainte démo :</strong> {Array.from(AGENTS_INDISPONIBLES).join(" et ")} sont
+            marqués indisponibles (en plus de Poncet absent), pour saturer les
+            candidats Direct et forcer l'algo à explorer une chaîne.
+          </p>
+        )}
         {chaineTrouvee ? (
           <p className="text-[11px] text-emerald-700 mt-1">
             ✓ Chaîne de remplacement trouvée — profondeur {chaineTrouvee.profondeur} —
             agent affecté : {cascadeAff!.agentPrenom} {cascadeAff!.agentNom}
           </p>
         ) : (
-          <p className="text-[11px] text-amber-700 mt-1">
-            ⚠ Aucune chaîne ne couvre cette JS dans l'état actuel du dataset
-            (avec ces exclusions). Les autres scénarios montrent les options
-            disponibles.
+          <p className="text-[11px] text-slate-600 mt-1">
+            Sur les vraies données sans exclusion, des candidats Direct
+            couvrent la JS. Les chaînes possibles apparaissent dans l'onglet{" "}
+            <strong>Alternatives</strong> du scénario <strong>Tous agents — Cascade</strong>{" "}
+            comme plans B documentés.
           </p>
         )}
       </div>

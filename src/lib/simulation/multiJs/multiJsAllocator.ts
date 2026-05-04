@@ -932,6 +932,67 @@ export function allouerJsMultiple(
       });
     }
 
+    // ─── Alternatives chaîne (mode Cascade uniquement) ─────────────────────
+    // Pour chaque agent exclu pour CONFLIT_HORAIRE, tenter une chaîne de
+    // remplacement. Si trouvée, l'ajouter comme alternative type "CHAINE" pour
+    // exposer le plan B même si la JS est déjà couverte par un autre agent.
+    // Cap à 5 alternatives chaîne par JS pour ne pas inonder l'UI ni le budget.
+    if (cascadeContext) {
+      const exclusionsConflit = (exclusionsPourCascade.get(js.planningLigneId) ?? [])
+        .filter((e) => e.regle === "CONFLIT_HORAIRE");
+
+      const imprevuJs = buildImprevu(js, remplacement, deplacement);
+      const debutCible = combineDateTime(js.date, js.heureDebut);
+      const finCible = combineDateTime(
+        getDateFinJs(js.date, imprevuJs.heureDebutReel, imprevuJs.heureFinEstimee),
+        imprevuJs.heureFinEstimee
+      );
+
+      let nbChaineAdded = 0;
+      for (const excl of exclusionsConflit) {
+        if (nbChaineAdded >= 5) break;
+        if (excl.agentId === assignedAgentId) continue;
+        // Skip si déjà dans alternatives (typeSolution autre que CHAINE)
+        if (alternatives.some((a) => a.agentId === excl.agentId)) continue;
+
+        const candidat = agentsMap.get(excl.agentId);
+        if (!candidat) continue;
+
+        // Trouver l'event qui chevauche réellement la cible
+        const eventConflit = candidat.events.find(
+          (e) =>
+            e.jsNpo === "JS" &&
+            !isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes) &&
+            e.dateDebut < finCible &&
+            e.dateFin > debutCible
+        );
+        if (!eventConflit) continue;
+
+        const chaine = tenterChaineRemplacement(excl.agentId, eventConflit, cascadeContext);
+        if (!chaine) continue;
+
+        alternatives.push({
+          rang: 0,
+          agentId:      excl.agentId,
+          nom:          excl.agentNom,
+          prenom:       excl.agentPrenom,
+          matricule:    excl.agentMatricule,
+          agentReserve: candidat.context.agentReserve,
+          statut:       "DIRECT",
+          score:        0,
+          typeSolution: "CHAINE",
+          raisonNonRetention: assignedAgentId !== null
+            ? `Plan B via cascade — non sélectionné car la JS est déjà couverte`
+            : `Chaîne de remplacement disponible mais non retenue par l'allocateur`,
+          motif:        excl.raison,
+          conflitsInduits: [],
+          jsSourceFigee:   null,
+          chaineRemplacementProposee: chaine,
+        });
+        nbChaineAdded++;
+      }
+    }
+
     // Trier : DIRECT d'abord, puis par score décroissant
     alternatives.sort((a, b) => {
       const pA = TYPE_SOLUTION_PRIO[a.typeSolution] ?? 4;

@@ -228,6 +228,13 @@ export interface AlternativeJs {
     impacts: import("./js-simulation").ImpactCascade[];
     nbResolu: number;
   };
+  /**
+   * Chaîne de remplacement proposée pour les alternatives de type CHAINE.
+   * Présente quand l'agent était exclu pour CONFLIT_HORAIRE mais qu'une chaîne
+   * de remplacement aurait pu le libérer (mode Cascade). Affichée en plan B
+   * dans l'onglet Alternatives, même si la JS est déjà couverte autrement.
+   */
+  chaineRemplacementProposee?: ChaineRemplacement;
 }
 
 /**

@@ -119,6 +119,7 @@ export async function POST(req: NextRequest) {
         jsNpo: ligne.jsNpo as "JS" | "NPO",
         codeJs: ligne.codeJs,
         typeJs: ligne.typeJs,
+        planningLigneId: ligne.id,
         ...(() => {
           const jt = resolveJsType(ligne.codeJs, ligne.typeJs);
           return jt ? { heureDebutJsType: jt.heureDebutStandard, heureFinJsType: jt.heureFinStandard } : {};

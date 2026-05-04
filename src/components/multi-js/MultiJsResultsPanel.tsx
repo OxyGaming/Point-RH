@@ -939,6 +939,13 @@ function AlternativesPanel({ alternativesParJs }: { alternativesParJs: Alternati
                             </div>
                           )}
 
+                          {/* Chaîne de remplacement proposée (alternative type CHAINE) */}
+                          {alt.chaineRemplacementProposee && (
+                            <div className="mt-1.5 pl-6">
+                              <ChaineRemplacementBadge chaine={alt.chaineRemplacementProposee} />
+                            </div>
+                          )}
+
                           {/* Détail des règles */}
                           {alt.detail && (
                             <div className="pl-6 mt-1">

@@ -31,7 +31,7 @@ import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 import { injecterJsDansPlanning } from "@/lib/simulation/candidateFinder";
 import { resoudreTousConflits } from "@/lib/simulation/cascadeResolver";
 import { buildImprevu } from "./multiJsCandidateFinder";
-import { combineDateTime, getDateFinJs, isJsDeNuit } from "@/lib/utils";
+import { combineDateTime, getDateFinJs, isJsDeNuit, getEventInterval } from "@/lib/utils";
 import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
 import type { EffectiveServiceInfo, LpaContext } from "@/types/deplacement";
 import type { PlanningEvent } from "@/engine/rules";
@@ -548,10 +548,12 @@ export function allouerJsMultiple(
 
         // Le pré-filtre habilitation/nuit doit déjà avoir été fait — on cherche
         // l'event qui chevauche réellement la cible
+        // Rustine option 2 : getEventInterval reconstruit le créneau depuis jourPlanning.
         const eventConflit = candidat.events.find((e) => {
           if (e.jsNpo !== "JS") return false;
           if (isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes)) return false;
-          return e.dateDebut < finCible && e.dateFin > debutCible;
+          const { start, end } = getEventInterval(e);
+          return start < finCible && end > debutCible;
         });
         if (!eventConflit) continue;
 
@@ -959,13 +961,13 @@ export function allouerJsMultiple(
         if (!candidat) continue;
 
         // Trouver l'event qui chevauche réellement la cible
-        const eventConflit = candidat.events.find(
-          (e) =>
-            e.jsNpo === "JS" &&
-            !isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes) &&
-            e.dateDebut < finCible &&
-            e.dateFin > debutCible
-        );
+        // Rustine option 2 : getEventInterval reconstruit le créneau depuis jourPlanning.
+        const eventConflit = candidat.events.find((e) => {
+          if (e.jsNpo !== "JS") return false;
+          if (isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes)) return false;
+          const { start, end } = getEventInterval(e);
+          return start < finCible && end > debutCible;
+        });
         if (!eventConflit) continue;
 
         const chaine = tenterChaineRemplacement(excl.agentId, eventConflit, cascadeContext);

@@ -54,6 +54,39 @@ export function combineDateTime(date: Date | string, hhmm: string): Date {
 }
 
 /**
+ * Reconstruit l'intervalle [start, end] d'un PlanningEvent.
+ *
+ * RUSTINE OPTION 2 (cf. discussion dataset Poncet GIC006R 03/05) :
+ * `dateDebut` et `dateFin` peuvent être décalés d'un jour à cause d'un bug
+ * dans le pipeline d'import (`dateDebutPop = jourPlanning + 2h` au lieu
+ * d'aligner sur le jour calendaire). Quand `jourPlanning` est renseigné,
+ * on l'utilise comme référence canonique pour reconstruire le créneau à
+ * partir des heures pures `heureDebut`/`heureFin`. Sinon fallback transparent
+ * sur les Date stockés.
+ *
+ * À supprimer (et remplacer par un simple { start: e.dateDebut, end: e.dateFin })
+ * une fois l'option 1 traitée (audit complet du pipeline d'import).
+ */
+export function getEventInterval(e: {
+  dateDebut: Date;
+  dateFin: Date;
+  heureDebut: string;
+  heureFin: string;
+  jourPlanning?: Date;
+}): { start: Date; end: Date } {
+  if (!e.jourPlanning) {
+    return { start: e.dateDebut, end: e.dateFin };
+  }
+  const start = combineDateTime(e.jourPlanning, e.heureDebut);
+  let end = combineDateTime(e.jourPlanning, e.heureFin);
+  // Passage minuit : si fin <= début, c'est que la JS termine le lendemain.
+  if (end.getTime() <= start.getTime()) {
+    end = new Date(end.getTime() + 24 * 3600 * 1000);
+  }
+  return { start, end };
+}
+
+/**
  * Différence en minutes entre deux Date
  */
 export function diffMinutes(a: Date, b: Date): number {

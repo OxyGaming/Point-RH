@@ -6,7 +6,7 @@
  * Chaque agent exclu produit un objet Exclusion structuré dans le tableau `exclusions`.
  */
 
-import { combineDateTime, getDateFinJs } from "@/lib/utils";
+import { combineDateTime, getDateFinJs, getEventInterval } from "@/lib/utils";
 import { evaluerMobilisabilite } from "@/engine/rules";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { WorkRulesMinutes } from "@/lib/rules/workRules";
@@ -149,10 +149,13 @@ export function trouverCandidatsPourJs(
 
     // L'agent ne doit pas avoir une JS non-Z en conflit horaire
     // Exception : figeage autorisé + JS source DERNIER_RECOURS → agent libérable
+    // Rustine option 2 : passer par getEventInterval pour réécrire le créneau
+    // depuis jourPlanning + heureDebut/heureFin si dateDebutPop est décalée.
     const conflitEvent = events.find((e) => {
       if (e.jsNpo !== "JS") return false;
       if (isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes)) return false;
-      return e.dateDebut < finImprevu && e.dateFin > debutImprevu;
+      const { start, end } = getEventInterval(e);
+      return start < finImprevu && end > debutImprevu;
     });
 
     let eventsBase = events;
@@ -185,13 +188,12 @@ export function trouverCandidatsPourJs(
     }
 
     // JS Z : obtenir la JS Z d'origine si présente (sur eventsBase)
-    const jsZOrigine = eventsBase.find(
-      (e) =>
-        e.jsNpo === "JS" &&
-        isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes) &&
-        e.dateDebut < finImprevu &&
-        e.dateFin > debutImprevu
-    ) ?? null;
+    const jsZOrigine = eventsBase.find((e) => {
+      if (e.jsNpo !== "JS") return false;
+      if (!isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes)) return false;
+      const { start, end } = getEventInterval(e);
+      return start < finImprevu && end > debutImprevu;
+    }) ?? null;
     const surJsZ = jsZOrigine !== null;
 
     const eventsEffectifs = surJsZ

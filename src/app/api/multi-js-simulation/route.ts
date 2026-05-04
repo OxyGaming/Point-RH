@@ -120,6 +120,9 @@ export async function POST(req: NextRequest) {
         codeJs: ligne.codeJs,
         typeJs: ligne.typeJs,
         planningLigneId: ligne.id,
+        // Rustine option 2 : référence canonique pour reconstruire le créneau
+        // sans dépendre de dateDebutPop/dateFinPop décalés (cf. utils.getEventInterval)
+        jourPlanning: ligne.jourPlanning,
         ...(() => {
           const jt = resolveJsType(ligne.codeJs, ligne.typeJs);
           return jt ? { heureDebutJsType: jt.heureDebutStandard, heureFinJsType: jt.heureFinStandard } : {};

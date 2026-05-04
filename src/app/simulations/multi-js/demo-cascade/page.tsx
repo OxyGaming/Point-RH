@@ -154,6 +154,7 @@ export default async function DemoCascadeRealPage({ searchParams }: PageProps) {
       codeJs: ligne.codeJs,
       typeJs: ligne.typeJs,
       planningLigneId: ligne.id,
+      jourPlanning: ligne.jourPlanning,
       ...(jt ? { heureDebutJsType: jt.heureDebutStandard, heureFinJsType: jt.heureFinStandard } : {}),
     });
   }

@@ -15,7 +15,7 @@ import type { JsCible } from "@/types/js-simulation";
 import type { WorkRulesMinutes } from "@/lib/rules/workRules";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
 import type { MaillonChaine, ChaineRemplacement } from "@/types/multi-js-simulation";
-import { isJsDeNuit } from "@/lib/utils";
+import { isJsDeNuit, getEventInterval } from "@/lib/utils";
 import { canAssignJsToAgentInScenario } from "./agentScenarioValidator";
 import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
@@ -60,7 +60,10 @@ function eventToJsCibleSource(
   importId: string
 ): JsCible | null {
   if (!event.planningLigneId) return null;
-  const dateIso = event.dateDebut.toISOString().slice(0, 10);
+  // Date canonique : on utilise getEventInterval pour avoir le bon jour
+  // (la rustine option 2 corrige le décalage timezone éventuel).
+  const { start } = getEventInterval(event);
+  const dateIso = start.toISOString().slice(0, 10);
   const isNuit = isJsDeNuit(event.heureDebut, event.heureFin);
   return {
     planningLigneId: event.planningLigneId,
@@ -83,6 +86,9 @@ function eventToJsCibleSource(
 /**
  * Trouve un PlanningEvent (JS non-Z) qui chevauche `[start, end]` dans la
  * liste `events`. null si aucun.
+ *
+ * Rustine option 2 : utilise getEventInterval pour reconstruire le créneau
+ * depuis jourPlanning + heureDebut/heureFin (cf. utils.ts).
  */
 function trouverEventConflit(
   events: PlanningEvent[],
@@ -93,7 +99,8 @@ function trouverEventConflit(
   for (const e of events) {
     if (e.jsNpo !== "JS") continue;
     if (isZeroLoadJs(e.codeJs, e.typeJs, zeroLoadPrefixes)) continue;
-    if (e.dateDebut < end && e.dateFin > start) return e;
+    const { start: eStart, end: eEnd } = getEventInterval(e);
+    if (eStart < end && eEnd > start) return e;
   }
   return null;
 }

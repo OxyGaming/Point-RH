@@ -12,13 +12,13 @@
  * jourPlanning = minuit heure locale Europe/Paris du jour de dateDebutPop.
  * Un agent a au plus une affectation par jour calendaire.
  */
-import { toZonedTime, fromZonedTime } from "date-fns-tz";
 import { prisma } from "@/lib/prisma";
 import type { ImportResult } from "@/types/planning";
 import { validateHeaders } from "./import/headers";
 import { parseExcelRows, ExcelLimitError } from "./import/parseExcel";
 import { parseTxtRows } from "./import/parseTxt";
 import { normalizeRows } from "./import/normalizeRows";
+import { formatDateParis, minuitParisEnUtc } from "@/lib/timezone";
 
 export type FileType = "excel" | "txt";
 
@@ -29,12 +29,19 @@ function detectFileType(filename: string): FileType | null {
   return null;
 }
 
-function jourPlanningFromDate(dateDebutPop: Date): Date {
-  const paris = toZonedTime(dateDebutPop, "Europe/Paris");
-  return fromZonedTime(
-    new Date(paris.getFullYear(), paris.getMonth(), paris.getDate()),
-    "Europe/Paris"
-  );
+/**
+ * Calcule `jourPlanning` : minuit Paris du jour calendaire de prise de service,
+ * stocké en UTC. Sert de clé métier d'agrégation (1 jour = 1 ligne par agent),
+ * pas de référence pour reconstruire les horaires (cf. rapport Phase 1.A).
+ *
+ * Remplace l'ancienne implémentation `toZonedTime(...) + fromZonedTime(...)`
+ * qui appliquait un double-shift DST et produisait `jourPlanning + 2h` au lieu
+ * du minuit Paris attendu.
+ *
+ * Exporté pour les tests d'intégration import.
+ */
+export function jourPlanningFromDate(dateDebutPop: Date): Date {
+  return minuitParisEnUtc(formatDateParis(dateDebutPop));
 }
 
 // ─── Entrée principale ────────────────────────────────────────────────────────

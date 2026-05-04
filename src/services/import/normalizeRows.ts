@@ -14,6 +14,7 @@
 import * as XLSX from "xlsx";
 import type { PlanningLigneRaw, ImportErreur, JsNpo } from "@/types/planning";
 import { buildFieldToHeaderMap } from "./headers";
+import { combineDateTimeParis, formatDateParis } from "@/lib/timezone";
 
 // ─── Type intermédiaire ───────────────────────────────────────────────────────
 
@@ -175,16 +176,36 @@ export function normalizeRows(rows: NormRow[], headers: string[]): NormalizeResu
       continue;
     }
 
-    const dateDebut = parseAnyDate(getDisplay(row, "dateDebutPop"));
-    if (!dateDebut) {
+    const dateDebutBrute = parseAnyDate(getDisplay(row, "dateDebutPop"));
+    if (!dateDebutBrute) {
       erreurs.push({ ligne: n, champ: "DATE DEBUT POP / NPO", message: "Date de début invalide ou manquante" });
       continue;
     }
 
-    const dateFin = parseAnyDate(getDisplay(row, "dateFinPop")) ?? dateDebut;
+    const dateFinBrute = parseAnyDate(getDisplay(row, "dateFinPop")) ?? dateDebutBrute;
 
     const heureDebut = parseAnyTime(getRaw(row, "heureDebutPop"));
     const heureFin   = parseAnyTime(getRaw(row, "heureFinPop"));
+
+    // ─── Convention temporelle (cf. rapport Phase 1.A étape 2) ─────────────
+    //
+    // Le fichier source SNCF contient :
+    //   - DATE DEBUT/FIN POP = jour calendaire Paris (string "dd/MM/yyyy" ou
+    //     serial Excel décodé en jour calendaire)
+    //   - HEURE DEBUT/FIN POP = heure Paris ("HH:MM")
+    //
+    // Convention cible : `dateDebutPop` / `dateFinPop` stockés en base
+    // représentent l'instant UTC absolu de prise/fin de service. On les
+    // construit en combinant le jour Paris extrait de la valeur brute parsée
+    // avec l'heure Paris via `combineDateTimeParis` (timezone-aware, gère DST).
+    //
+    // Note : `parseAnyDate` retourne un Date UTC midnight pour représenter le
+    // jour calendaire (convention héritée du parsing Excel/TXT). On extrait
+    // donc le jour Paris via `formatDateParis` qui fait la conversion Paris.
+    const jourDebutParis = formatDateParis(dateDebutBrute);
+    const jourFinParis   = formatDateParis(dateFinBrute);
+    const dateDebut = combineDateTimeParis(jourDebutParis, heureDebut);
+    const dateFin   = combineDateTimeParis(jourFinParis,   heureFin);
     const ampHHMM    = parseAnyTime(getRaw(row, "amplitudeHHMM")) || null;
     const dureeHHMM  = parseAnyTime(getRaw(row, "dureeEffectiveHHMM")) || null;
 

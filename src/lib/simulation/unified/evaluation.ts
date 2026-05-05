@@ -133,11 +133,19 @@ function buildSimulationInput(
   const heureFinSim = effectiveService?.heureFinEffective ?? heureFinBase;
   const deplacement = effectiveService?.estEnDeplacement ?? etat.deplacement;
 
+  // dateFin : si heureFin <= heureDebut, la JS franchit minuit → dateFin = jour suivant.
+  // Indispensable pour evaluerMobilisabilite qui utilise combineDateTime(dateFin, heureFin).
+  const dateFin = heureFinSim <= heureDebutSim
+    ? new Date(new Date(`${js.date}T00:00:00Z`).getTime() + 24 * 3600_000)
+        .toISOString()
+        .slice(0, 10)
+    : js.date;
+
   return {
     simulationInput: {
       importId: etat.importId,
       dateDebut: js.date,
-      dateFin: js.date,
+      dateFin,
       heureDebut: heureDebutSim,
       heureFin: heureFinSim,
       poste: js.codeJs ?? "JS",

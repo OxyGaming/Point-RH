@@ -1096,6 +1096,40 @@ export function allouerJsMultiple(
     exclusions: exclusionsPerJs.get(js.planningLigneId) ?? [],
   }));
 
+  // ─── Mode shadow : solveur unifié en parallèle (UNIFIED_SHADOW=1) ─────────────
+  // Aucun impact sur la sortie. Émet un rapport comparatif via logger + console.
+  // Activé uniquement pour les scénarios qui ont une logique cascade
+  // (sinon le legacy est trop simple pour une comparaison utile).
+  if (process.env.UNIFIED_SHADOW === "1" && cascadeContext !== null) {
+    // Import dynamique pour éviter d'embarquer le module si flag off
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { runShadowComparison, emitShadowReport } = require("@/lib/simulation/unified/shadow") as typeof import("@/lib/simulation/unified/shadow");
+    try {
+      const report = runShadowComparison({
+        scenarioId: id,
+        scenarioTitre: titre,
+        jsCibles,
+        legacyAffectations: affectations,
+        agentsMap,
+        index: cascadeContext.index,
+        rules,
+        lpaContext,
+        npoExclusionCodes,
+        importId: cascadeContext.importId,
+        remplacement,
+        deplacement,
+        maxSolutionsParJs: 5,
+        // Séquence cible terrain à valider — Chennouf → Brouillat → Leguay
+        sequenceCibleNoms: ["CHENNOUF", "BROUILLAT", "LEGUAY"],
+      });
+      emitShadowReport(report, logger);
+    } catch (err) {
+      // Le shadow ne doit JAMAIS interrompre le scénario legacy.
+      // eslint-disable-next-line no-console
+      console.error("[UNIFIED_SHADOW] erreur (ignorée pour ne pas casser le legacy):", err);
+    }
+  }
+
   return {
     id,
     titre,

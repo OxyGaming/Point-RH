@@ -108,6 +108,9 @@ export interface Resolution {
   agent: AgentContext;
   /** Statut RH de l'agent sur la JS du besoin (après libération des conséquences). */
   statut: "DIRECT" | "VIGILANCE";
+  /** Score métier (0-100) calculé via scorerCandidat. Utilisé pour dériver
+   *  le niveauRisque global de la solution. */
+  score: number;
   /** Détail audit des règles évaluées. */
   detail: DetailCalcul;
   consequences: Consequence[];
@@ -117,15 +120,23 @@ export interface Resolution {
 // ─── Solution ────────────────────────────────────────────────────────────────
 
 /**
- * Indicateur de risque global d'une solution.
- *  - OK         : toutes les feuilles statut DIRECT
- *  - VIGILANCE  : au moins une feuille statut VIGILANCE
- *  - INCOMPLETE : au moins une branche n'a pas trouvé de feuille
+ * Indicateur de risque global d'une solution. Hiérarchie croissante :
+ *  - OK            : toutes les résolutions sont DIRECT et à score métier élevé
+ *  - VIGILANCE     : au moins une feuille en VIGILANCE (statut RH dégradé)
+ *  - DECONSEILLEE  : au moins un agent à score métier très bas (≤ seuil) —
+ *                    techniquement valide mais lourdement déconseillé. Sortie
+ *                    typique du mode "exhaustif" qui expose des alternatives
+ *                    terrain documentées plutôt que recommandées.
+ *  - INCOMPLETE    : au moins une branche n'a pas trouvé de feuille
  *
- * (`complete: true, niveauRisque: VIGILANCE` est un cas valide — la solution
- * est exploitable mais à signaler à l'utilisateur.)
+ * (`complete: true, niveauRisque: DECONSEILLEE` est un cas valide — la
+ * solution est exposable au décideur, mais clairement marquée.)
  */
-export type NiveauRisque = "OK" | "VIGILANCE" | "INCOMPLETE";
+export type NiveauRisque = "OK" | "VIGILANCE" | "DECONSEILLEE" | "INCOMPLETE";
+
+/** Seuil en dessous duquel le score d'un agent fait basculer la solution
+ *  vers niveauRisque=DECONSEILLEE. Calibré sur scorerCandidat (0–100). */
+export const SEUIL_SCORE_DECONSEILLE = 30;
 
 export interface Solution {
   resolutionRacine: Resolution;

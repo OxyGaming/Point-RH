@@ -728,6 +728,28 @@ describe("enumererSolutions", () => {
       expect(sansDiv.length).toBe(1);
       expect(avecDiv.length).toBe(1);
     });
+
+    it("solution sans contrainte = niveauRisque OK", () => {
+      const a = makeAgent("a", ["GIC"]);
+      const etat = makeEtat([a]);
+      const besoin = besoinRacineFromJs(
+        makeJsCible("pli-cible", "2026-05-04", "21:00", "05:00", "GIC006R", true)
+      );
+      const sols = enumererSolutions(besoin, etat, 1);
+      expect(sols[0].niveauRisque).toBe("OK");
+    });
+
+    it("score est calculé à chaque resolution (champ Resolution.score)", () => {
+      const a = makeAgent("a", ["GIC"]);
+      const etat = makeEtat([a]);
+      const besoin = besoinRacineFromJs(
+        makeJsCible("pli-cible", "2026-05-04", "21:00", "05:00", "GIC006R", true)
+      );
+      const sols = enumererSolutions(besoin, etat, 1);
+      expect(sols[0].resolutionRacine.score).toBeGreaterThan(0);
+      // Agent libre, conforme, devrait avoir un score élevé (≥ 90)
+      expect(sols[0].resolutionRacine.score).toBeGreaterThanOrEqual(90);
+    });
   });
 });
 
@@ -752,6 +774,7 @@ describe("aplatirResolution", () => {
         lpaBaseId: null,
       },
       statut: "DIRECT",
+      score: 100,
       detail: {} as never,
       consequences: [],
       sousResolutions: [],

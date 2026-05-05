@@ -26,13 +26,14 @@ import type {
   BesoinOrigine,
   Consequence,
   EtatCascade,
+  NiveauRisque,
   Resolution,
   ResolutionResult,
   ResolutionOptions,
   Solution,
   ConsequenceType,
 } from "./types";
-import { besoinIdFromJs, SOLVER_DEFAULTS } from "./types";
+import { besoinIdFromJs, SEUIL_SCORE_DECONSEILLE, SOLVER_DEFAULTS } from "./types";
 import type { JsCible } from "@/types/js-simulation";
 
 // ─── Helpers internes ────────────────────────────────────────────────────────
@@ -221,6 +222,24 @@ export function resoudreBesoin(
       continue;
     }
 
+    // Score métier de l'agent sur ce besoin (0-100). Stocké dans Resolution
+    // pour que construireSolution puisse en dériver niveauRisque.
+    const score = scorerCandidat({
+      agentId: candidat.context.id,
+      nom: candidat.context.nom,
+      prenom: candidat.context.prenom,
+      matricule: candidat.context.matricule,
+      posteAffectation: candidat.context.posteAffectation,
+      agentReserve: candidat.context.agentReserve,
+      surJsZ: false,
+      codeJsZOrigine: null,
+      statut: eval_.statut === "VIGILANCE" ? "VIGILANCE" : "DIRECT",
+      motifPrincipal: eval_.raisonRejet ?? "",
+      detail: eval_.detail,
+      conflitsInduits: [],
+      nbConflits: eval_.consequences.length,
+    });
+
     // Cas feuille : pas de conséquences → branche terminée.
     if (eval_.consequences.length === 0) {
       return {
@@ -229,6 +248,7 @@ export function resoudreBesoin(
           besoin,
           agent: candidat.context,
           statut: eval_.statut,
+          score,
           detail: eval_.detail,
           consequences: [],
           sousResolutions: [],
@@ -285,6 +305,7 @@ export function resoudreBesoin(
           besoin,
           agent: candidat.context,
           statut: eval_.statut,
+          score,
           detail: eval_.detail,
           consequences: eval_.consequences,
           sousResolutions,
@@ -309,12 +330,24 @@ function construireSolution(racine: Resolution, etat: EtatCascade): Solution {
   const hasVigilance = aplaties.some((r) => r.statut === "VIGILANCE");
   const agentsEngages = new Set<string>(aplaties.map((r) => r.agent.id));
 
+  // Détermination du niveauRisque :
+  //  - DECONSEILLEE si un agent dans la chaîne a un score métier ≤ seuil
+  //    (typiquement 30/100, voir SEUIL_SCORE_DECONSEILLE)
+  //  - VIGILANCE   si au moins une feuille en VIGILANCE
+  //  - OK          sinon
+  const aDecourageant = aplaties.some((r) => r.score <= SEUIL_SCORE_DECONSEILLE);
+  const niveauRisque: NiveauRisque = aDecourageant
+    ? "DECONSEILLEE"
+    : hasVigilance
+      ? "VIGILANCE"
+      : "OK";
+
   return {
     resolutionRacine: racine,
     resolutionsAplaties: aplaties,
     complete: true,
     hasVigilance,
-    niveauRisque: hasVigilance ? "VIGILANCE" : "OK",
+    niveauRisque,
     profondeurMax: profondeurMaxResolution(racine),
     budgetConsomme: SOLVER_DEFAULTS.CASCADE_EVAL_BUDGET - etat.budget.remaining,
     agentsEngages,
@@ -376,6 +409,19 @@ export interface EnumererOptions {
    *                   sortent pas du DFS premier-trouvé.
    */
   diversification?: "N1_SEUL" | "MULTI_NIVEAU";
+  /**
+   * Mode exhaustif : ajoute une phase 3 qui élargit `maxCandidatsAuNiveau`
+   * pour explorer les candidats à score métier bas (≤ SEUIL_SCORE_DECONSEILLE).
+   * Solutions trouvées en phase 3 — qui incluent forcément un agent peu
+   * scoré — ressortent automatiquement avec niveauRisque="DECONSEILLEE",
+   * exposant des alternatives terrain documentées plutôt que recommandées.
+   */
+  exhaustif?: boolean;
+  /**
+   * Cap utilisé en phase 3 (mode exhaustif). Défaut : 30. Permet de tester
+   * jusqu'à 30 candidats par niveau au lieu des 8 du tri SCORE_LEGACY normal.
+   */
+  maxCandidatsExhaustif?: number;
 }
 
 /**
@@ -449,6 +495,46 @@ export function enumererSolutions(
       if (seenSignatures.has(sig)) continue;
       seenSignatures.add(sig);
       solutions.push(newSol);
+    }
+  }
+
+  // ─── Phase 3 — mode exhaustif : alternatives "DECONSEILLEE" ─────────────────
+  // Pour exposer les agents à score bas (Brouillat saturé GPT, etc.) qui
+  // n'apparaissent jamais dans les phases 1+2 (le greedy retient toujours
+  // les mieux scorés), on exclut TOUS les agents déjà utilisés et on relance
+  // le solveur avec un cap élargi. Cela force le solveur à composer des
+  // chaînes avec les agents "résiduels" — typiquement ceux qui passent en
+  // VIGILANCE/score=0 et qui ressortent en niveauRisque=DECONSEILLEE.
+  if (options?.exhaustif) {
+    const capExhaustif = options.maxCandidatsExhaustif ?? 30;
+    // Pré-charger avec les agents déjà engagés dans les phases 1+2.
+    const exclusExh = new Set<string>();
+    for (const sol of solutions) {
+      for (const r of sol.resolutionsAplaties) {
+        exclusExh.add(r.agent.id);
+      }
+    }
+
+    while (solutions.length < maxSolutions && etatInitial.budget.remaining > 0) {
+      const etatExh = cloneEtatAvecExclusions(etatInitial, exclusExh);
+      const r = resoudreBesoin(besoinRacine, etatExh, {
+        mode: "PREMIER_TROUVE",
+        maxCandidatsAuNiveau: capExhaustif,
+      });
+      if (!r.ok) break;
+
+      const sol = construireSolution(r.resolution, etatExh);
+
+      // Exclure tous les agents de cette solution pour la prochaine itération
+      // — force des solutions vraiment distinctes en composition.
+      for (const res of sol.resolutionsAplaties) {
+        exclusExh.add(res.agent.id);
+      }
+
+      const sig = signatureSolution(sol);
+      if (seenSignatures.has(sig)) continue;
+      seenSignatures.add(sig);
+      solutions.push(sol);
     }
   }
 

@@ -244,6 +244,8 @@ export function runShadowComparison(params: RunShadowParams): ShadowReport {
     try {
       solutions = enumererSolutions(besoin, etat, maxSolutionsParJs, {
         diversification: "MULTI_NIVEAU",
+        exhaustif: true,
+        maxCandidatsExhaustif: 30,
       });
     } catch (err) {
       raisonSiVide = err instanceof Error ? err.message : "erreur inconnue";

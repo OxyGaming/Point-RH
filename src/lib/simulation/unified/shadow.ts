@@ -228,7 +228,9 @@ export function runShadowComparison(params: RunShadowParams): ShadowReport {
     let solutions: Solution[] = [];
     let raisonSiVide: string | undefined;
     try {
-      solutions = enumererSolutions(besoin, etat, maxSolutionsParJs);
+      solutions = enumererSolutions(besoin, etat, maxSolutionsParJs, {
+        diversification: "MULTI_NIVEAU",
+      });
     } catch (err) {
       raisonSiVide = err instanceof Error ? err.message : "erreur inconnue";
     }

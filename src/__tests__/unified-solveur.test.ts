@@ -526,6 +526,75 @@ describe("enumererSolutions", () => {
     const solutions = enumererSolutions(besoin, etat, 5);
     expect(solutions.length).toBe(0);
   });
+
+  describe("diversification MULTI_NIVEAU", () => {
+    it("expose des variantes profondes (même N1+N2, N3 différent)", () => {
+      // Setup : agentA est bloqué horaire et a besoin d'un B pour libérer.
+      // B est lui-même bloqué et a besoin d'un C. Plusieurs C valides existent.
+      // En MULTI_NIVEAU, on doit voir les variantes avec C1, C2, C3...
+      const confA = makeJsEvent("pli-confA", "2026-05-04", "20:00", "22:00", "GIC014");
+      const confB = makeJsEvent("pli-confB", "2026-05-04", "08:00", "16:00", "GIC008");
+      const a = makeAgent("a", ["GIC"], [confA]);
+      const b = makeAgent("b", ["GIC"], [confB]);
+      const c1 = makeAgent("c1", ["GIC"]);
+      const c2 = makeAgent("c2", ["GIC"]);
+      const c3 = makeAgent("c3", ["GIC"]);
+      const etat = makeEtat([a, b, c1, c2, c3]);
+
+      const besoin = besoinRacineFromJs(
+        makeJsCible("pli-cible", "2026-05-04", "21:00", "05:00", "GIC006R", true)
+      );
+
+      const sansDiv = enumererSolutions(besoin, etat, 5);
+      const avecDiv = enumererSolutions(besoin, makeEtat([a, b, c1, c2, c3]), 5, {
+        diversification: "MULTI_NIVEAU",
+      });
+
+      // Avec MULTI_NIVEAU on doit avoir au moins autant de solutions, et
+      // potentiellement plus de variantes profondes.
+      expect(avecDiv.length).toBeGreaterThanOrEqual(sansDiv.length);
+      // Au moins une solution doit avoir un C feuille distinct des autres.
+      const feuilles = avecDiv.map((s) => s.resolutionsAplaties[0].agent.id);
+      const feuillesDistinctes = new Set(feuilles);
+      // Si toutes les solutions ont la même feuille, le mode multi-niveau
+      // n'aurait rien apporté. Avec 3 C disponibles, au moins 2 devraient sortir.
+      expect(feuillesDistinctes.size).toBeGreaterThanOrEqual(2);
+    });
+
+    it("ne duplique pas les solutions identiques", () => {
+      // Setup où la diversification pourrait produire la même solution plusieurs fois.
+      const confA = makeJsEvent("pli-confA", "2026-05-04", "20:00", "22:00", "GIC014");
+      const a = makeAgent("a", ["GIC"], [confA]);
+      const b = makeAgent("b", ["GIC"]);
+      const etat = makeEtat([a, b]);
+
+      const besoin = besoinRacineFromJs(
+        makeJsCible("pli-cible", "2026-05-04", "21:00", "05:00", "GIC006R", true)
+      );
+
+      const sols = enumererSolutions(besoin, etat, 5, { diversification: "MULTI_NIVEAU" });
+      // Seul a peut prendre cible, seul b peut le libérer → une seule topologie possible.
+      const sigs = sols.map((s) =>
+        s.resolutionsAplaties.map((r) => `${r.agent.id}:${r.besoin.id}`).join("|")
+      );
+      expect(new Set(sigs).size).toBe(sols.length);  // pas de doublon
+    });
+
+    it("MULTI_NIVEAU rétrocompatible avec N1_SEUL quand la diversification n'apporte rien", () => {
+      // Cas trivial : un seul agent libre — multi-niveaux ne change rien.
+      const a = makeAgent("a", ["GIC"]);
+      const etat = makeEtat([a]);
+      const besoin = besoinRacineFromJs(
+        makeJsCible("pli-cible", "2026-05-04", "21:00", "05:00", "GIC006R", true)
+      );
+      const sansDiv = enumererSolutions(besoin, etat, 5);
+      const avecDiv = enumererSolutions(besoin, makeEtat([a]), 5, {
+        diversification: "MULTI_NIVEAU",
+      });
+      expect(sansDiv.length).toBe(1);
+      expect(avecDiv.length).toBe(1);
+    });
+  });
 });
 
 // ─── 12. aplatirResolution & profondeur ──────────────────────────────────────

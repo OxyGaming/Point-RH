@@ -247,49 +247,134 @@ function construireSolution(racine: Resolution, etat: EtatCascade): Solution {
 }
 
 /**
+ * Signature stable d'une solution = liste ordonnée des couples (agent, besoin)
+ * dans l'aplatissement post-ordre. Permet de dédupliquer les solutions
+ * distinctes en topologie.
+ */
+function signatureSolution(sol: Solution): string {
+  return sol.resolutionsAplaties
+    .map((r) => `${r.agent.id}:${r.besoin.id}`)
+    .join("|");
+}
+
+/**
+ * Construit un état d'itération basé sur l'état initial, en ajoutant des
+ * exclusions globales (qui s'appliquent à tous les niveaux).
+ */
+function cloneEtatAvecExclusions(
+  etatInitial: EtatCascade,
+  exclusions: ReadonlySet<string>
+): EtatCascade {
+  return {
+    agentsMap: etatInitial.agentsMap,
+    index: etatInitial.index,
+    rules: etatInitial.rules,
+    lpaContext: etatInitial.lpaContext,
+    npoExclusionCodes: etatInitial.npoExclusionCodes,
+    remplacement: etatInitial.remplacement,
+    deplacement: etatInitial.deplacement,
+    importId: etatInitial.importId,
+    profondeurMax: etatInitial.profondeurMax,
+
+    affectationsCourantes: new Map(etatInitial.affectationsCourantes),
+    jsLibereesDansBranche: new Set(etatInitial.jsLibereesDansBranche),
+    agentsEngagesBranche: new Set([
+      ...etatInitial.agentsEngagesBranche,
+      ...exclusions,
+    ]),
+    besoinsEnCoursBranche: new Set(etatInitial.besoinsEnCoursBranche),
+
+    budget: etatInitial.budget,
+    cache: etatInitial.cache,
+  };
+}
+
+export interface EnumererOptions {
+  /**
+   * Stratégie de diversification :
+   *  - N1_SEUL    : seul l'agent N1 (racine) est varié entre solutions.
+   *                 Utile pour exposer des "premiers responsables" différents.
+   *  - MULTI_NIVEAU : après la phase N1, chaque solution est revisitée en
+   *                   excluant un agent intermédiaire à la fois pour générer
+   *                   des variantes profondes (ex: même N1+N2 mais N3 distinct).
+   *                   Permet de faire émerger des chaînes terrain qui ne
+   *                   sortent pas du DFS premier-trouvé.
+   */
+  diversification?: "N1_SEUL" | "MULTI_NIVEAU";
+}
+
+/**
  * Énumère jusqu'à `maxSolutions` solutions complètes distinctes pour un besoin
- * racine. Diversification par exclusion successive de l'agent N1 — les
- * sous-niveaux peuvent réapparaître dans d'autres solutions.
+ * racine. Deux stratégies de diversification — voir `EnumererOptions`.
  */
 export function enumererSolutions(
   besoinRacine: Besoin,
   etatInitial: EtatCascade,
-  maxSolutions: number = SOLVER_DEFAULTS.MAX_SOLUTIONS_ENUMEREES
+  maxSolutions: number = SOLVER_DEFAULTS.MAX_SOLUTIONS_ENUMEREES,
+  options?: EnumererOptions
 ): Solution[] {
+  const mode = options?.diversification ?? "N1_SEUL";
+
+  // ─── Phase 1 — N1 distincts (commune aux deux modes) ──────────────────────
   const solutions: Solution[] = [];
+  const seenSignatures = new Set<string>();
   const exclusionsN1 = new Set<string>();
 
   for (let i = 0; i < maxSolutions; i++) {
     if (etatInitial.budget.remaining <= 0) break;
 
-    const etatIter: EtatCascade = {
-      agentsMap: etatInitial.agentsMap,
-      index: etatInitial.index,
-      rules: etatInitial.rules,
-      lpaContext: etatInitial.lpaContext,
-      npoExclusionCodes: etatInitial.npoExclusionCodes,
-      remplacement: etatInitial.remplacement,
-      deplacement: etatInitial.deplacement,
-      importId: etatInitial.importId,
-      profondeurMax: etatInitial.profondeurMax,
-
-      affectationsCourantes: new Map(etatInitial.affectationsCourantes),
-      jsLibereesDansBranche: new Set(etatInitial.jsLibereesDansBranche),
-      agentsEngagesBranche: new Set([
-        ...etatInitial.agentsEngagesBranche,
-        ...exclusionsN1,
-      ]),
-      besoinsEnCoursBranche: new Set(etatInitial.besoinsEnCoursBranche),
-
-      budget: etatInitial.budget,
-      cache: etatInitial.cache,
-    };
-
+    const etatIter = cloneEtatAvecExclusions(etatInitial, exclusionsN1);
     const r = resoudreBesoin(besoinRacine, etatIter, { mode: "PREMIER_TROUVE" });
     if (!r.ok) break;
 
-    solutions.push(construireSolution(r.resolution, etatIter));
+    const sol = construireSolution(r.resolution, etatIter);
+    const sig = signatureSolution(sol);
+    if (!seenSignatures.has(sig)) {
+      seenSignatures.add(sig);
+      solutions.push(sol);
+    }
     exclusionsN1.add(r.resolution.agent.id);
+  }
+
+  if (mode === "N1_SEUL") return solutions;
+
+  // ─── Phase 2 — diversification multi-niveau ───────────────────────────────
+  // Pour chaque solution déjà trouvée, exclure UN agent intermédiaire à la fois
+  // (tous sauf la racine = le N1 — celui-ci est déjà varié en phase 1) et
+  // relancer le solveur. Garde toute solution distincte en topologie.
+  //
+  // L'exclusion est globale (l'agent ne peut plus apparaître à AUCUN niveau)
+  // — c'est une simplification pragmatique. Une exclusion par-niveau serait
+  // plus précise mais demanderait une refonte d'`agentsEngagesBranche` ; le
+  // résultat empirique de l'exclusion globale suffit à exposer les variantes
+  // de la chaîne terrain (ex: Brouillat → Leguay vs Brouillat → Ollier).
+
+  const baseCount = solutions.length;
+  for (let s = 0; s < baseCount; s++) {
+    if (solutions.length >= maxSolutions) break;
+    if (etatInitial.budget.remaining <= 0) break;
+
+    const sol = solutions[s];
+    // L'aplatissement est en post-ordre : feuilles d'abord, racine en dernier.
+    // On exclut tout sauf le DERNIER élément (la racine = N1).
+    for (let i = 0; i < sol.resolutionsAplaties.length - 1; i++) {
+      if (solutions.length >= maxSolutions) break;
+      if (etatInitial.budget.remaining <= 0) break;
+
+      const agentAExclure = sol.resolutionsAplaties[i].agent.id;
+      const etatIter = cloneEtatAvecExclusions(
+        etatInitial,
+        new Set([agentAExclure])
+      );
+      const r = resoudreBesoin(besoinRacine, etatIter, { mode: "PREMIER_TROUVE" });
+      if (!r.ok) continue;
+
+      const newSol = construireSolution(r.resolution, etatIter);
+      const sig = signatureSolution(newSol);
+      if (seenSignatures.has(sig)) continue;
+      seenSignatures.add(sig);
+      solutions.push(newSol);
+    }
   }
 
   return solutions;

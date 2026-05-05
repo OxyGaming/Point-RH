@@ -1118,7 +1118,7 @@ export function allouerJsMultiple(
         importId: cascadeContext.importId,
         remplacement,
         deplacement,
-        maxSolutionsParJs: 5,
+        maxSolutionsParJs: 12,
         // Séquence cible terrain à valider — Chennouf → Brouillat → Leguay
         sequenceCibleNoms: ["CHENNOUF", "BROUILLAT", "LEGUAY"],
       });

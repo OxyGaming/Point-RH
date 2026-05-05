@@ -126,7 +126,7 @@ describe("executerSimulationMultiJs — couverture complète", () => {
 
     const result = await executerSimulationMultiJs([js1], [agent1], "all_agents");
 
-    expect(result.scenarios).toHaveLength(6);
+    expect(result.scenarios).toHaveLength(8);
     // Scénarios triés par score décroissant
     for (let i = 1; i < result.scenarios.length; i++) {
       expect(result.scenarios[i - 1].score).toBeGreaterThanOrEqual(result.scenarios[i].score);

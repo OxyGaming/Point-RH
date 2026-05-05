@@ -1188,32 +1188,49 @@ function ExclusionsPanel({ exclusionsParJs }: { exclusionsParJs: ExclusionsParJs
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 
-type ScenarioKey = "reserveDirect" | "reserveFigeage" | "tousDirect" | "tousFigeage" | "tousCascade" | "tousCascadeFigeage";
+type ScenarioKey =
+  | "reserveDirect"
+  | "reserveFigeage"
+  | "reserveCascade"
+  | "reserveCascadeFigeage"
+  | "tousDirect"
+  | "tousFigeage"
+  | "tousCascade"
+  | "tousCascadeFigeage";
 
 function ScenarioIcon({ cfgKey }: { cfgKey: ScenarioKey }) {
   const shieldCls = "w-3.5 h-3.5";
   const usersCls = "w-3.5 h-3.5";
   const lockCls = "w-3 h-3 -ml-0.5";
   switch (cfgKey) {
-    case "reserveDirect":  return <IconShield className={shieldCls} aria-hidden="true" />;
-    case "reserveFigeage": return (<span className="inline-flex items-center"><IconShield className={shieldCls} aria-hidden="true" /><IconLock className={lockCls} aria-hidden="true" /></span>);
-    case "tousDirect":     return <IconUsers className={usersCls} aria-hidden="true" />;
-    case "tousFigeage":    return (<span className="inline-flex items-center"><IconUsers className={usersCls} aria-hidden="true" /><IconLock className={lockCls} aria-hidden="true" /></span>);
+    case "reserveDirect":         return <IconShield className={shieldCls} aria-hidden="true" />;
+    case "reserveFigeage":        return (<span className="inline-flex items-center"><IconShield className={shieldCls} aria-hidden="true" /><IconLock className={lockCls} aria-hidden="true" /></span>);
+    case "reserveCascade":        return <IconShield className={shieldCls} aria-hidden="true" />;
+    case "reserveCascadeFigeage": return (<span className="inline-flex items-center"><IconShield className={shieldCls} aria-hidden="true" /><IconLock className={lockCls} aria-hidden="true" /></span>);
+    case "tousDirect":            return <IconUsers className={usersCls} aria-hidden="true" />;
+    case "tousFigeage":           return (<span className="inline-flex items-center"><IconUsers className={usersCls} aria-hidden="true" /><IconLock className={lockCls} aria-hidden="true" /></span>);
+    case "tousCascade":           return <IconUsers className={usersCls} aria-hidden="true" />;
+    case "tousCascadeFigeage":    return (<span className="inline-flex items-center"><IconUsers className={usersCls} aria-hidden="true" /><IconLock className={lockCls} aria-hidden="true" /></span>);
   }
 }
 
+// Matrice 2 axes (périmètre × levier) — 8 scénarios.
+// Ordre : Réserve d'abord (préférable), puis Tous agents.
+// Pour chaque périmètre : Direct → Figeage → Cascade → Cascade+Figeage.
 const SCENARIO_CONFIG: {
   key: ScenarioKey;
   label: string;
   figeage: boolean;
   scope: "reserve_only" | "all_agents";
 }[] = [
-  { key: "reserveDirect",       label: "Réserve — Direct",                figeage: false, scope: "reserve_only" },
-  { key: "reserveFigeage",      label: "Réserve + Figeage",               figeage: true,  scope: "reserve_only" },
-  { key: "tousDirect",          label: "Tous agents — Direct",            figeage: false, scope: "all_agents"   },
-  { key: "tousFigeage",         label: "Tous agents + Figeage",           figeage: true,  scope: "all_agents"   },
-  { key: "tousCascade",         label: "Tous agents — Cascade",           figeage: false, scope: "all_agents"   },
-  { key: "tousCascadeFigeage",  label: "Tous agents + Cascade + Figeage", figeage: true,  scope: "all_agents"   },
+  { key: "reserveDirect",          label: "Réserve — Direct",                figeage: false, scope: "reserve_only" },
+  { key: "reserveFigeage",         label: "Réserve + Figeage",               figeage: true,  scope: "reserve_only" },
+  { key: "reserveCascade",         label: "Réserve — Cascade",               figeage: false, scope: "reserve_only" },
+  { key: "reserveCascadeFigeage",  label: "Réserve + Cascade + Figeage",     figeage: true,  scope: "reserve_only" },
+  { key: "tousDirect",             label: "Tous agents — Direct",            figeage: false, scope: "all_agents"   },
+  { key: "tousFigeage",            label: "Tous agents + Figeage",           figeage: true,  scope: "all_agents"   },
+  { key: "tousCascade",            label: "Tous agents — Cascade",           figeage: false, scope: "all_agents"   },
+  { key: "tousCascadeFigeage",     label: "Tous agents + Cascade + Figeage", figeage: true,  scope: "all_agents"   },
 ];
 
 /**
@@ -1250,12 +1267,14 @@ function strategieEffective(s: MultiJsScenario): string {
 
 /** Mappe une clé de config vers la propriété correspondante dans le résultat. */
 const KEY_TO_FIELD: Record<ScenarioKey, keyof MultiJsSimulationResultat> = {
-  reserveDirect:      "scenarioReserveOnly",
-  reserveFigeage:     "scenarioReserveOnlyFigeage",
-  tousDirect:         "scenarioTousAgents",
-  tousFigeage:        "scenarioTousAgentsFigeage",
-  tousCascade:        "scenarioTousAgentsCascade",
-  tousCascadeFigeage: "scenarioTousAgentsCascadeFigeage",
+  reserveDirect:           "scenarioReserveOnly",
+  reserveFigeage:          "scenarioReserveOnlyFigeage",
+  reserveCascade:          "scenarioReserveOnlyCascade",
+  reserveCascadeFigeage:   "scenarioReserveOnlyCascadeFigeage",
+  tousDirect:              "scenarioTousAgents",
+  tousFigeage:             "scenarioTousAgentsFigeage",
+  tousCascade:             "scenarioTousAgentsCascade",
+  tousCascadeFigeage:      "scenarioTousAgentsCascadeFigeage",
 };
 
 /**
@@ -1334,12 +1353,14 @@ function ScenarioCard({
 
 export default function MultiJsResultsPanel({ resultat }: Props) {
   const scenarioByKey: Record<ScenarioKey, typeof resultat.scenarioReserveOnly> = {
-    reserveDirect:       resultat.scenarioReserveOnly,
-    reserveFigeage:      resultat.scenarioReserveOnlyFigeage,
-    tousDirect:          resultat.scenarioTousAgents,
-    tousFigeage:         resultat.scenarioTousAgentsFigeage,
-    tousCascade:         resultat.scenarioTousAgentsCascade,
-    tousCascadeFigeage:  resultat.scenarioTousAgentsCascadeFigeage,
+    reserveDirect:           resultat.scenarioReserveOnly,
+    reserveFigeage:          resultat.scenarioReserveOnlyFigeage,
+    reserveCascade:          resultat.scenarioReserveOnlyCascade,
+    reserveCascadeFigeage:   resultat.scenarioReserveOnlyCascadeFigeage,
+    tousDirect:              resultat.scenarioTousAgents,
+    tousFigeage:             resultat.scenarioTousAgentsFigeage,
+    tousCascade:             resultat.scenarioTousAgentsCascade,
+    tousCascadeFigeage:      resultat.scenarioTousAgentsCascadeFigeage,
   };
 
   // Trouver la clé du scénario recommandé (= meilleur, déjà en tête de scenarios[]).
@@ -1392,9 +1413,12 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
 
   // Onglet Cascade : visible uniquement sur les scénarios Cascade* avec au moins une chaîne.
   const affectationsAvecChaine = scenario.affectations.filter((a) => a.chaineRemplacement !== null);
-  const showCascadeTab =
-    (activeKey === "tousCascade" || activeKey === "tousCascadeFigeage") &&
-    affectationsAvecChaine.length > 0;
+  const isCascadeKey =
+    activeKey === "tousCascade" ||
+    activeKey === "tousCascadeFigeage" ||
+    activeKey === "reserveCascade" ||
+    activeKey === "reserveCascadeFigeage";
+  const showCascadeTab = isCascadeKey && affectationsAvecChaine.length > 0;
 
   // L'onglet "Solveur unifié (expérimental)" n'apparaît que si le scenario
   // expose un unifiedReport (= FEATURE_UNIFIED_PRIMARY=1 côté serveur).

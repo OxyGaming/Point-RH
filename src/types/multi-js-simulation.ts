@@ -482,6 +482,10 @@ export interface MultiJsSimulationResultat {
   scenarioReserveOnly: MultiJsScenario | null;
   /** Scénario réserve uniquement, avec figeage DERNIER_RECOURS */
   scenarioReserveOnlyFigeage: MultiJsScenario | null;
+  /** Scénario réserve uniquement avec chaînes de remplacement (mode Cascade). */
+  scenarioReserveOnlyCascade: MultiJsScenario | null;
+  /** Scénario réserve uniquement combinant chaînes de remplacement et figeage. */
+  scenarioReserveOnlyCascadeFigeage: MultiJsScenario | null;
   /** Scénario tous agents, sans figeage */
   scenarioTousAgents: MultiJsScenario | null;
   /** Scénario tous agents, avec figeage DERNIER_RECOURS */

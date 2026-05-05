@@ -96,16 +96,18 @@ describe("Snapshot non-régression — 4 scénarios historiques", () => {
 
     const result = await executerSimulationMultiJs([js1], [a1], "all_agents");
 
-    expect(result.scenarios).toHaveLength(6);
+    expect(result.scenarios).toHaveLength(8);
     expect(result.scenarioReserveOnly).not.toBeNull();
     expect(result.scenarioReserveOnlyFigeage).not.toBeNull();
+    expect(result.scenarioReserveOnlyCascade).not.toBeNull();
+    expect(result.scenarioReserveOnlyCascadeFigeage).not.toBeNull();
     expect(result.scenarioTousAgents).not.toBeNull();
     expect(result.scenarioTousAgentsFigeage).not.toBeNull();
     expect(result.scenarioTousAgentsCascade).not.toBeNull();
     expect(result.scenarioTousAgentsCascadeFigeage).not.toBeNull();
   });
 
-  it("titres et descriptions exacts des 6 scénarios", async () => {
+  it("titres et descriptions exacts des 8 scénarios", async () => {
     const js1 = makeJs("js-1", "2024-03-20", "06:00", "14:00", "GIV001");
     const a1 = makeAgent("a1", { agentReserve: true });
 
@@ -113,6 +115,8 @@ describe("Snapshot non-régression — 4 scénarios historiques", () => {
 
     expect(result.scenarioReserveOnly!.titre).toBe("Réserve — Direct");
     expect(result.scenarioReserveOnlyFigeage!.titre).toBe("Réserve + Figeage");
+    expect(result.scenarioReserveOnlyCascade!.titre).toBe("Réserve — Cascade");
+    expect(result.scenarioReserveOnlyCascadeFigeage!.titre).toBe("Réserve + Cascade + Figeage");
     expect(result.scenarioTousAgents!.titre).toBe("Tous agents — Direct");
     expect(result.scenarioTousAgentsFigeage!.titre).toBe("Tous agents + Figeage");
     expect(result.scenarioTousAgentsCascade!.titre).toBe("Tous agents — Cascade");

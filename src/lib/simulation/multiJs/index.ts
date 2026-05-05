@@ -126,7 +126,9 @@ export async function executerSimulationMultiJs(
     );
   }
 
-  // ─── 4 scénarios ─────────────────────────────────────────────────────────────
+  // ─── 8 scénarios — matrice complète (périmètre × levier) ─────────────────────
+  // Axe 1 : périmètre (Réserve / Tous agents)
+  // Axe 2 : levier (Direct / Figeage / Cascade / Cascade+Figeage)
   const scenarioReserveOnly = construireScenario(
     "reserve_only", false,
     "Réserve — Direct",
@@ -136,6 +138,18 @@ export async function executerSimulationMultiJs(
     "reserve_only", true,
     "Réserve + Figeage",
     "Couverture réserve avec libération des agents sur JS DERNIER_RECOURS."
+  );
+  const scenarioReserveOnlyCascade = construireScenario(
+    "reserve_only", false,
+    "Réserve — Cascade",
+    "Couverture limitée aux agents de réserve, avec chaînes de remplacement entre réservistes.",
+    true
+  );
+  const scenarioReserveOnlyCascadeFigeage = construireScenario(
+    "reserve_only", true,
+    "Réserve + Cascade + Figeage",
+    "Couverture réserve maximale : chaînes de remplacement entre réservistes combinées au figeage DERNIER_RECOURS.",
+    true
   );
   const scenarioTousAgents = construireScenario(
     "all_agents", false,
@@ -163,6 +177,8 @@ export async function executerSimulationMultiJs(
   const scenarios = [
     scenarioReserveOnly,
     scenarioReserveOnlyFigeage,
+    scenarioReserveOnlyCascade,
+    scenarioReserveOnlyCascadeFigeage,
     scenarioTousAgents,
     scenarioTousAgentsFigeage,
     scenarioTousAgentsCascade,
@@ -171,8 +187,10 @@ export async function executerSimulationMultiJs(
 
   const meilleur = scenarios[0] ?? null;
 
-  // Métriques cascade : nb total de chaînes construites sur les 2 scénarios Cascade
+  // Métriques cascade : nb total de chaînes construites sur les 4 scénarios Cascade
   const nbChainesCascade =
+    (scenarioReserveOnlyCascade.affectations.filter((a) => a.chaineRemplacement !== null).length) +
+    (scenarioReserveOnlyCascadeFigeage.affectations.filter((a) => a.chaineRemplacement !== null).length) +
     (scenarioTousAgentsCascade.affectations.filter((a) => a.chaineRemplacement !== null).length) +
     (scenarioTousAgentsCascadeFigeage.affectations.filter((a) => a.chaineRemplacement !== null).length);
 
@@ -192,6 +210,8 @@ export async function executerSimulationMultiJs(
     scenarioMeilleur: meilleur,
     scenarioReserveOnly,
     scenarioReserveOnlyFigeage,
+    scenarioReserveOnlyCascade,
+    scenarioReserveOnlyCascadeFigeage,
     scenarioTousAgents,
     scenarioTousAgentsFigeage,
     scenarioTousAgentsCascade,

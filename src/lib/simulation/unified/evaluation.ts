@@ -255,13 +255,40 @@ function mapViolationToConsequence(
       };
     }
     case "INDUCED_GPT":
-    case "INDUCED_TE_48H":
+    case "INDUCED_TE_48H": {
+      // Heuristique V1 : libérer la JS la PLUS RÉCENTE de la GPT courante de
+      // l'agent (= dernier élément de teGptLignes). Liberation de cette JS
+      // ramène le compte GPT et le cumul TE 48h sous la limite. Si plusieurs
+      // JS sont éligibles, le solveur explore via la diversification multi-niveau.
+      // null → branche rejetée (conformément à l'arbitrage utilisateur :
+      //  "sinon rester en NON_RECUPERABLE").
+      if (detail.teGptLignes.length === 0) return null;
+      const ligne = detail.teGptLignes[detail.teGptLignes.length - 1];
+      const event = agentEvents.find(
+        (e) =>
+          e.jsNpo === "JS" &&
+          e.dateDebut.toISOString().slice(0, 10) === ligne.date &&
+          e.heureDebut === ligne.heureDebut
+      );
+      if (!event || !event.planningLigneId) return null;
+      const jsImpactee = eventToJsCible(event, agent, importId);
+      if (!jsImpactee) return null;
+      return {
+        type,
+        jsImpactee,
+        description: violation.description,
+        meta: {
+          gptActuel: detail.gptActuel,
+          gptMax: detail.gptMax,
+          teCumule48hMin: detail.teGptCumulAvant,
+        },
+      };
+    }
     case "INDUCED_NUITS":
-      // V1 : non mappés. Identification de la JS à libérer dans la GPT requiert
-      // une heuristique métier qui n'est pas encore validée. Renvoyer null
-      // entraîne raisonRejet="JS impactée non identifiable" — la branche est
-      // rejetée, ce qui est conservatif et conforme à l'arbitrage utilisateur
-      // (point 1 : "JS impactée non identifiable → conséquence non récupérable").
+      // INDUCED_NUITS : une heuristique fiable ("quelle JS de quelle GPT nuit
+      // libérer ?") nécessite une donnée terrain pour calibrer. Pour l'instant
+      // on rejette la candidature (NON_RECUPERABLE) plutôt que de proposer une
+      // solution potentiellement non valide.
       return null;
     default:
       return null;
@@ -419,6 +446,7 @@ export function evaluerImpactComplet(
     eventsHypothetiques,
     eventsEffectifs,
     simulationInput,
+    resultat.detail,
     etat,
     new Set(consequencesPreEval.map((c) => c.jsImpactee.planningLigneId))
   );
@@ -492,10 +520,14 @@ function syntheticImprevuEvent(
  * Pour chaque ConflitInduit retourné par detecterConflitsInduits, identifie
  * la JS impactée dans le planning de l'agent et émet une Consequence.
  *
- *  - REPOS_INSUFFISANT (resolvable) → INDUCED_REPOS si JS identifiable.
- *  - GPT_MAX (non resolvable)       → irrecuperable=true (la JS ne peut être
- *    libérée — c'est un dépassement structurel, pas un conflit horaire isolé).
- *  - NUIT_CONSEC (resolvable)       → INDUCED_NUITS si JS identifiable.
+ *  - REPOS_INSUFFISANT (resolvable) → INDUCED_REPOS, JS identifiée par date+heure.
+ *  - GPT_MAX (legacy resolvable=false dans le legacy, mais récupérable par
+ *    libération d'une JS de la GPT courante) → INDUCED_GPT, JS identifiée
+ *    via la dernière ligne de teGptLignes (= JS la plus récente avant l'imprévu
+ *    dans la même GPT). Le solveur tentera ensuite de la libérer via cascade.
+ *  - TE_GPT_48H : non émis par detecterConflitsInduits (uniquement détecté en
+ *    backward par evaluerMobilisabilite).
+ *  - NUIT_CONSEC (resolvable) → INDUCED_NUITS, JS identifiée par date.
  *
  * Les conflits dont la JS ne porte pas de planningLigneId, ou dont la JS est
  * déjà dans consequencesPreEval (HORAIRE_CONFLICT déjà traité), sont sautés.
@@ -506,6 +538,7 @@ function mapForwardConflicts(
   eventsHypothetiques: PlanningEvent[],
   eventsEffectifs: PlanningEvent[],
   simulationInput: SimulationInput,
+  detail: DetailCalcul,
   etat: EtatCascade,
   jsDejaCouvertes: ReadonlySet<string>
 ): { consequences: Consequence[]; irrecuperable: boolean; raisonRejet?: string } {
@@ -525,8 +558,12 @@ function mapForwardConflicts(
   const consequences: Consequence[] = [];
 
   for (const c of conflits) {
-    if (!c.resolvable) {
-      // GPT_MAX / autres non-récupérables → on rejette la candidature.
+    // Le legacy marque GPT_MAX en resolvable=false par prudence — pour le
+    // solveur unifié, on étend le mapping si une JS libérable est identifiable.
+    // Si non identifiable, on retombe sur le rejet conservatif comme demandé
+    // par l'arbitrage utilisateur ("sinon rester en NON_RECUPERABLE").
+    const isGptMaxRecupTry = c.regleCode === "GPT_MAX";
+    if (!c.resolvable && !isGptMaxRecupTry) {
       return {
         consequences: [],
         irrecuperable: true,
@@ -534,13 +571,31 @@ function mapForwardConflicts(
       };
     }
 
-    // Identifier la JS impactée dans le planning RÉEL (eventsEffectifs).
-    const event = eventsEffectifs.find(
-      (e) =>
-        e.jsNpo === "JS" &&
-        e.dateDebut.toISOString().slice(0, 10) === c.date &&
-        (c.heureDebut ? e.heureDebut === c.heureDebut : true)
-    );
+    let event: PlanningEvent | undefined;
+
+    if (isGptMaxRecupTry) {
+      // Heuristique GPT_MAX : la JS la plus récente de la GPT courante
+      // (dernier élément de detail.teGptLignes). Liberation réduit la GPT de 1
+      // → l'ajout de l'imprévu fait alors GPT count = max OK.
+      if (detail.teGptLignes.length > 0) {
+        const ligne = detail.teGptLignes[detail.teGptLignes.length - 1];
+        event = eventsEffectifs.find(
+          (e) =>
+            e.jsNpo === "JS" &&
+            e.dateDebut.toISOString().slice(0, 10) === ligne.date &&
+            e.heureDebut === ligne.heureDebut
+        );
+      }
+    } else {
+      // Mapping standard via date+heureDebut (REPOS_INSUFFISANT, NUIT_CONSEC)
+      event = eventsEffectifs.find(
+        (e) =>
+          e.jsNpo === "JS" &&
+          e.dateDebut.toISOString().slice(0, 10) === c.date &&
+          (c.heureDebut ? e.heureDebut === c.heureDebut : true)
+      );
+    }
+
     if (!event || !event.planningLigneId) {
       return {
         consequences: [],
@@ -564,14 +619,19 @@ function mapForwardConflicts(
     const consequenceType: ConsequenceType =
       c.regleCode === "REPOS_JOURNALIER"
         ? "INDUCED_REPOS"
-        : c.regleCode === "GPT_NUIT_CONSECUTIVES"
-          ? "INDUCED_NUITS"
-          : "INDUCED_REPOS";
+        : c.regleCode === "GPT_MAX"
+          ? "INDUCED_GPT"
+          : c.regleCode === "GPT_NUIT_CONSECUTIVES"
+            ? "INDUCED_NUITS"
+            : "INDUCED_REPOS";
 
     consequences.push({
       type: consequenceType,
       jsImpactee,
       description: c.description,
+      meta: c.regleCode === "GPT_MAX"
+        ? { gptActuel: detail.gptActuel, gptMax: detail.gptMax }
+        : undefined,
     });
   }
 

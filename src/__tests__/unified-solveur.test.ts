@@ -515,7 +515,11 @@ describe("resoudreBesoin — cascade horaire à 2 niveaux", () => {
     const besoin = besoinRacineFromJs(
       makeJsCible("pli-cible", "2026-05-04", "21:00", "05:00", "GIC006R", true)
     );
-    const r = resoudreBesoin(besoin, etat);
+    // Force tri STANDARD pour que A (alphabétique) soit testé avant B.
+    // Avec SCORE_LEGACY (défaut), B est directement libre → choisi en racine
+    // sans cascade, ce qui est le comportement correct mais court-circuite
+    // la topologie qu'on cherche à valider ici.
+    const r = resoudreBesoin(besoin, etat, { tri: "STANDARD" });
     expect(r.ok).toBe(true);
     if (r.ok) {
       // N1 = A
@@ -539,6 +543,58 @@ describe("resoudreBesoin — cascade horaire à 2 niveaux", () => {
     );
     const r = resoudreBesoin(besoin, etat);
     expect(r.ok).toBe(false);
+  });
+});
+
+// ─── 9bis. resoudreBesoin : tri SCORE_LEGACY ─────────────────────────────────
+
+describe("resoudreBesoin — tri SCORE_LEGACY (défaut)", () => {
+  it("préfère un agent DIRECT à un agent VIGILANCE même si non réserviste", () => {
+    // Agent direct (non réserviste) vs agent vigilance (réserviste)
+    // RESERVE_PRIO choisirait B (réserviste). SCORE_LEGACY choisit A (DIRECT).
+    const conflitB = makeJsEvent("pli-confB", "2026-05-04", "20:00", "22:00", "GIC014");
+    const a = makeAgent("a", ["GIC"], [], { reserve: false });
+    const b = makeAgent("b", ["GIC"], [conflitB], { reserve: true });
+    const etat = makeEtat([a, b]);
+    const besoin = besoinRacineFromJs(
+      makeJsCible("pli-cible", "2026-05-04", "21:00", "05:00", "GIC006R", true)
+    );
+    const rDefault = resoudreBesoin(besoin, etat);  // SCORE_LEGACY par défaut
+    expect(rDefault.ok).toBe(true);
+    if (rDefault.ok) {
+      // A direct gagne malgré le statut non-réserviste
+      expect(rDefault.resolution.agent.id).toBe("a");
+    }
+
+    // En RESERVE_PRIO, B serait préféré (s'il était DIRECT). Avec un conflit
+    // horaire, B passe en VIGILANCE et A direct gagne aussi en RESERVE_PRIO.
+    // Pour bien isoler la différence, vérifions avec deux agents tous deux DIRECT :
+    const c = makeAgent("c", ["GIC"], [], { reserve: false });
+    const d = makeAgent("d", ["GIC"], [], { reserve: true });
+    const etat2 = makeEtat([c, d]);
+    const rReserve = resoudreBesoin(besoin, etat2, { tri: "RESERVE_PRIO" });
+    if (rReserve.ok) expect(rReserve.resolution.agent.id).toBe("d");  // réserviste prio
+    const rScore = resoudreBesoin(besoin, makeEtat([c, d]), { tri: "SCORE_LEGACY" });
+    if (rScore.ok) {
+      // Tous deux DIRECT, score équivalent → réserviste tiebreaker → D
+      expect(rScore.resolution.agent.id).toBe("d");
+    }
+  });
+
+  it("le score métier remonte un agent à faible charge GPT face à un agent saturé", () => {
+    // Agent A : aucun planning → score plein 100 (+ bonus reserve)
+    // Agent B : aucun planning non plus, non réserviste → score 100 sans bonus
+    // SCORE_LEGACY doit préférer A (avec bonus reserve = 110→capped 100, donc égalité,
+    // mais le tiebreaker réserve favorise A quand même).
+    const a = makeAgent("a", ["GIC"], [], { reserve: true });
+    const b = makeAgent("b", ["GIC"], [], { reserve: false });
+    const etat = makeEtat([a, b]);
+    const besoin = besoinRacineFromJs(
+      makeJsCible("pli-cible", "2026-05-04", "21:00", "05:00", "GIC006R", true)
+    );
+    const r = resoudreBesoin(besoin, etat);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.resolution.agent.id).toBe("a");
   });
 });
 

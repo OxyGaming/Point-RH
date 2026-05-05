@@ -13,6 +13,7 @@
  */
 
 import { findEligibleAgentsForJs } from "@/lib/simulation/multiJs/chaineCache";
+import { scorerCandidat } from "@/lib/simulation/scenarioScorer";
 import { evaluerImpactComplet } from "./evaluation";
 import {
   enrichirEtat,
@@ -60,26 +61,86 @@ function besoinDerive(
 }
 
 /**
- * Tri des candidats : par défaut réservistes d'abord (ils sont là pour ça),
- * puis ordre stable par agentId.
+ * Tri des candidats — trois stratégies disponibles.
+ *
+ *  - STANDARD     : ordre stable par agentId. Diagnostic / tests.
+ *  - RESERVE_PRIO : réservistes d'abord (ils sont là pour ça), puis agentId.
+ *                   Tri naïf utilisé en V1 — n'expose pas le score métier.
+ *  - SCORE_LEGACY : aligné sur l'allocator legacy. Évalue chaque candidat
+ *                   via evaluerImpactComplet (cache hit après le 1er passage)
+ *                   puis trie par DIRECT/VIGILANCE → réserve → score métier.
+ *                   C'est le tri qui doit faire émerger Brouillat sur les
+ *                   sous-besoins (BAD015R, GIC015) là où RESERVE_PRIO place
+ *                   d'autres réservistes en tête.
  */
 function trierCandidats(
   candidats: string[],
+  besoin: Besoin,
   etat: EtatCascade,
-  tri: "STANDARD" | "RESERVE_PRIO"
+  tri: "STANDARD" | "RESERVE_PRIO" | "SCORE_LEGACY"
 ): string[] {
-  const out = [...candidats];
+  if (tri === "STANDARD") {
+    return [...candidats].sort();
+  }
   if (tri === "RESERVE_PRIO") {
+    const out = [...candidats];
     out.sort((a, b) => {
       const ar = etat.agentsMap.get(a)?.context.agentReserve ? 1 : 0;
       const br = etat.agentsMap.get(b)?.context.agentReserve ? 1 : 0;
       if (br !== ar) return br - ar;
       return a.localeCompare(b);
     });
-  } else {
-    out.sort();
+    return out;
   }
-  return out;
+
+  // SCORE_LEGACY — évaluation préalable + tri métier
+  const enrichis = candidats
+    .map((id) => {
+      const candidat = etat.agentsMap.get(id);
+      if (!candidat) return null;
+      const eval_ = evaluerImpactComplet(candidat.context, besoin, etat);
+      // Score métier alignée sur scorerCandidat du legacy.
+      // surJsZ = false en V1 (à raffiner si on observe une régression sur les
+      // candidats actuellement positionnés sur une JS Z).
+      const score = eval_.faisable
+        ? scorerCandidat({
+            agentId: candidat.context.id,
+            nom: candidat.context.nom,
+            prenom: candidat.context.prenom,
+            matricule: candidat.context.matricule,
+            posteAffectation: candidat.context.posteAffectation,
+            agentReserve: candidat.context.agentReserve,
+            surJsZ: false,
+            codeJsZOrigine: null,
+            statut: eval_.statut === "VIGILANCE" ? "VIGILANCE" : "DIRECT",
+            motifPrincipal: eval_.raisonRejet ?? "",
+            detail: eval_.detail,
+            conflitsInduits: [],
+            nbConflits: eval_.consequences.length,
+          })
+        : 0;
+      return {
+        id,
+        score,
+        faisable: eval_.faisable,
+        statut: eval_.statut,
+        agentReserve: candidat.context.agentReserve,
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null);
+
+  enrichis.sort((a, b) => {
+    // Faisable d'abord
+    if (a.faisable !== b.faisable) return a.faisable ? -1 : 1;
+    // DIRECT avant VIGILANCE
+    if (a.statut !== b.statut) return a.statut === "DIRECT" ? -1 : 1;
+    // Réserve avant non-réserve (tiebreaker légacy)
+    if (a.agentReserve !== b.agentReserve) return a.agentReserve ? -1 : 1;
+    // Score décroissant
+    return b.score - a.score;
+  });
+
+  return enrichis.map((x) => x.id);
 }
 
 // ─── resoudreBesoin ──────────────────────────────────────────────────────────
@@ -98,7 +159,7 @@ export function resoudreBesoin(
 ): ResolutionResult {
   const opts = {
     maxCandidatsAuNiveau: options?.maxCandidatsAuNiveau ?? SOLVER_DEFAULTS.MAX_CANDIDATS_PAR_NIVEAU,
-    tri: options?.tri ?? "RESERVE_PRIO",
+    tri: options?.tri ?? "SCORE_LEGACY",
     mode: options?.mode ?? "PREMIER_TROUVE",
   } as const;
 
@@ -127,7 +188,7 @@ export function resoudreBesoin(
     if (etat.agentsEngagesBranche.has(id)) continue;
     candidatsBruts.push(id);
   }
-  const candidats = trierCandidats(candidatsBruts, etat, opts.tri).slice(
+  const candidats = trierCandidats(candidatsBruts, besoin, etat, opts.tri).slice(
     0,
     opts.maxCandidatsAuNiveau
   );

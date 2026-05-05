@@ -217,8 +217,15 @@ export type ResolutionResult =
 export interface ResolutionOptions {
   /** Plafond du nombre de candidats explorés à ce niveau. Cap combinatoire. */
   maxCandidatsAuNiveau?: number;       // défaut : 8
-  /** Tri des candidats. */
-  tri?: "STANDARD" | "RESERVE_PRIO";   // défaut : RESERVE_PRIO
+  /**
+   * Tri des candidats.
+   *  - STANDARD     : tri stable par agentId (diagnostic / tests).
+   *  - RESERVE_PRIO : réservistes d'abord puis agentId.
+   *  - SCORE_LEGACY : aligné sur le score métier de l'allocator legacy
+   *    (DIRECT/VIGILANCE → réserve → score décroissant). Coût supplémentaire
+   *    négligeable car les évaluations sont mises en cache.
+   */
+  tri?: "STANDARD" | "RESERVE_PRIO" | "SCORE_LEGACY";   // défaut : SCORE_LEGACY
   /**
    * Mode d'exploration :
    *  - PREMIER_TROUVE : retourne dès qu'une branche complète est trouvée (greedy)

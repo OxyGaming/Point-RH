@@ -176,6 +176,9 @@ export function resoudreBesoin(
     }
 
     // Cas récursif : résoudre chaque conséquence.
+    // etatEnrichi est mutable localement — chaque sous-résolution réussie
+    // ajoute ses agents/JS engagés à l'état pour que les besoins frères
+    // suivants n'aient pas accès aux mêmes agents (anti-cycle inter-frères).
     const etatEnrichi = enrichirEtat(etat, candidat.context, besoin);
     const sousResolutions: Resolution[] = [];
     let toutesResolues = true;
@@ -201,6 +204,17 @@ export function resoudreBesoin(
         break;
       }
       sousResolutions.push(sousResult.resolution);
+
+      // Propage les agents/JS engagés dans cette sous-arborescence vers
+      // l'état utilisé pour les besoins frères suivants. Sans ça, deux
+      // besoins frères pourraient être résolus par le même agent — produisant
+      // une chaîne incohérente du type "Leguay → Mendi → Leguay".
+      for (const r of aplatirResolution(sousResult.resolution)) {
+        etatEnrichi.agentsEngagesBranche.add(r.agent.id);
+        if (r.besoin.jsCible.planningLigneId) {
+          etatEnrichi.jsLibereesDansBranche.add(r.besoin.jsCible.planningLigneId);
+        }
+      }
     }
 
     if (toutesResolues) {

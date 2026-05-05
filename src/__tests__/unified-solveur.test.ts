@@ -339,6 +339,84 @@ describe("evaluerImpactComplet — HORAIRE_CONFLICT", () => {
   });
 });
 
+// ─── 6.5. evaluerImpactComplet : conflits induits FORWARD ────────────────────
+
+describe("evaluerImpactComplet — conflits induits forward (post-imprévu)", () => {
+  it("émet INDUCED_REPOS sur la JS aval si repos insuffisant", () => {
+    // Imprévu : 03/05 20:30 → 04/05 04:30 (poste de nuit).
+    // Agent a une JS le 04/05 à 13:00 → repos = 8h30, requis post-nuit = 14h.
+    // → conflit forward → INDUCED_REPOS attendu.
+    const jsAval = makeJsEvent("pli-aval", "2026-05-04", "13:00", "21:00", "BAD015R");
+    const agent = makeAgent("a", ["GIC", "BAD"], [jsAval], { nuit: true });
+    const etat = makeEtat([agent]);
+    const besoin = besoinRacineFromJs(
+      makeJsCible("pli-cible", "2026-05-03", "20:30", "04:30", "GIC006R", true)
+    );
+    const r = evaluerImpactComplet(agent.context, besoin, etat);
+    expect(r.faisable).toBe(true);
+    const inducedRepos = r.consequences.filter((c) => c.type === "INDUCED_REPOS");
+    expect(inducedRepos.length).toBe(1);
+    expect(inducedRepos[0].jsImpactee.planningLigneId).toBe("pli-aval");
+  });
+
+  it("agent sans JS aval : pas de consequence forward", () => {
+    const agent = makeAgent("a", ["GIC"], [], { nuit: true });
+    const etat = makeEtat([agent]);
+    const besoin = besoinRacineFromJs(
+      makeJsCible("pli-cible", "2026-05-03", "20:30", "04:30", "GIC006R", true)
+    );
+    const r = evaluerImpactComplet(agent.context, besoin, etat);
+    expect(r.faisable).toBe(true);
+    expect(r.consequences.length).toBe(0);
+  });
+
+  it("anti-cycle inter-frères : un agent ne peut pas résoudre 2 besoins frères du même nœud", () => {
+    // Setup où le candidat A taking the imprévu génère 2 conséquences forward
+    // (deux JS aval bloquées par repos insuffisant).
+    // Si l'anti-cycle inter-frères ne fonctionne pas, B pourrait résoudre les
+    // deux. Or B ne peut pas être en deux endroits à la fois.
+    const jsAval1 = makeJsEvent("pli-aval1", "2026-05-04", "13:00", "21:00", "BAD015R");
+    const jsAval2 = makeJsEvent("pli-aval2", "2026-05-05", "06:00", "14:00", "BAD016R");
+    const a = makeAgent("a", ["GIC", "BAD"], [jsAval1, jsAval2], { nuit: true });
+    const b = makeAgent("b", ["BAD"], [], { nuit: true });
+    const etat = makeEtat([a, b]);
+
+    const besoin = besoinRacineFromJs(
+      makeJsCible("pli-cible", "2026-05-03", "20:30", "04:30", "GIC006R", true)
+    );
+    const r = resoudreBesoin(besoin, etat);
+
+    // Soit r.ok=false (B ne peut pas résoudre 2 besoins),
+    // soit r.ok=true mais avec des agents distincts pour les sous-resolutions.
+    if (r.ok) {
+      const idsLeafs = r.resolution.sousResolutions.map((s) => s.agent.id);
+      expect(new Set(idsLeafs).size).toBe(idsLeafs.length);  // pas de doublon
+    }
+  });
+
+  it("résout en cascade : N1 a un conflit forward, N2 prend la JS aval", () => {
+    // Agent A : taking the imprévu crée conflit aval (sa JS 13:00 le 04/05)
+    const jsAvalA = makeJsEvent("pli-avalA", "2026-05-04", "13:00", "21:00", "BAD015R");
+    const a = makeAgent("a", ["GIC", "BAD"], [jsAvalA], { nuit: true });
+    // Agent B : libre, peut prendre la JS aval de A
+    const b = makeAgent("b", ["BAD"], [], { nuit: true });
+    const etat = makeEtat([a, b]);
+
+    const besoin = besoinRacineFromJs(
+      makeJsCible("pli-cible", "2026-05-03", "20:30", "04:30", "GIC006R", true)
+    );
+    const result = resoudreBesoin(besoin, etat);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // Topologie attendue : A racine, B feuille (résout la JS aval de A)
+      expect(result.resolution.agent.id).toBe("a");
+      expect(result.resolution.consequences.length).toBe(1);
+      expect(result.resolution.consequences[0].type).toBe("INDUCED_REPOS");
+      expect(result.resolution.sousResolutions[0].agent.id).toBe("b");
+    }
+  });
+});
+
 // ─── 7. resoudreBesoin : garde-fous ─────────────────────────────────────────
 
 describe("resoudreBesoin — garde-fous", () => {

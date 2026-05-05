@@ -21,7 +21,7 @@
 
 import type { PlanningEvent, AgentContext } from "@/engine/rules";
 import { evaluerMobilisabilite } from "@/engine/rules";
-import type { JsCible } from "@/types/js-simulation";
+import type { JsCible, ConflitInduit } from "@/types/js-simulation";
 import type { SimulationInput, RegleViolation, DetailCalcul } from "@/types/simulation";
 import type {
   Besoin,
@@ -31,8 +31,9 @@ import type {
   ImpactEvaluation,
 } from "./types";
 import { cacheKey, planningEffectif } from "./etat";
-import { combineDateTime, isJsDeNuit } from "@/lib/utils";
+import { combineDateTime, diffMinutes, isJsDeNuit } from "@/lib/utils";
 import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
+import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 
 // ─── Règles fatales (jamais récupérables par cascade) ────────────────────────
 
@@ -406,8 +407,40 @@ export function evaluerImpactComplet(
     return result;
   }
 
+  // 8.5. Détection des conflits induits FORWARD (sur les 72h après l'imprévu).
+  // evaluerMobilisabilite vérifie surtout le repos AVANT l'imprévu (vs. dernier
+  // poste). Pour les conflits APRÈS (la JS aval que l'agent ne pourra plus
+  // tenir), on s'appuie sur detecterConflitsInduits — l'outil utilisé par le
+  // legacy `multiJsAllocator`. On l'invoque sur le planning hypothétique +
+  // l'imprévu injecté, puis on mappe chaque conflit en Consequence.
+  const forwardMapping = mapForwardConflicts(
+    besoin,
+    agent,
+    eventsHypothetiques,
+    eventsEffectifs,
+    simulationInput,
+    etat,
+    new Set(consequencesPreEval.map((c) => c.jsImpactee.planningLigneId))
+  );
+
+  if (forwardMapping.irrecuperable) {
+    const result: ImpactEvaluation = {
+      faisable: false,
+      raisonRejet: forwardMapping.raisonRejet,
+      statut: "VIGILANCE",
+      detail: resultat.detail,
+      consequences: [],
+    };
+    etat.cache.set(key, result);
+    return result;
+  }
+
   // 9. Construction de la sortie
-  const allConsequences = [...consequencesPreEval, ...mapping.consequences];
+  const allConsequences = [
+    ...consequencesPreEval,
+    ...mapping.consequences,
+    ...forwardMapping.consequences,
+  ];
   const statut: "DIRECT" | "VIGILANCE" =
     resultat.statut === "VIGILANCE" || allConsequences.length > 0
       ? "VIGILANCE"
@@ -421,6 +454,128 @@ export function evaluerImpactComplet(
   };
   etat.cache.set(key, result);
   return result;
+}
+
+// ─── Détection forward (conflits aval) ───────────────────────────────────────
+
+/**
+ * Construit un PlanningEvent synthétique représentant l'imprévu pris par
+ * l'agent. Utilisé comme injection dans le planning hypothétique pour
+ * detecterConflitsInduits.
+ */
+function syntheticImprevuEvent(
+  besoin: Besoin,
+  simulationInput: SimulationInput
+): PlanningEvent {
+  const debut = combineDateTime(simulationInput.dateDebut, simulationInput.heureDebut);
+  let fin = combineDateTime(simulationInput.dateFin, simulationInput.heureFin);
+  if (fin.getTime() <= debut.getTime()) {
+    fin = new Date(fin.getTime() + 24 * 3600_000);
+  }
+  return {
+    dateDebut: debut,
+    dateFin: fin,
+    heureDebut: simulationInput.heureDebut,
+    heureFin: simulationInput.heureFin,
+    amplitudeMin: diffMinutes(debut, fin),
+    dureeEffectiveMin: null,
+    jsNpo: "JS",
+    codeJs: besoin.jsCible.codeJs,
+    typeJs: besoin.jsCible.typeJs,
+    planningLigneId: besoin.jsCible.planningLigneId,
+    heureDebutJsType: besoin.jsCible.heureDebutJsType,
+    heureFinJsType: besoin.jsCible.heureFinJsType,
+  };
+}
+
+/**
+ * Pour chaque ConflitInduit retourné par detecterConflitsInduits, identifie
+ * la JS impactée dans le planning de l'agent et émet une Consequence.
+ *
+ *  - REPOS_INSUFFISANT (resolvable) → INDUCED_REPOS si JS identifiable.
+ *  - GPT_MAX (non resolvable)       → irrecuperable=true (la JS ne peut être
+ *    libérée — c'est un dépassement structurel, pas un conflit horaire isolé).
+ *  - NUIT_CONSEC (resolvable)       → INDUCED_NUITS si JS identifiable.
+ *
+ * Les conflits dont la JS ne porte pas de planningLigneId, ou dont la JS est
+ * déjà dans consequencesPreEval (HORAIRE_CONFLICT déjà traité), sont sautés.
+ */
+function mapForwardConflicts(
+  besoin: Besoin,
+  agent: AgentContext,
+  eventsHypothetiques: PlanningEvent[],
+  eventsEffectifs: PlanningEvent[],
+  simulationInput: SimulationInput,
+  etat: EtatCascade,
+  jsDejaCouvertes: ReadonlySet<string>
+): { consequences: Consequence[]; irrecuperable: boolean; raisonRejet?: string } {
+  const imprevuEvent = syntheticImprevuEvent(besoin, simulationInput);
+  const eventsAvecImprevu = [...eventsHypothetiques, imprevuEvent].sort(
+    (a, b) => a.dateDebut.getTime() - b.dateDebut.getTime()
+  );
+
+  const conflits: ConflitInduit[] = detecterConflitsInduits(
+    eventsAvecImprevu,
+    imprevuEvent.dateFin,
+    agent.agentReserve,
+    etat.remplacement,
+    etat.rules
+  );
+
+  const consequences: Consequence[] = [];
+
+  for (const c of conflits) {
+    if (!c.resolvable) {
+      // GPT_MAX / autres non-récupérables → on rejette la candidature.
+      return {
+        consequences: [],
+        irrecuperable: true,
+        raisonRejet: `${c.regleCode}: ${c.description}`,
+      };
+    }
+
+    // Identifier la JS impactée dans le planning RÉEL (eventsEffectifs).
+    const event = eventsEffectifs.find(
+      (e) =>
+        e.jsNpo === "JS" &&
+        e.dateDebut.toISOString().slice(0, 10) === c.date &&
+        (c.heureDebut ? e.heureDebut === c.heureDebut : true)
+    );
+    if (!event || !event.planningLigneId) {
+      return {
+        consequences: [],
+        irrecuperable: true,
+        raisonRejet: `${c.regleCode}: JS impactée non identifiable (${c.description})`,
+      };
+    }
+
+    // Skip si cette JS est déjà couverte par une consequence préalable.
+    if (jsDejaCouvertes.has(event.planningLigneId)) continue;
+
+    const jsImpactee = eventToJsCible(event, agent, etat.importId);
+    if (!jsImpactee) {
+      return {
+        consequences: [],
+        irrecuperable: true,
+        raisonRejet: `${c.regleCode}: conversion JsCible impossible`,
+      };
+    }
+
+    const consequenceType: ConsequenceType =
+      c.regleCode === "REPOS_JOURNALIER"
+        ? "INDUCED_REPOS"
+        : c.regleCode === "GPT_NUIT_CONSECUTIVES"
+          ? "INDUCED_NUITS"
+          : "INDUCED_REPOS";
+
+    consequences.push({
+      type: consequenceType,
+      jsImpactee,
+      description: c.description,
+    });
+  }
+
+  return { consequences, irrecuperable: false };
 }
 
 // ─── DetailCalcul vide (pour les rejets précoces) ────────────────────────────

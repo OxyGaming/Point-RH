@@ -104,6 +104,8 @@ export interface ShadowReport {
   };
   /** Diagnostics générés lors de ce run (vide si aucune cible matchée). */
   diagnostics: BesoinDiagnostic[];
+  /** Résultat de la séquence forcée si demandée. */
+  sequenceForceeResultat?: ResultatSequenceForcee;
 }
 
 // ─── Helpers d'aplatissement de Solution ─────────────────────────────────────
@@ -217,6 +219,28 @@ export interface RunShadowParams {
    */
   diagnosticTargetN1?: string | null;
   diagnosticAgentsACompararer?: readonly string[];
+  /**
+   * Diagnostic chaîné (optionnel) : si fourni, après le diagnostic du
+   * sous-besoin du N1, on évalue hypothétiquement diagnosticAgentN2 et,
+   * s'il est faisable, on compile un second diagnostic comparant
+   * diagnosticAgentsN3 sur la 1ère conséquence du N2 (= sous-sous-besoin).
+   *
+   * Exemple : N1=CHENNOUF, N2=BROUILLAT, agentsN3=[LEGUAY, autres] →
+   * 2 diagnostics : un sur BAD015R, un sur GIC015.
+   */
+  diagnosticAgentN2?: string;
+  diagnosticAgentsN3?: readonly string[];
+  /**
+   * Test de séquence forcée (optionnel) : ordre d'agents+JS à valider.
+   * Indépendant de la résolution récursive du solveur — vérifie chaque
+   * étape isolément et retourne possible/impossible avec raison exacte.
+   */
+  sequenceForceeASim?: ReadonlyArray<EtapeSequenceForcee>;
+  /**
+   * JS racine pour la séquence forcée. Utilisée comme point de départ
+   * (étape 0). Doit matcher `sequenceForceeASim[0].jsCodeAttendu`.
+   */
+  sequenceForceeJsRacine?: JsCible | null;
 }
 
 export function runShadowComparison(params: RunShadowParams): ShadowReport {
@@ -357,6 +381,65 @@ export function runShadowComparison(params: RunShadowParams): ShadowReport {
         diagnostics.push(
           comparerAgentsSurBesoin(sousBesoin, etatPostN1, params.diagnosticAgentsACompararer, contexte)
         );
+
+        // ── Diagnostic chaîné : si l'utilisateur a fourni `diagnosticAgentsN3`,
+        // évaluer hypothétiquement BROUILLAT (premier de la liste N2) sur
+        // BAD015R, et si Brouillat est faisable, comparer Leguay et autres
+        // sur le 1er sous-besoin de Brouillat (= GIC015).
+        if (params.diagnosticAgentsN3 && params.diagnosticAgentsN3.length > 0
+            && params.diagnosticAgentN2) {
+          const brouillatNomU = params.diagnosticAgentN2.toUpperCase();
+          let brouillatData: AgentDataMultiJs | null = null;
+          for (const [, ad] of params.agentsMap) {
+            if (ad.context.nom.toUpperCase() === brouillatNomU) {
+              brouillatData = ad;
+              break;
+            }
+          }
+          if (brouillatData) {
+            const evalBrouillat = evaluerImpactComplet(brouillatData.context, sousBesoin, etatPostN1);
+            if (evalBrouillat.faisable && evalBrouillat.consequences.length > 0) {
+              // Construire l'état post-Brouillat
+              const etatPostN2 = creerEtatInitial({
+                agentsMap: params.agentsMap,
+                index: params.index,
+                rules: params.rules,
+                lpaContext: params.lpaContext,
+                npoExclusionCodes: params.npoExclusionCodes,
+                importId: params.importId,
+                remplacement: params.remplacement,
+                deplacement: params.deplacement,
+              });
+              etatPostN2.affectationsCourantes.set(racine.agent.id, [js]);
+              etatPostN2.affectationsCourantes.set(brouillatData.context.id, [sousBesoin.jsCible]);
+              if (js.planningLigneId) etatPostN2.jsLibereesDansBranche.add(js.planningLigneId);
+              if (sousBesoin.jsCible.planningLigneId) {
+                etatPostN2.jsLibereesDansBranche.add(sousBesoin.jsCible.planningLigneId);
+              }
+              etatPostN2.agentsEngagesBranche.add(racine.agent.id);
+              etatPostN2.agentsEngagesBranche.add(brouillatData.context.id);
+
+              // Premier conséquence de Brouillat = sous-sous-besoin (GIC015 typiquement)
+              const sousSousBesoin: Besoin = {
+                id: `pli:${evalBrouillat.consequences[0].jsImpactee.planningLigneId}`,
+                jsCible: evalBrouillat.consequences[0].jsImpactee,
+                origine: {
+                  type: "LIBERATION",
+                  parentBesoinId: sousBesoin.id,
+                  agentLibere: brouillatData.context.id,
+                  consequenceType: evalBrouillat.consequences[0].type,
+                },
+                niveau: 2,
+              };
+
+              const contexteN3 = `créé par ${brouillatData.context.nom} prenant ${sousBesoin.jsCible.codeJs ?? "?"} (lui-même libéré par ${racine.agent.nom} sur ${js.codeJs ?? "?"})`;
+              diagnostics.push(
+                comparerAgentsSurBesoin(sousSousBesoin, etatPostN2, params.diagnosticAgentsN3, contexteN3)
+              );
+            }
+          }
+        }
+
         break; // un diagnostic par JS suffit
       }
     }
@@ -372,6 +455,26 @@ export function runShadowComparison(params: RunShadowParams): ShadowReport {
     budgetTotal,
   };
 
+  // ─── Séquence forcée (optionnelle) ──────────────────────────────────────
+  let sequenceForceeResultat: ResultatSequenceForcee | undefined;
+  if (params.sequenceForceeASim && params.sequenceForceeASim.length > 0 && params.sequenceForceeJsRacine) {
+    const etatSeq = creerEtatInitial({
+      agentsMap: params.agentsMap,
+      index: params.index,
+      rules: params.rules,
+      lpaContext: params.lpaContext,
+      npoExclusionCodes: params.npoExclusionCodes,
+      importId: params.importId,
+      remplacement: params.remplacement,
+      deplacement: params.deplacement,
+    });
+    sequenceForceeResultat = testerSequenceForcee(
+      params.sequenceForceeJsRacine,
+      params.sequenceForceeASim,
+      etatSeq
+    );
+  }
+
   return {
     scenarioId: params.scenarioId,
     scenarioTitre: params.scenarioTitre,
@@ -379,6 +482,7 @@ export function runShadowComparison(params: RunShadowParams): ShadowReport {
     diffsParJs,
     agregat,
     diagnostics,
+    sequenceForceeResultat,
   };
 }
 
@@ -427,6 +531,11 @@ export function emitShadowReport(report: ShadowReport, logger?: LogCollector): v
   // Diagnostics ciblés
   for (const diag of report.diagnostics) {
     emitDiagnostic(diag, logger);
+  }
+
+  // Séquence forcée
+  if (report.sequenceForceeResultat) {
+    emitTestSequence(report.sequenceForceeResultat, logger);
   }
 }
 
@@ -684,6 +793,288 @@ export function emitDiagnostic(report: BesoinDiagnostic, logger?: LogCollector):
         ` = ${a.scoreBreakdown.total}` +
         `\n      conséquences: ${csqStr}` +
         `\n      préfixes habil: ${a.prefixesJs.join(", ") || "(aucun)"}`
+    );
+  }
+}
+
+// ─── Test de séquence forcée ─────────────────────────────────────────────────
+
+/**
+ * Une étape d'une séquence forcée : un agent nommé prend une JS
+ * (pour le racine, c'est l'imprévu ; sinon, on cherche dans les conséquences
+ * de l'étape précédente la JS dont le code matche).
+ */
+export interface EtapeSequenceForcee {
+  agentName: string;
+  /** Code JS attendu (ex: "GIC006R", "BAD015R", "GIC015"). Pour le racine,
+   *  c'est le code de l'imprévu. Pour les sous-étapes, on cherche dans les
+   *  conséquences de l'étape précédente la JS dont le codeJs matche. */
+  jsCodeAttendu: string;
+}
+
+/**
+ * Trace d'une étape : agent + besoin + résultat de l'évaluation.
+ */
+export interface TraceSequence {
+  numero: number;
+  agentNom: string;
+  agentTrouve: boolean;
+  besoinCode: string | null;
+  besoinDate: string | null;
+  besoinHoraires: string | null;
+  faisable: boolean;
+  statut?: string;
+  score?: number;
+  consequences: Array<{
+    type: ConsequenceType;
+    code: string | null;
+    date: string;
+    horaires: string;
+  }>;
+  raisonEchec?: string;
+}
+
+export interface ResultatSequenceForcee {
+  /** True ssi TOUTES les étapes ont réussi. */
+  possible: boolean;
+  /** Trace détaillée de chaque étape (succès ou échec). */
+  trace: TraceSequence[];
+  /** Index (0-based) de l'étape qui a échoué. -1 si tout a réussi. */
+  etapeEchec: number;
+  /** Synthèse en une ligne pour log/UI. */
+  synthese: string;
+}
+
+/**
+ * Teste une séquence forcée d'affectations : pour chaque étape, vérifie que
+ * l'agent peut prendre la JS dans l'état courant, puis enrichit l'état avec
+ * cette affectation et passe à l'étape suivante. Retourne la première raison
+ * d'échec rencontrée, ou possible:true si toutes les étapes passent.
+ *
+ * Ne fait AUCUN appel récursif au solveur — chaque étape est évaluée en
+ * isolation via evaluerImpactComplet (les conséquences sont identifiées mais
+ * pas résolues récursivement).
+ *
+ * Pour Chennouf → Brouillat → Leguay :
+ *  - Étape 0 : CHENNOUF prend GIC006R (l'imprévu, racine).
+ *  - Étape 1 : BROUILLAT prend BAD015R (= conséquence de Chennouf, code BAD015R).
+ *  - Étape 2 : LEGUAY prend GIC015 (= conséquence de Brouillat, code GIC015).
+ */
+export function testerSequenceForcee(
+  jsRacine: JsCible,
+  etapes: readonly EtapeSequenceForcee[],
+  etatInitial: EtatCascade
+): ResultatSequenceForcee {
+  const trace: TraceSequence[] = [];
+  let etat = creerEtatInitial({
+    agentsMap: etatInitial.agentsMap,
+    index: etatInitial.index,
+    rules: etatInitial.rules,
+    lpaContext: etatInitial.lpaContext,
+    npoExclusionCodes: etatInitial.npoExclusionCodes,
+    importId: etatInitial.importId,
+    remplacement: etatInitial.remplacement,
+    deplacement: etatInitial.deplacement,
+  });
+
+  let besoinCourant: Besoin | null = besoinRacineFromJs(jsRacine);
+  let consequencesEtapePrec: Array<{ type: ConsequenceType; jsImpactee: JsCible }> = [];
+
+  for (let i = 0; i < etapes.length; i++) {
+    const etape = etapes[i];
+
+    // Pour i>0, on doit retrouver le besoin dans les conséquences de l'étape
+    // précédente (matching par jsCodeAttendu).
+    if (i > 0) {
+      const conseq = consequencesEtapePrec.find(
+        (c) => (c.jsImpactee.codeJs ?? "").toUpperCase() === etape.jsCodeAttendu.toUpperCase()
+      );
+      if (!conseq) {
+        const codes = consequencesEtapePrec.map((c) => c.jsImpactee.codeJs ?? "?").join(", ");
+        trace.push({
+          numero: i,
+          agentNom: etape.agentName,
+          agentTrouve: false,
+          besoinCode: null,
+          besoinDate: null,
+          besoinHoraires: null,
+          faisable: false,
+          consequences: [],
+          raisonEchec: `JS ${etape.jsCodeAttendu} introuvable dans les conséquences de l'étape précédente (codes disponibles : ${codes || "aucun"})`,
+        });
+        return {
+          possible: false,
+          trace,
+          etapeEchec: i,
+          synthese: `Étape ${i + 1} (${etape.agentName} sur ${etape.jsCodeAttendu}) impossible : conséquence introuvable`,
+        };
+      }
+      besoinCourant = {
+        id: `pli:${conseq.jsImpactee.planningLigneId}`,
+        jsCible: conseq.jsImpactee,
+        origine: { type: "RACINE" },  // simplifié pour le test ; on évalue indépendamment
+        niveau: i,
+      };
+    }
+
+    if (besoinCourant === null) {
+      trace.push({
+        numero: i,
+        agentNom: etape.agentName,
+        agentTrouve: false,
+        besoinCode: null,
+        besoinDate: null,
+        besoinHoraires: null,
+        faisable: false,
+        consequences: [],
+        raisonEchec: "Besoin courant null",
+      });
+      return { possible: false, trace, etapeEchec: i, synthese: "Erreur interne" };
+    }
+
+    // Trouver l'agent par nom
+    let agentTrouve: AgentDataMultiJs | null = null;
+    for (const [, ad] of etat.agentsMap) {
+      if (ad.context.nom.toUpperCase() === etape.agentName.toUpperCase()) {
+        agentTrouve = ad;
+        break;
+      }
+    }
+
+    if (!agentTrouve) {
+      trace.push({
+        numero: i,
+        agentNom: etape.agentName,
+        agentTrouve: false,
+        besoinCode: besoinCourant.jsCible.codeJs,
+        besoinDate: besoinCourant.jsCible.date,
+        besoinHoraires: `${besoinCourant.jsCible.heureDebut}–${besoinCourant.jsCible.heureFin}`,
+        faisable: false,
+        consequences: [],
+        raisonEchec: `Agent ${etape.agentName} introuvable dans agentsMap`,
+      });
+      return {
+        possible: false,
+        trace,
+        etapeEchec: i,
+        synthese: `Étape ${i + 1} : agent ${etape.agentName} introuvable`,
+      };
+    }
+
+    // Vérifier que le code JS du besoin matche l'attente (sécurité)
+    if (
+      besoinCourant.jsCible.codeJs &&
+      besoinCourant.jsCible.codeJs.toUpperCase() !== etape.jsCodeAttendu.toUpperCase()
+    ) {
+      trace.push({
+        numero: i,
+        agentNom: etape.agentName,
+        agentTrouve: true,
+        besoinCode: besoinCourant.jsCible.codeJs,
+        besoinDate: besoinCourant.jsCible.date,
+        besoinHoraires: `${besoinCourant.jsCible.heureDebut}–${besoinCourant.jsCible.heureFin}`,
+        faisable: false,
+        consequences: [],
+        raisonEchec: `Code JS attendu ${etape.jsCodeAttendu}, trouvé ${besoinCourant.jsCible.codeJs}`,
+      });
+      return {
+        possible: false,
+        trace,
+        etapeEchec: i,
+        synthese: `Étape ${i + 1} : mismatch de code JS`,
+      };
+    }
+
+    // Évaluer
+    const eval_ = evaluerImpactComplet(agentTrouve.context, besoinCourant, etat);
+
+    trace.push({
+      numero: i,
+      agentNom: etape.agentName,
+      agentTrouve: true,
+      besoinCode: besoinCourant.jsCible.codeJs,
+      besoinDate: besoinCourant.jsCible.date,
+      besoinHoraires: `${besoinCourant.jsCible.heureDebut}–${besoinCourant.jsCible.heureFin}`,
+      faisable: eval_.faisable,
+      statut: eval_.statut,
+      consequences: eval_.consequences.map((c) => ({
+        type: c.type,
+        code: c.jsImpactee.codeJs,
+        date: c.jsImpactee.date,
+        horaires: `${c.jsImpactee.heureDebut}–${c.jsImpactee.heureFin}`,
+      })),
+      raisonEchec: eval_.faisable ? undefined : eval_.raisonRejet,
+    });
+
+    if (!eval_.faisable) {
+      return {
+        possible: false,
+        trace,
+        etapeEchec: i,
+        synthese: `Étape ${i + 1} (${etape.agentName} sur ${etape.jsCodeAttendu}) impossible : ${eval_.raisonRejet}`,
+      };
+    }
+
+    // Étape réussie : enrichir l'état pour l'étape suivante
+    const cur = etat.affectationsCourantes.get(agentTrouve.context.id) ?? [];
+    etat.affectationsCourantes = new Map(etat.affectationsCourantes);
+    etat.affectationsCourantes.set(agentTrouve.context.id, [...cur, besoinCourant.jsCible]);
+    if (besoinCourant.jsCible.planningLigneId) {
+      etat.jsLibereesDansBranche = new Set([
+        ...etat.jsLibereesDansBranche,
+        besoinCourant.jsCible.planningLigneId,
+      ]);
+    }
+    etat.agentsEngagesBranche = new Set([
+      ...etat.agentsEngagesBranche,
+      agentTrouve.context.id,
+    ]);
+
+    consequencesEtapePrec = eval_.consequences.map((c) => ({
+      type: c.type,
+      jsImpactee: c.jsImpactee,
+    }));
+  }
+
+  return {
+    possible: true,
+    trace,
+    etapeEchec: -1,
+    synthese: `Séquence ${etapes.map((e) => e.agentName).join(" → ")} : POSSIBLE (${etapes.length} étapes validées)`,
+  };
+}
+
+/**
+ * Émet un rapport de séquence forcée en console + logger.
+ */
+export function emitTestSequence(
+  resultat: ResultatSequenceForcee,
+  logger?: LogCollector
+): void {
+  logger?.info("UNIFIED_SEQUENCE_FORCEE", {
+    data: {
+      possible: resultat.possible,
+      etapeEchec: resultat.etapeEchec,
+      synthese: resultat.synthese,
+      trace: resultat.trace as unknown as Record<string, unknown>[],
+    },
+  });
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `\n[UNIFIED_SEQUENCE] ${resultat.synthese}` +
+      `\n  possible : ${resultat.possible ? "OUI" : "NON"}` +
+      (resultat.etapeEchec >= 0 ? `\n  étape échec : ${resultat.etapeEchec + 1}` : "")
+  );
+  for (const t of resultat.trace) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `\n    Étape ${t.numero + 1} : ${t.agentNom}` +
+        ` sur ${t.besoinCode ?? "?"} ${t.besoinDate ?? ""} ${t.besoinHoraires ?? ""}` +
+        `\n      → ${t.faisable ? `FAISABLE (statut=${t.statut})` : `ÉCHEC (${t.raisonEchec})`}` +
+        (t.consequences.length > 0
+          ? `\n      conséquences : ${t.consequences.map((c) => `${c.type}@${c.code ?? "?"} ${c.date}`).join(" + ")}`
+          : "")
     );
   }
 }

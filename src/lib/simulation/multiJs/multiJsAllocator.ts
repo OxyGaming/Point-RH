@@ -1105,6 +1105,12 @@ export function allouerJsMultiple(
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { runShadowComparison, emitShadowReport } = require("@/lib/simulation/unified/shadow") as typeof import("@/lib/simulation/unified/shadow");
     try {
+      // Trouver la JS du 03/05 si elle est sélectionnée — utilisée comme racine
+      // de la séquence forcée Chennouf → Brouillat → Leguay.
+      const jsRacineSeq = jsCibles.find(
+        (j) => j.codeJs === "GIC006R" && j.date === "2026-05-03"
+      ) ?? null;
+
       const report = runShadowComparison({
         scenarioId: id,
         scenarioTitre: titre,
@@ -1121,10 +1127,23 @@ export function allouerJsMultiple(
         maxSolutionsParJs: 12,
         // Séquence cible terrain à valider — Chennouf → Brouillat → Leguay
         sequenceCibleNoms: ["CHENNOUF", "BROUILLAT", "LEGUAY"],
-        // Diagnostic comparatif : pour chaque solution dont CHENNOUF est N1,
-        // comparer Brouillat / Chaminade / Ollier sur son 1er sous-besoin.
+        // Diagnostic N2 : pour chaque solution dont CHENNOUF est N1,
+        // comparer Brouillat / Chaminade / Ollier sur son 1er sous-besoin (BAD015R).
         diagnosticTargetN1: "CHENNOUF",
         diagnosticAgentsACompararer: ["BROUILLAT", "CHAMINADE", "OLLIER"],
+        // Diagnostic N3 chaîné : si Brouillat est faisable sur BAD015R,
+        // comparer Leguay / autres sur son 1er sous-besoin (GIC015).
+        diagnosticAgentN2: "BROUILLAT",
+        diagnosticAgentsN3: ["LEGUAY", "PINQUE", "MENDI", "ACHILLE"],
+        // Test de séquence forcée — répond simplement possible/impossible+raison.
+        sequenceForceeJsRacine: jsRacineSeq,
+        sequenceForceeASim: jsRacineSeq
+          ? [
+              { agentName: "CHENNOUF",  jsCodeAttendu: "GIC006R" },
+              { agentName: "BROUILLAT", jsCodeAttendu: "BAD015R" },
+              { agentName: "LEGUAY",    jsCodeAttendu: "GIC015"  },
+            ]
+          : undefined,
       });
       emitShadowReport(report, logger);
     } catch (err) {

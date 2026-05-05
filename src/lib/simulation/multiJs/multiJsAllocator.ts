@@ -1096,14 +1096,21 @@ export function allouerJsMultiple(
     exclusions: exclusionsPerJs.get(js.planningLigneId) ?? [],
   }));
 
-  // ─── Mode shadow : solveur unifié en parallèle (UNIFIED_SHADOW=1) ─────────────
-  // Aucun impact sur la sortie. Émet un rapport comparatif via logger + console.
-  // Activé uniquement pour les scénarios qui ont une logique cascade
-  // (sinon le legacy est trop simple pour une comparaison utile).
-  if (process.env.UNIFIED_SHADOW === "1" && cascadeContext !== null) {
-    // Import dynamique pour éviter d'embarquer le module si flag off
+  // ─── Solveur unifié en parallèle ─────────────────────────────────────────────
+  //  - UNIFIED_SHADOW=1            : rapport en logs serveur uniquement
+  //  - FEATURE_UNIFIED_PRIMARY=1   : rapport en logs + exposition UI (champ
+  //    unifiedReport sur le scenario). L'UI peut alors afficher un onglet
+  //    "Solveur unifié (expérimental)". Aucun écrasement du legacy.
+  //
+  // Activé uniquement pour les scénarios cascade (cascadeContext !== null).
+  let unifiedReport: import("@/types/multi-js-simulation").UnifiedReportUI | undefined;
+  const shadowActif =
+    process.env.UNIFIED_SHADOW === "1" || process.env.FEATURE_UNIFIED_PRIMARY === "1";
+
+  if (shadowActif && cascadeContext !== null) {
+    // Import dynamique pour éviter d'embarquer le module si flags off.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { runShadowComparison, emitShadowReport } = require("@/lib/simulation/unified/shadow") as typeof import("@/lib/simulation/unified/shadow");
+    const { runShadowComparison, emitShadowReport, adapterShadowReportPourUI } = require("@/lib/simulation/unified/shadow") as typeof import("@/lib/simulation/unified/shadow");
     try {
       // Trouver la JS du 03/05 si elle est sélectionnée — utilisée comme racine
       // de la séquence forcée Chennouf → Brouillat → Leguay.
@@ -1125,17 +1132,11 @@ export function allouerJsMultiple(
         remplacement,
         deplacement,
         maxSolutionsParJs: 12,
-        // Séquence cible terrain à valider — Chennouf → Brouillat → Leguay
         sequenceCibleNoms: ["CHENNOUF", "BROUILLAT", "LEGUAY"],
-        // Diagnostic N2 : pour chaque solution dont CHENNOUF est N1,
-        // comparer Brouillat / Chaminade / Ollier sur son 1er sous-besoin (BAD015R).
         diagnosticTargetN1: "CHENNOUF",
         diagnosticAgentsACompararer: ["BROUILLAT", "CHAMINADE", "OLLIER"],
-        // Diagnostic N3 chaîné : si Brouillat est faisable sur BAD015R,
-        // comparer Leguay / autres sur son 1er sous-besoin (GIC015).
         diagnosticAgentN2: "BROUILLAT",
         diagnosticAgentsN3: ["LEGUAY", "PINQUE", "MENDI", "ACHILLE"],
-        // Test de séquence forcée — répond simplement possible/impossible+raison.
         sequenceForceeJsRacine: jsRacineSeq,
         sequenceForceeASim: jsRacineSeq
           ? [
@@ -1146,10 +1147,15 @@ export function allouerJsMultiple(
           : undefined,
       });
       emitShadowReport(report, logger);
+
+      // Bascule UI : exposer le rapport SI FEATURE_UNIFIED_PRIMARY est actif.
+      if (process.env.FEATURE_UNIFIED_PRIMARY === "1") {
+        unifiedReport = adapterShadowReportPourUI(report);
+      }
     } catch (err) {
-      // Le shadow ne doit JAMAIS interrompre le scénario legacy.
+      // Le solveur unifié ne doit JAMAIS interrompre le scénario legacy.
       // eslint-disable-next-line no-console
-      console.error("[UNIFIED_SHADOW] erreur (ignorée pour ne pas casser le legacy):", err);
+      console.error("[UNIFIED] erreur (ignorée pour préserver le legacy):", err);
     }
   }
 
@@ -1176,5 +1182,6 @@ export function allouerJsMultiple(
     nbCascadesNonResolues: nbCascadesNonResoluesTotal,
     exclusionsParJs,
     alternativesParJs,
+    unifiedReport,
   };
 }

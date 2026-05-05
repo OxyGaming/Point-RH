@@ -18,6 +18,7 @@ import type {
 import type { ModificationPlanning, ImpactCascade } from "@/types/js-simulation";
 import AgentLink from "@/components/ui/AgentLink";
 import DetailReglesShared from "@/components/js-simulation/DetailRegles";
+import UnifiedSolutionsPanel from "@/components/multi-js/UnifiedSolutionsPanel";
 
 /** Affiche une date "YYYY-MM-DD" Paris en "dd MMM" Paris (locale FR). */
 function jourCourtParis(dateStr: string): string {
@@ -40,7 +41,7 @@ interface Props {
   resultat: MultiJsSimulationResultat;
 }
 
-type Tab = "resume" | "affectations" | "agents" | "non-couvertes" | "conflits" | "exclusions" | "alternatives" | "cascade";
+type Tab = "resume" | "affectations" | "agents" | "non-couvertes" | "conflits" | "exclusions" | "alternatives" | "cascade" | "unified";
 
 function ScoreBadge({ score }: { score: number }) {
   const color =
@@ -1395,6 +1396,10 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
     (activeKey === "tousCascade" || activeKey === "tousCascadeFigeage") &&
     affectationsAvecChaine.length > 0;
 
+  // L'onglet "Solveur unifié (expérimental)" n'apparaît que si le scenario
+  // expose un unifiedReport (= FEATURE_UNIFIED_PRIMARY=1 côté serveur).
+  const showUnifiedTab = scenario.unifiedReport !== undefined;
+
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "resume", label: "Résumé" },
     { id: "affectations", label: "Affectations", count: scenario.affectations.length },
@@ -1406,11 +1411,18 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
     { id: "non-couvertes", label: "Non couvertes", count: scenario.jsNonCouvertes.length },
     { id: "conflits", label: "Conflits", count: scenario.conflitsDetectes.length },
     { id: "exclusions", label: "Exclusions", count: nbExclusions },
+    ...(showUnifiedTab
+      ? [{ id: "unified" as Tab, label: "Solveur unifié ⚗", count: scenario.unifiedReport!.jsAnalyses.length }]
+      : []),
   ];
 
   // Si l'utilisateur est sur l'onglet Cascade et bascule vers un scénario sans cascade,
   // on retombe sur Résumé pour éviter un état orphelin.
   if (activeTab === "cascade" && !showCascadeTab) {
+    setTimeout(() => setActiveTab("resume"), 0);
+  }
+  // Idem pour l'onglet Solveur unifié (expérimental).
+  if (activeTab === "unified" && !showUnifiedTab) {
     setTimeout(() => setActiveTab("resume"), 0);
   }
 
@@ -1579,6 +1591,11 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
           {/* Alternatives */}
           {activeTab === "alternatives" && (
             <AlternativesPanel alternativesParJs={scenario.alternativesParJs} />
+          )}
+
+          {/* Solveur unifié (expérimental) */}
+          {activeTab === "unified" && scenario.unifiedReport && (
+            <UnifiedSolutionsPanel report={scenario.unifiedReport} />
           )}
 
           {/* JS non couvertes */}

@@ -335,6 +335,105 @@ export interface ExclusionsParJs {
   exclusions: MultiJsExclusion[];
 }
 
+// ─── Solveur unifié : exposition UI sous feature flag ────────────────────────
+
+/**
+ * Vue UI d'une solution unifiée (sortie du solveur unified). Aplatissement
+ * post-ordre de la chaîne pour faciliter le rendu : feuilles d'abord, racine
+ * en dernier. Le `niveauRisque` permet à l'UI de filtrer/regrouper.
+ */
+export interface UnifiedSolutionUI {
+  /** Identifiant de l'agent racine (= N1 = qui prend l'imprévu). */
+  n1AgentId: string;
+  n1Nom: string;
+  n1Prenom: string;
+  /** Profondeur effective de la chaîne (1 = direct, ≥ 2 = cascade). */
+  profondeur: number;
+  /** Niveau de risque agrégé : OK / VIGILANCE / DECONSEILLEE / INCOMPLETE. */
+  niveauRisque: "OK" | "VIGILANCE" | "DECONSEILLEE" | "INCOMPLETE";
+  /** Aplatissement DFS post-ordre : feuilles → racine. */
+  chaine: Array<{
+    agentId: string;
+    agentNom: string;
+    agentPrenom: string;
+    jsCode: string | null;
+    jsDate: string;
+    jsHoraires: string;
+    /** Type de besoin : RACINE = imprévu, sinon catégorie de la conséquence. */
+    consequenceType: string;
+    statut: "DIRECT" | "VIGILANCE";
+    score: number;
+  }>;
+}
+
+/**
+ * Résultat unifié pour une JS donnée — analogue de `AlternativesParJs` mais
+ * issu du solveur unified. Présent uniquement quand FEATURE_UNIFIED_PRIMARY
+ * est activé.
+ */
+export interface UnifiedJsAnalyseUI {
+  jsId: string;
+  jsCode: string | null;
+  jsDate: string;
+  jsHoraires: string;
+  /** Référence au candidat retenu par le legacy pour cette JS — sert à l'UI
+   *  pour afficher la comparaison "le legacy dit X, l'unified dit Y". */
+  legacyAgentRetenu: string | null;
+  legacyStatut: string | null;
+  /** Solutions ordonnées par score décroissant (meilleure en premier). */
+  solutions: UnifiedSolutionUI[];
+  /** Budget consommé pour cette JS (audit / debug). */
+  budgetConsomme: number;
+  /** Renseigné si aucune solution trouvée. */
+  raisonSiVide?: string;
+}
+
+/**
+ * Résultat d'une séquence forcée (test "possible / impossible / raison").
+ * Renseigné uniquement si une séquence cible a été testée.
+ */
+export interface SequenceForceeUI {
+  possible: boolean;
+  synthese: string;
+  etapeEchec: number;
+  trace: Array<{
+    numero: number;
+    agentNom: string;
+    besoinCode: string | null;
+    besoinDate: string | null;
+    besoinHoraires: string | null;
+    faisable: boolean;
+    statut?: string;
+    raisonEchec?: string;
+    consequences: Array<{
+      type: string;
+      code: string | null;
+      date: string;
+      horaires: string;
+    }>;
+  }>;
+}
+
+/**
+ * Rapport unifié exposé à l'UI quand FEATURE_UNIFIED_PRIMARY est actif.
+ * Aucun impact sur le legacy — l'UI affiche ce rapport dans un onglet
+ * dédié, marqué "expérimental".
+ */
+export interface UnifiedReportUI {
+  /** Données par JS (analogue de alternativesParJs). */
+  jsAnalyses: UnifiedJsAnalyseUI[];
+  /** Agrégat global pour comparaison rapide legacy ↔ unified. */
+  agregat: {
+    nbN1Match: number;
+    nbUnifiedSeul: number;
+    nbLegacySeul: number;
+    nbSequenceCibleTrouvee: number;
+    budgetTotal: number;
+  };
+  /** Test de séquence forcée (ex: Chennouf → Brouillat → Leguay). */
+  sequenceForceeResultat?: SequenceForceeUI;
+}
+
 export interface MultiJsScenario {
   id: string;
   titre: string;
@@ -364,6 +463,11 @@ export interface MultiJsScenario {
    * du retenu, avec raison métier. Permet de reproduire la lisibilité de la PJ.
    */
   alternativesParJs: AlternativesParJs[];
+  /**
+   * Rapport du solveur unifié (FEATURE_UNIFIED_PRIMARY uniquement).
+   * Exposé pour comparaison côté UI sans modifier les autres champs.
+   */
+  unifiedReport?: UnifiedReportUI;
 }
 
 // ─── Résultat global de la simulation multi-JS ───────────────────────────────

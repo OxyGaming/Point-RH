@@ -797,6 +797,79 @@ export function emitDiagnostic(report: BesoinDiagnostic, logger?: LogCollector):
   }
 }
 
+// ─── Adapter ShadowReport → UnifiedReportUI (pour exposition côté UI) ──────
+
+import type {
+  UnifiedReportUI,
+  UnifiedJsAnalyseUI,
+  UnifiedSolutionUI,
+  SequenceForceeUI,
+} from "@/types/multi-js-simulation";
+
+/**
+ * Convertit un ShadowReport en UnifiedReportUI (slim, sans diagnostics
+ * verbeux). Utilisé pour exposer le solveur unifié à l'UI quand
+ * FEATURE_UNIFIED_PRIMARY est actif.
+ */
+export function adapterShadowReportPourUI(report: ShadowReport): UnifiedReportUI {
+  const jsAnalyses: UnifiedJsAnalyseUI[] = report.diffsParJs.map((d) => ({
+    jsId: d.jsId,
+    jsCode: d.jsCode,
+    jsDate: d.jsDate,
+    jsHoraires: d.jsHoraires,
+    legacyAgentRetenu: d.legacy.agentRetenu,
+    legacyStatut: d.legacy.statut,
+    solutions: d.unified.solutions.map(
+      (s): UnifiedSolutionUI => ({
+        n1AgentId: s.n1Id,
+        n1Nom: s.n1Nom,
+        n1Prenom: s.n1Prenom,
+        profondeur: s.profondeur,
+        niveauRisque: s.niveauRisque === "INCOMPLETE" ? "INCOMPLETE" : s.niveauRisque,
+        chaine: s.chaine.map((c) => ({
+          agentId: "",  // pas exposé dans la chaîne shadow — pas critique pour UI
+          agentNom: c.agentNom,
+          agentPrenom: c.agentPrenom,
+          jsCode: c.jsCode,
+          jsDate: c.jsDate,
+          jsHoraires: c.jsHoraires,
+          consequenceType: c.consequenceType,
+          statut: "VIGILANCE",  // dérivable mais pas critique en V1
+          score: 0,             // idem
+        })),
+      })
+    ),
+    budgetConsomme: d.unified.budgetConsomme,
+    raisonSiVide: d.unified.raisonSiVide,
+  }));
+
+  let sequenceForceeResultat: SequenceForceeUI | undefined;
+  if (report.sequenceForceeResultat) {
+    sequenceForceeResultat = {
+      possible: report.sequenceForceeResultat.possible,
+      synthese: report.sequenceForceeResultat.synthese,
+      etapeEchec: report.sequenceForceeResultat.etapeEchec,
+      trace: report.sequenceForceeResultat.trace.map((t) => ({
+        numero: t.numero,
+        agentNom: t.agentNom,
+        besoinCode: t.besoinCode,
+        besoinDate: t.besoinDate,
+        besoinHoraires: t.besoinHoraires,
+        faisable: t.faisable,
+        statut: t.statut,
+        raisonEchec: t.raisonEchec,
+        consequences: t.consequences,
+      })),
+    };
+  }
+
+  return {
+    jsAnalyses,
+    agregat: report.agregat,
+    sequenceForceeResultat,
+  };
+}
+
 // ─── Test de séquence forcée ─────────────────────────────────────────────────
 
 /**

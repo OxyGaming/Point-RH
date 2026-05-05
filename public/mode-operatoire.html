@@ -812,6 +812,7 @@
     <a class="nav-link" href="#scoring-candidat"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="trophy" class="lucide"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></span>Score candidat</a>
     <a class="nav-link" href="#scoring-multi"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="medal" class="lucide"><path d="M7.21 15 2.66 7.14a2 2 0 0 1 .13-2.2L4.4 2.8A2 2 0 0 1 6 2h12a2 2 0 0 1 1.6.8l1.6 2.14a2 2 0 0 1 .14 2.2L16.79 15"/><path d="M11 12 5.12 2.2"/><path d="m13 12 5.88-9.8"/><path d="M8 7h8"/><circle cx="12" cy="17" r="5"/></svg></span>Score scénario</a>
     <a class="nav-link" href="#figeage"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="lock" class="lucide"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>Figeage DERNIER RECOURS</a>
+    <a class="nav-link" href="#solveur-unifie"><span class="icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-label="flask" class="lucide"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/></svg></span>Solveur unifié <span style="font-size:10px;opacity:.6">(expérimental)</span></a>
   </div>
 
   <div class="nav-group">
@@ -1982,6 +1983,94 @@
     0 figeage → 0<br>
     <strong>Score final : 90/100</strong>
   </div>
+</section>
+
+<!-- ══════════════════════════════════════════ SOLVEUR UNIFIÉ -->
+<section id="solveur-unifie">
+  <div class="section-header">
+    <div class="section-icon" style="background:#f3e8f7"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/></svg></div>
+    <div>
+      <h2>Solveur unifié <span class="badge badge-orange">expérimental</span></h2>
+      <p>Onglet additionnel sous flag — comparaison legacy ↔ nouveau moteur de cascade</p>
+    </div>
+  </div>
+
+  <div class="callout warn">
+    <div class="callout-title">⚗ Mode expérimental — non activé par défaut</div>
+    Le solveur unifié est un nouveau moteur de cascade qui remplacera à terme la logique
+    historique. Il est exposé dans un onglet dédié <strong>"Solveur unifié ⚗"</strong>
+    quand la variable d'environnement <code>FEATURE_UNIFIED_PRIMARY=1</code> est définie côté
+    serveur. Le legacy reste la <strong>référence par défaut</strong>. Aucune modification
+    de l'interface tant que le flag n'est pas activé.
+  </div>
+
+  <h3>Pourquoi un nouveau solveur ?</h3>
+  <p>Le moteur historique sépare deux logiques distinctes :</p>
+  <div class="two-col" style="margin-top:8px">
+    <div><strong>Chaîne de remplacement</strong><br><span class="badge badge-blue">conflit horaire</span> — un agent prend la JS imprévue, sa propre JS source est libérée et reprise par un autre agent.</div>
+    <div><strong>Cascade conflits induits</strong><br><span class="badge badge-blue">conflit RH aval</span> — repos insuffisant ou GPT/TE qui dépassent leurs limites <em>après</em> avoir pris l'imprévu.</div>
+  </div>
+  <p style="margin-top:12px">Sur le terrain, ces deux mécanismes <strong>se combinent souvent dans une même résolution</strong>. Le solveur unifié les fusionne dans une boucle récursive unique : peu importe la nature du conflit, toute conséquence d'une affectation devient un nouveau besoin résolu de la même manière.</p>
+
+  <h3>Lecture de l'onglet "Solveur unifié ⚗"</h3>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-title">Bandeau expérimental + agrégat de comparaison</div>
+      <div class="step-body">En tête, un encadré rappelle le statut expérimental. Juste en dessous, un agrégat compact compare au legacy : <code>X match N1 ↔ legacy</code> (= mêmes agents retenus), <code>unified seul</code> (JS couvertes par le nouveau moteur que le legacy laisse non couvertes), <code>legacy seul</code> (l'inverse), et le budget consommé.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-title">Recommandations par JS</div>
+      <div class="step-body">Pour chaque JS sélectionnée, les solutions classées par score métier décroissant. Chacune affiche un agent N1 (qui prend l'imprévu), une profondeur de chaîne, et un <strong>niveau de risque</strong> sous forme de badge.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-title">Alternatives avancées (repliées par défaut)</div>
+      <div class="step-body">Si une JS expose des solutions "déconseillées" (chaînes lourdes, agents proches de la saturation), elles sont disponibles dans une zone repliable séparée — <strong>jamais affichées comme recommandation principale</strong>. Le décideur peut les déplier pour les consulter mais elles ne sont pas suggérées.</div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-title">Séquence terrain testée</div>
+      <div class="step-body">Si un test de séquence forcée est configuré (ex: "Chennouf → Brouillat → Leguay"), un encadré bleu en bas affiche son verdict <span class="badge badge-green">POSSIBLE</span> ou <span class="badge badge-orange">IMPOSSIBLE</span> avec la trace détaillée de chaque étape (faisabilité, conséquences, raison d'échec exacte).</div>
+    </div>
+  </div>
+
+  <h3>Niveaux de risque</h3>
+  <table>
+    <thead><tr><th>Niveau</th><th>Couleur</th><th>Signification</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge badge-green">OK</span></td><td>Vert</td><td>Toutes les affectations respectent les règles RH avec marge confortable. Exploitable sans réserve.</td></tr>
+      <tr><td><span class="badge badge-orange">Vigilance</span></td><td>Ambre</td><td>Au moins une affectation en vigilance (statut RH dégradé mais conforme). À signaler à l'opérateur, mais utilisable.</td></tr>
+      <tr><td><span class="badge" style="background:#fed7aa;color:#9a3412">Déconseillée</span></td><td>Orange</td><td>Au moins un agent dans la chaîne a un score métier ≤ 30 (saturé GPT, marge de repos faible…). <strong>Solution exposée mais non recommandée</strong> — repliée par défaut.</td></tr>
+      <tr><td><span class="badge" style="background:#fee2e2;color:#991b1b">Incomplète</span></td><td>Rouge</td><td>Une branche de la chaîne n'a pas trouvé de feuille — la solution n'est pas exploitable telle quelle.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Activation et rollback</h3>
+  <div class="callout example">
+    <div class="callout-title">🔧 Procédure côté serveur</div>
+    <strong>Activation</strong> :
+    <pre style="margin:8px 0;padding:8px 12px;background:#0f172a;color:#e2e8f0;border-radius:6px;font-size:12px;font-family:'Consolas',monospace">echo "FEATURE_UNIFIED_PRIMARY=1" >> .env
+pm2 restart pointrh</pre>
+    <strong>Rollback immédiat</strong> :
+    <pre style="margin:8px 0;padding:8px 12px;background:#0f172a;color:#e2e8f0;border-radius:6px;font-size:12px;font-family:'Consolas',monospace">sed -i 's/^FEATURE_UNIFIED_PRIMARY=1/#FEATURE_UNIFIED_PRIMARY=1/' .env
+pm2 restart pointrh</pre>
+    L'onglet disparaît instantanément, le legacy reprend strictement comme avant.
+  </div>
+
+  <div class="callout purple">
+    <div class="callout-title">🔍 Périmètre d'affichage</div>
+    L'onglet n'apparaît que sur les <strong>scénarios cascade</strong> (Tous agents — Cascade et Tous agents + Cascade + Figeage). Sur les scénarios sans logique cascade, l'analyse comparative serait sans intérêt et l'onglet n'est pas généré. Si vous changez de scénario en cours d'exploration et que l'onglet disparaît, vous retombez automatiquement sur le Résumé.
+  </div>
+
+  <h3>À surveiller pendant l'activation progressive</h3>
+  <ul>
+    <li><strong>Logs serveur</strong> : <code>pm2 logs pointrh | grep UNIFIED</code> — agrégats par scénario, budgets consommés, séquences cibles trouvées</li>
+    <li><strong>Cohérence legacy ↔ unified</strong> : si <code>nbN1Match</code> est faible (&lt; 50% des JS), la divergence mérite investigation</li>
+    <li><strong>Solutions DECONSEILLEE remontées comme pertinentes</strong> par les utilisateurs — le seuil est paramétrable (constante <code>SEUIL_SCORE_DECONSEILLE</code>)</li>
+    <li><strong>Charge</strong> : si <code>budgetTotal</code> dépasse régulièrement 5000, augmenter <code>CASCADE_EVAL_BUDGET</code> ou réduire <code>maxSolutionsParJs</code></li>
+  </ul>
 </section>
 
 <!-- ══════════════════════════════════════════ UI AGENTS -->

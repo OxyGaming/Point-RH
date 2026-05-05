@@ -1121,6 +1121,10 @@ export function allouerJsMultiple(
         maxSolutionsParJs: 12,
         // Séquence cible terrain à valider — Chennouf → Brouillat → Leguay
         sequenceCibleNoms: ["CHENNOUF", "BROUILLAT", "LEGUAY"],
+        // Diagnostic comparatif : pour chaque solution dont CHENNOUF est N1,
+        // comparer Brouillat / Chaminade / Ollier sur son 1er sous-besoin.
+        diagnosticTargetN1: "CHENNOUF",
+        diagnosticAgentsACompararer: ["BROUILLAT", "CHAMINADE", "OLLIER"],
       });
       emitShadowReport(report, logger);
     } catch (err) {

@@ -42,6 +42,142 @@ function RisqueBadge({ niveau }: { niveau: UnifiedSolutionUI["niveauRisque"] }) 
   );
 }
 
+// ─── Une étape de chaîne avec détails RH (disclosure imbriqué) ───────────────
+
+function StepItem({
+  step,
+  niveauLabel,
+}: {
+  step: UnifiedSolutionUI["chaine"][number];
+  niveauLabel: string;
+}) {
+  const [openDetail, setOpenDetail] = useState(false);
+  // Garde-fou compatibilité : un payload "ancien format" sans metrics doit
+  // pouvoir s'afficher en dégradé (juste l'en-tête, pas le détail).
+  const m = step.metrics ?? null;
+  const sb = step.scoreBreakdown ?? null;
+  const hasDetail = m !== null && sb !== null;
+  const margeReposLabel = !m || m.margeReposMin === null
+    ? "—"
+    : `${m.margeReposMin >= 0 ? "+" : ""}${m.margeReposMin}min`;
+  const reposColor = m && m.margeReposMin !== null && m.margeReposMin < 0
+    ? "text-red-600 font-semibold"
+    : "text-slate-700";
+  return (
+    <div className="rounded-md border border-slate-100">
+      <button
+        type="button"
+        onClick={() => setOpenDetail((o) => !o)}
+        className="w-full flex items-baseline gap-2 px-2 py-1 text-left hover:bg-slate-50"
+      >
+        <span className="text-slate-400 text-[10px] shrink-0 w-12 tabular-nums">
+          {niveauLabel}
+        </span>
+        <span className="font-medium text-slate-700">
+          {step.agentNom} {step.agentPrenom}
+        </span>
+        {step.agentReserve && (
+          <span className="text-[9px] bg-blue-50 text-blue-700 px-1 rounded font-medium">RES</span>
+        )}
+        <span className="text-slate-500">sur {step.jsCode ?? "?"}</span>
+        <span className="text-slate-400 text-[10px]">
+          {step.jsDate} {step.jsHoraires}
+        </span>
+        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+          step.statut === "DIRECT" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+        }`}>
+          {step.statut === "DIRECT" ? "Direct" : "Vigilance"}
+        </span>
+        <span className="text-[10px] text-slate-500 tabular-nums">{step.score}/100</span>
+        {step.consequenceType !== "RACINE" && (
+          <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+            {step.consequenceType.replace("INDUCED_", "").replace("HORAIRE_CONFLICT", "horaire")}
+          </span>
+        )}
+        <span className="ml-auto text-slate-400 text-[10px]">{openDetail ? "▾" : "▸"}</span>
+      </button>
+      {openDetail && hasDetail && m && sb && (
+        <div className="px-3 pb-2 pt-0.5 text-[10px] text-slate-600 space-y-2 border-t border-slate-100">
+          {/* Description précise de la conséquence */}
+          {step.consequenceDescription && (
+            <div className="bg-slate-50 px-2 py-1.5 rounded border border-slate-100">
+              <p className="text-[10px] font-semibold text-slate-700">Conséquence</p>
+              <p className="text-[10px] text-slate-600">{step.consequenceDescription}</p>
+            </div>
+          )}
+          {/* Métriques RH */}
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <div>
+              <span className="text-slate-400">Repos disponible : </span>
+              <span className={reposColor}>
+                {m.reposDisponibleMin === null ? "—" : `${m.reposDisponibleMin}min`}
+              </span>
+              {m.reposRequisMin > 0 && (
+                <span className="text-slate-400"> / requis {m.reposRequisMin}min</span>
+              )}
+            </div>
+            <div>
+              <span className="text-slate-400">Marge repos : </span>
+              <span className={reposColor}>{margeReposLabel}</span>
+            </div>
+            <div>
+              <span className="text-slate-400">GPT : </span>
+              <span className={m.gptActuel >= m.gptMax ? "text-red-600 font-semibold" : "text-slate-700"}>
+                {m.gptActuel}/{m.gptMax}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-400">TE 48h cumul : </span>
+              <span className="text-slate-700">{m.teCumule48hMin}min</span>
+            </div>
+            <div>
+              <span className="text-slate-400">Violations RH : </span>
+              <span className={m.nbViolations > 0 ? "text-red-600" : "text-slate-700"}>
+                {m.nbViolations}
+              </span>
+            </div>
+            <div>
+              <span className="text-slate-400">Conséquences : </span>
+              <span className={m.nbConflitsInduits > 0 ? "text-amber-700" : "text-slate-700"}>
+                {m.nbConflitsInduits}
+              </span>
+            </div>
+          </div>
+          {/* Décomposition du score */}
+          <div className="pt-1 border-t border-slate-100">
+            <p className="text-[9px] uppercase tracking-wide text-slate-400 mb-0.5">Score métier</p>
+            <p className="text-[10px] text-slate-600 font-mono">
+              {sb.base}
+              {sb.penaliteViolations > 0 && <> − {sb.penaliteViolations}<sub className="text-slate-400">viol</sub></>}
+              {sb.penaliteConflits > 0 && <> − {sb.penaliteConflits}<sub className="text-slate-400">conséq</sub></>}
+              {sb.bonusReserve > 0 && <> + {sb.bonusReserve}<sub className="text-slate-400">rés</sub></>}
+              {sb.bonusJsZ > 0 && <> + {sb.bonusJsZ}<sub className="text-slate-400">JS Z</sub></>}
+              {sb.penaliteMargeRepos > 0 && <> − {sb.penaliteMargeRepos}<sub className="text-slate-400">marge</sub></>}
+              {sb.penaliteGpt > 0 && <> − {sb.penaliteGpt}<sub className="text-slate-400">GPT</sub></>}
+              <> = </>
+              <span className="font-semibold">{sb.total}</span>
+            </p>
+          </div>
+          {/* Motif principal si vigilance */}
+          {step.motifPrincipal && (
+            <div className="pt-1 border-t border-slate-100">
+              <p className="text-[9px] uppercase tracking-wide text-slate-400 mb-0.5">Motif</p>
+              <p className="text-[10px] text-amber-700">{step.motifPrincipal}</p>
+            </div>
+          )}
+          {/* Habilitations */}
+          {step.prefixesJs.length > 0 && (
+            <div className="pt-1 border-t border-slate-100">
+              <p className="text-[9px] uppercase tracking-wide text-slate-400 mb-0.5">Habilitations préfixe</p>
+              <p className="text-[10px] text-slate-600 font-mono">{step.prefixesJs.join(", ")}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Une solution unifiée (chaîne aplatie) ───────────────────────────────────
 
 function SolutionItem({ sol, rang }: { sol: UnifiedSolutionUI; rang: number }) {
@@ -63,28 +199,20 @@ function SolutionItem({ sol, rang }: { sol: UnifiedSolutionUI; rang: number }) {
         </span>
         <span className="text-slate-400">{open ? "▾" : "▸"}</span>
       </button>
+      {/* Phrase "Pourquoi ce rang" — toujours visible si présente */}
+      {sol.resumePenalites && (
+        <p className="mt-1 text-[10px] text-slate-500 italic">
+          {sol.resumePenalites}
+        </p>
+      )}
       {open && (
-        <div className="mt-2 pl-4 space-y-1 border-l-2 border-slate-100">
+        <div className="mt-2 space-y-1 pl-2 border-l-2 border-slate-100">
           {sol.chaine.map((step, i) => (
-            <div key={i} className="flex items-baseline gap-2">
-              <span className="text-slate-400 text-[10px] shrink-0 w-12 tabular-nums">
-                niv. {sol.chaine.length - i}
-              </span>
-              <span className="font-medium text-slate-700">
-                {step.agentNom} {step.agentPrenom}
-              </span>
-              <span className="text-slate-500">
-                sur {step.jsCode ?? "?"}
-              </span>
-              <span className="text-slate-400 text-[10px]">
-                {step.jsDate} {step.jsHoraires}
-              </span>
-              {step.consequenceType !== "RACINE" && (
-                <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
-                  {step.consequenceType.replace("INDUCED_", "").replace("HORAIRE_CONFLICT", "horaire")}
-                </span>
-              )}
-            </div>
+            <StepItem
+              key={i}
+              step={step}
+              niveauLabel={`niv. ${sol.chaine.length - i}`}
+            />
           ))}
         </div>
       )}

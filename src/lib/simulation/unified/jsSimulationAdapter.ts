@@ -14,7 +14,8 @@ import type { AgentDataMultiJs } from "@/lib/simulation/multiJs/multiJsCandidate
 import type { ShadowReport, ShadowDiffParJs } from "./shadow";
 import { creerEtatInitial } from "./etat";
 import { besoinRacineFromJs, enumererSolutions } from "./solveur";
-import type { ConsequenceType, NiveauRisque } from "./types";
+import { scorerCandidatDetail } from "@/lib/simulation/scenarioScorer";
+import type { ConsequenceType, NiveauRisque, Resolution } from "./types";
 
 interface RunUnifiedSingleJsArgs {
   jsCible: JsCible;
@@ -76,8 +77,101 @@ export function runUnifiedForSingleJs(args: RunUnifiedSingleJsArgs): ShadowRepor
       budgetConsomme: 12000 - etat.budget.remaining,
       raisonSiVide: solutions.length === 0 ? "AUCUNE_SOLUTION" : undefined,
       solutions: solutions.map((sol) => {
-        // L'aplatissement est en post-ordre : feuilles → racine. Le N1 est le
-        // dernier élément (la racine = qui prend l'imprévu).
+        // Index parent → conséquence (par planningLigneId de jsImpactee) pour
+        // récupérer la description précise de chaque conséquence.
+        const conseqByJsId = new Map<string, { type: ConsequenceType; description: string }>();
+        function indexConseq(r: Resolution): void {
+          for (let i = 0; i < r.consequences.length; i++) {
+            const c = r.consequences[i];
+            if (c.jsImpactee.planningLigneId) {
+              conseqByJsId.set(c.jsImpactee.planningLigneId, {
+                type: c.type,
+                description: c.description,
+              });
+            }
+            if (r.sousResolutions[i]) indexConseq(r.sousResolutions[i]);
+          }
+        }
+        indexConseq(sol.resolutionRacine);
+
+        const chaine = sol.resolutionsAplaties.map((r) => {
+          const consequenceType: ConsequenceType | "RACINE" =
+            r.besoin.origine.type === "RACINE"
+              ? "RACINE"
+              : r.besoin.origine.consequenceType;
+          const conseqInfo = r.besoin.jsCible.planningLigneId
+            ? conseqByJsId.get(r.besoin.jsCible.planningLigneId)
+            : undefined;
+
+          const breakdown = scorerCandidatDetail({
+            agentId: r.agent.id,
+            nom: r.agent.nom,
+            prenom: r.agent.prenom,
+            matricule: r.agent.matricule,
+            posteAffectation: r.agent.posteAffectation,
+            agentReserve: r.agent.agentReserve,
+            surJsZ: false,
+            codeJsZOrigine: null,
+            statut: r.statut,
+            motifPrincipal: "",
+            detail: r.detail,
+            conflitsInduits: [],
+            nbConflits: r.consequences.length,
+          });
+
+          const margeRepos =
+            r.detail.reposJournalierDisponible !== null
+              ? r.detail.reposJournalierDisponible - r.detail.reposJournalierMin
+              : null;
+
+          return {
+            agentId: r.agent.id,
+            agentNom: r.agent.nom,
+            agentPrenom: r.agent.prenom,
+            agentReserve: r.agent.agentReserve,
+            jsCode: r.besoin.jsCible.codeJs,
+            jsDate: r.besoin.jsCible.date,
+            jsHoraires: `${r.besoin.jsCible.heureDebut}–${r.besoin.jsCible.heureFin}`,
+            consequenceType,
+            consequenceDescription: conseqInfo?.description ?? "",
+            statut: r.statut,
+            score: r.score,
+            scoreBreakdown: breakdown,
+            metrics: {
+              reposDisponibleMin: r.detail.reposJournalierDisponible,
+              reposRequisMin: r.detail.reposJournalierMin,
+              margeReposMin: margeRepos,
+              gptActuel: r.detail.gptActuel,
+              gptMax: r.detail.gptMax,
+              teCumule48hMin: r.detail.teGptCumulAvant,
+              nbViolations: r.detail.violations.length,
+              nbConflitsInduits: r.consequences.length,
+            },
+            motifPrincipal: r.detail.violations[0]?.description ?? "",
+            prefixesJs: r.agent.prefixesJs,
+          };
+        });
+
+        // Synthèse "Pourquoi ce rang" — repérage de l'étape la plus pénalisée
+        let resumePenalites: string | undefined;
+        if (chaine.length > 0) {
+          let pire = chaine[0];
+          for (const e of chaine) if (e.score < pire.score) pire = e;
+          if (pire.score < 80) {
+            const parts: string[] = [];
+            if (pire.scoreBreakdown.penaliteGpt > 0) parts.push(`GPT ${pire.metrics.gptActuel}/${pire.metrics.gptMax}`);
+            if (pire.scoreBreakdown.penaliteMargeRepos > 0 && pire.metrics.margeReposMin !== null) {
+              const m = pire.metrics.margeReposMin;
+              parts.push(`marge repos ${m >= 0 ? "+" : ""}${m}min`);
+            }
+            if (pire.scoreBreakdown.penaliteViolations > 0) parts.push(`${pire.metrics.nbViolations} violation(s) RH`);
+            if (pire.scoreBreakdown.penaliteConflits > 0) parts.push(`${pire.metrics.nbConflitsInduits} conséquence(s)`);
+            if (parts.length > 0) {
+              resumePenalites = `Pénalité dominante sur ${pire.agentNom} (score ${pire.score}) : ${parts.join(" + ")}`;
+            }
+          }
+        }
+
         const racine = sol.resolutionsAplaties[sol.resolutionsAplaties.length - 1];
         return {
           n1Id: racine.agent.id,
@@ -85,17 +179,8 @@ export function runUnifiedForSingleJs(args: RunUnifiedSingleJsArgs): ShadowRepor
           n1Prenom: racine.agent.prenom,
           profondeur: sol.profondeurMax,
           niveauRisque: sol.niveauRisque,
-          chaine: sol.resolutionsAplaties.map((r) => ({
-            agentNom: r.agent.nom,
-            agentPrenom: r.agent.prenom,
-            jsCode: r.besoin.jsCible.codeJs,
-            jsDate: r.besoin.jsCible.date,
-            jsHoraires: `${r.besoin.jsCible.heureDebut}–${r.besoin.jsCible.heureFin}`,
-            consequenceType:
-              r.besoin.origine.type === "RACINE"
-                ? ("RACINE" as const)
-                : (r.besoin.origine.consequenceType as ConsequenceType),
-          })),
+          chaine,
+          resumePenalites,
         };
       }),
     },

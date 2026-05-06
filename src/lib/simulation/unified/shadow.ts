@@ -32,10 +32,26 @@ import type {
   ConsequenceType,
   EtatCascade,
   NiveauRisque,
+  Resolution,
   Solution,
 } from "./types";
 
 // ─── Types de rapport ────────────────────────────────────────────────────────
+
+/**
+ * Métriques RH d'une étape de chaîne — extraites de DetailCalcul. Format
+ * partagé entre la sortie shadow (logs) et l'adaptation UI.
+ */
+interface EtapeMetricsRH {
+  reposDisponibleMin: number | null;
+  reposRequisMin: number;
+  margeReposMin: number | null;
+  gptActuel: number;
+  gptMax: number;
+  teCumule48hMin: number;
+  nbViolations: number;
+  nbConflitsInduits: number;
+}
 
 interface SolutionResume {
   n1Id: string;
@@ -45,13 +61,33 @@ interface SolutionResume {
   niveauRisque: NiveauRisque;
   /** Aplatissement post-ordre (feuilles puis racine), pour lecture séquentielle. */
   chaine: Array<{
+    agentId: string;
     agentNom: string;
     agentPrenom: string;
+    agentReserve: boolean;
     jsCode: string | null;
     jsDate: string;
     jsHoraires: string;
     consequenceType: ConsequenceType | "RACINE";
+    consequenceDescription: string;
+    statut: "DIRECT" | "VIGILANCE";
+    score: number;
+    scoreBreakdown: {
+      base: number;
+      penaliteViolations: number;
+      penaliteConflits: number;
+      bonusReserve: number;
+      bonusJsZ: number;
+      penaliteMargeRepos: number;
+      penaliteGpt: number;
+      total: number;
+    };
+    metrics: EtapeMetricsRH;
+    motifPrincipal: string;
+    prefixesJs: readonly string[];
   }>;
+  /** Phrase de synthèse des pénalités dominantes — pour la ligne "Pourquoi ce rang". */
+  resumePenalites?: string;
 }
 
 export interface ShadowDiffParJs {
@@ -111,21 +147,92 @@ export interface ShadowReport {
 // ─── Helpers d'aplatissement de Solution ─────────────────────────────────────
 
 function aplatirSolutionPourLog(solution: Solution): SolutionResume {
-  const chaine = solution.resolutionsAplaties.map((r, i) => ({
-    agentNom: r.agent.nom,
-    agentPrenom: r.agent.prenom,
-    jsCode: r.besoin.jsCible.codeJs,
-    jsDate: r.besoin.jsCible.date,
-    jsHoraires: `${r.besoin.jsCible.heureDebut}–${r.besoin.jsCible.heureFin}`,
-    consequenceType:
+  // Les conséquences sont stockées sur le NŒUD parent — chaque sous-resolution
+  // correspond à une conséquence du parent. Pour afficher la description sur
+  // l'étape libérée, on construit un index parent → consequence par
+  // jsImpactee.planningLigneId.
+  const consequenceByJsId = new Map<string, { type: ConsequenceType; description: string }>();
+  function indexConsequences(r: Resolution): void {
+    for (let i = 0; i < r.consequences.length; i++) {
+      const c = r.consequences[i];
+      if (c.jsImpactee.planningLigneId) {
+        consequenceByJsId.set(c.jsImpactee.planningLigneId, {
+          type: c.type,
+          description: c.description,
+        });
+      }
+      if (r.sousResolutions[i]) indexConsequences(r.sousResolutions[i]);
+    }
+  }
+  indexConsequences(solution.resolutionRacine);
+
+  const chaine = solution.resolutionsAplaties.map((r) => {
+    const consequenceType: ConsequenceType | "RACINE" =
       r.besoin.origine.type === "RACINE"
-        ? ("RACINE" as const)
-        : r.besoin.origine.consequenceType,
-  }));
+        ? "RACINE"
+        : r.besoin.origine.consequenceType;
+
+    // La description vient de la conséquence du parent qui pointe vers cette JS.
+    const conseqInfo = r.besoin.jsCible.planningLigneId
+      ? consequenceByJsId.get(r.besoin.jsCible.planningLigneId)
+      : undefined;
+
+    // Score breakdown depuis r.detail (calculé par le moteur RH).
+    const breakdown = scorerCandidatDetail({
+      agentId: r.agent.id,
+      nom: r.agent.nom,
+      prenom: r.agent.prenom,
+      matricule: r.agent.matricule,
+      posteAffectation: r.agent.posteAffectation,
+      agentReserve: r.agent.agentReserve,
+      surJsZ: false,
+      codeJsZOrigine: null,
+      statut: r.statut,
+      motifPrincipal: "",
+      detail: r.detail,
+      conflitsInduits: [],
+      nbConflits: r.consequences.length,
+    });
+
+    const margeRepos =
+      r.detail.reposJournalierDisponible !== null
+        ? r.detail.reposJournalierDisponible - r.detail.reposJournalierMin
+        : null;
+
+    return {
+      agentId: r.agent.id,
+      agentNom: r.agent.nom,
+      agentPrenom: r.agent.prenom,
+      agentReserve: r.agent.agentReserve,
+      jsCode: r.besoin.jsCible.codeJs,
+      jsDate: r.besoin.jsCible.date,
+      jsHoraires: `${r.besoin.jsCible.heureDebut}–${r.besoin.jsCible.heureFin}`,
+      consequenceType,
+      consequenceDescription: conseqInfo?.description ?? "",
+      statut: r.statut,
+      score: r.score,
+      scoreBreakdown: breakdown,
+      metrics: {
+        reposDisponibleMin: r.detail.reposJournalierDisponible,
+        reposRequisMin: r.detail.reposJournalierMin,
+        margeReposMin: margeRepos,
+        gptActuel: r.detail.gptActuel,
+        gptMax: r.detail.gptMax,
+        teCumule48hMin: r.detail.teGptCumulAvant,
+        nbViolations: r.detail.violations.length,
+        nbConflitsInduits: r.consequences.length,
+      },
+      motifPrincipal: r.detail.violations[0]?.description ?? "",
+      prefixesJs: r.agent.prefixesJs,
+    };
+  });
 
   // Le N1 (l'agent qui prend l'imprévu racine) est la racine — donc le DERNIER
   // élément de l'aplatissement post-ordre.
   const racine = solution.resolutionsAplaties[solution.resolutionsAplaties.length - 1];
+
+  // Synthèse des pénalités dominantes pour la ligne "Pourquoi ce rang"
+  const resumePenalites = construireResumePenalites(chaine);
 
   return {
     n1Id: racine.agent.id,
@@ -134,7 +241,44 @@ function aplatirSolutionPourLog(solution: Solution): SolutionResume {
     profondeur: solution.profondeurMax,
     niveauRisque: solution.niveauRisque,
     chaine,
+    resumePenalites,
   };
+}
+
+/**
+ * Construit une phrase courte expliquant les pénalités principales d'une
+ * solution. Repère l'étape la plus pénalisée (score le plus bas) et résume
+ * en une ligne ce qui pèse le plus.
+ *
+ * Retourne undefined si la solution est globalement saine (toutes étapes ≥ 80).
+ */
+function construireResumePenalites(
+  chaine: ReadonlyArray<SolutionResume["chaine"][number]>
+): string | undefined {
+  if (chaine.length === 0) return undefined;
+  // Trouver l'étape dont le score est le plus bas
+  let pire = chaine[0];
+  for (const e of chaine) {
+    if (e.score < pire.score) pire = e;
+  }
+  if (pire.score >= 80) return undefined;
+
+  const parts: string[] = [];
+  if (pire.scoreBreakdown.penaliteGpt > 0) {
+    parts.push(`GPT ${pire.metrics.gptActuel}/${pire.metrics.gptMax}`);
+  }
+  if (pire.scoreBreakdown.penaliteMargeRepos > 0 && pire.metrics.margeReposMin !== null) {
+    const m = pire.metrics.margeReposMin;
+    parts.push(`marge repos ${m >= 0 ? "+" : ""}${m}min`);
+  }
+  if (pire.scoreBreakdown.penaliteViolations > 0) {
+    parts.push(`${pire.metrics.nbViolations} violation${pire.metrics.nbViolations > 1 ? "s" : ""} RH`);
+  }
+  if (pire.scoreBreakdown.penaliteConflits > 0) {
+    parts.push(`${pire.metrics.nbConflitsInduits} conséquence${pire.metrics.nbConflitsInduits > 1 ? "s" : ""}`);
+  }
+  if (parts.length === 0) return undefined;
+  return `Pénalité dominante sur ${pire.agentNom} (score ${pire.score}) : ${parts.join(" + ")}`;
 }
 
 // ─── Détection séquence cible ────────────────────────────────────────────────
@@ -827,16 +971,23 @@ export function adapterShadowReportPourUI(report: ShadowReport): UnifiedReportUI
         profondeur: s.profondeur,
         niveauRisque: s.niveauRisque === "INCOMPLETE" ? "INCOMPLETE" : s.niveauRisque,
         chaine: s.chaine.map((c) => ({
-          agentId: "",  // pas exposé dans la chaîne shadow — pas critique pour UI
+          agentId: c.agentId,
           agentNom: c.agentNom,
           agentPrenom: c.agentPrenom,
+          agentReserve: c.agentReserve,
           jsCode: c.jsCode,
           jsDate: c.jsDate,
           jsHoraires: c.jsHoraires,
           consequenceType: c.consequenceType,
-          statut: "VIGILANCE",  // dérivable mais pas critique en V1
-          score: 0,             // idem
+          consequenceDescription: c.consequenceDescription,
+          statut: c.statut,
+          score: c.score,
+          scoreBreakdown: c.scoreBreakdown,
+          metrics: c.metrics,
+          motifPrincipal: c.motifPrincipal,
+          prefixesJs: c.prefixesJs,
         })),
+        resumePenalites: s.resumePenalites,
       })
     ),
     budgetConsomme: d.unified.budgetConsomme,

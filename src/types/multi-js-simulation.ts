@@ -356,14 +356,49 @@ export interface UnifiedSolutionUI {
     agentId: string;
     agentNom: string;
     agentPrenom: string;
+    agentReserve: boolean;
     jsCode: string | null;
     jsDate: string;
     jsHoraires: string;
     /** Type de besoin : RACINE = imprévu, sinon catégorie de la conséquence. */
     consequenceType: string;
+    /** Description précise de la conséquence (ex: "Repos 6h30 dispo / 14h00 requis"). */
+    consequenceDescription?: string;
     statut: "DIRECT" | "VIGILANCE";
     score: number;
+    /** Décomposition du score métier — pour transparence. */
+    scoreBreakdown: {
+      base: number;
+      penaliteViolations: number;
+      penaliteConflits: number;
+      bonusReserve: number;
+      bonusJsZ: number;
+      penaliteMargeRepos: number;
+      penaliteGpt: number;
+      total: number;
+    };
+    /** Métriques RH clés. */
+    metrics: {
+      reposDisponibleMin: number | null;
+      reposRequisMin: number;
+      margeReposMin: number | null;
+      gptActuel: number;
+      gptMax: number;
+      teCumule48hMin: number;
+      nbViolations: number;
+      nbConflitsInduits: number;
+    };
+    /** Motif principal si statut=VIGILANCE, vide sinon. */
+    motifPrincipal: string;
+    /** Liste des préfixes habilités (pour audit/affichage). */
+    prefixesJs: readonly string[];
   }>;
+  /**
+   * Phrase courte expliquant ce qui pénalise principalement cette solution
+   * (utilisée pour la ligne "Pourquoi ce rang"). Ex: "GPT saturé sur Brouillat
+   * (6/6) + repos −460min". Vide si solution OK sans pénalité notable.
+   */
+  resumePenalites?: string;
 }
 
 /**

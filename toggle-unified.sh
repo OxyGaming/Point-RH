@@ -68,6 +68,19 @@ set_flag() {
 restart_pm2() {
   echo ""
   echo "🔄 Redémarrage PM2 ($PM2_NAME)..."
+  # PM2 --update-env lit l'environnement du SHELL appelant, pas le .env
+  # directement. Il faut donc sourcer le .env avant le restart pour que les
+  # nouvelles valeurs (et la disparition des lignes commentées) soient
+  # transmises au process. set -a/+a auto-export tout ce que source charge.
+  #
+  # On unset d'abord les deux flags pour que les lignes commentées soient
+  # vraiment retirées de l'env (sinon une variable précédemment exportée
+  # reste héritée même si elle est commentée dans le .env).
+  unset UNIFIED_SHADOW FEATURE_UNIFIED_PRIMARY
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
   pm2 restart "$PM2_NAME" --update-env
   echo "✅ PM2 redémarré."
 }

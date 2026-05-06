@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type {
   CelluleInactivite,
   ReservistesInactiviteData,
@@ -8,6 +9,11 @@ import type {
 } from "@/services/reservistesInactivite.service";
 
 type SortMode = "nom" | "inactivite";
+
+type PendingAction =
+  | { kind: "agent"; agent: ReservisteRow }
+  | { kind: "cellule"; agent: ReservisteRow; prefix: string }
+  | { kind: "prefix"; prefix: string };
 
 interface Props {
   data: ReservistesInactiviteData;
@@ -58,10 +64,61 @@ function formatCellTooltip(c: CelluleInactivite, prefixe: string): string {
 }
 
 export default function ReservistesInactiviteTable({ data }: Props) {
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortMode>("inactivite");
   const [hiddenPrefixes, setHiddenPrefixes] = useState<Set<string>>(new Set());
   const [filterOpen, setFilterOpen] = useState(false);
+  const [pending, setPending] = useState<PendingAction | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function executeAction() {
+    if (!pending || busy) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      if (pending.kind === "agent") {
+        const res = await fetch(`/api/agents/${pending.agent.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ habilitations: [] }),
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(err.error ?? `Erreur ${res.status}`);
+        }
+      } else if (pending.kind === "cellule") {
+        const current = Object.keys(pending.agent.cellules);
+        const next = current.filter((p) => p !== pending.prefix);
+        const res = await fetch(`/api/agents/${pending.agent.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ habilitations: next }),
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(err.error ?? `Erreur ${res.status}`);
+        }
+      } else {
+        const res = await fetch("/api/admin/habilitations/strip-prefix", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prefix: pending.prefix }),
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(err.error ?? `Erreur ${res.status}`);
+        }
+      }
+      setPending(null);
+      router.refresh();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Erreur inconnue.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const visiblePrefixes = useMemo(
     () => data.prefixes.filter((p) => !hiddenPrefixes.has(p)),
@@ -252,9 +309,14 @@ export default function ReservistesInactiviteTable({ data }: Props) {
               >
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0 flex-1">
-                    <p className="font-[700] text-[14px] text-[#0f1b4c] leading-tight truncate">
+                    <button
+                      type="button"
+                      onClick={() => setPending({ kind: "agent", agent: row })}
+                      className="text-left font-[700] text-[14px] text-[#0f1b4c] leading-tight truncate w-full hover:text-[#dc2626] hover:underline underline-offset-2 transition-colors cursor-pointer"
+                      title="Vider toutes les habilitations de cet agent"
+                    >
                       {row.nom} {row.prenom}
-                    </p>
+                    </button>
                     <p className="text-[11px] text-[#8b93b8] font-mono mt-0.5">
                       {row.matricule}{row.uch ? ` · ${row.uch}` : ""}
                     </p>
@@ -281,17 +343,19 @@ export default function ReservistesInactiviteTable({ data }: Props) {
                       );
                     }
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={p}
-                        className="rounded-md px-1.5 py-1 text-center"
+                        onClick={() => setPending({ kind: "cellule", agent: row, prefix: p })}
+                        className="rounded-md px-1.5 py-1 text-center cursor-pointer hover:ring-2 hover:ring-[#dc2626] hover:ring-offset-1 transition-shadow"
                         style={cellStyle(c.joursInactivite, data.seuilAlerteJours)}
-                        title={formatCellTooltip(c, p)}
+                        title={`Retirer le préfixe « ${p} » des habilitations de ${row.nom} ${row.prenom}`}
                       >
                         <p className="text-[9px] font-[700] uppercase tracking-wider opacity-80">{p}</p>
                         <p className="text-[11px] font-[700] leading-tight">
                           {formatCellLabel(c)}
                         </p>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -330,7 +394,14 @@ export default function ReservistesInactiviteTable({ data }: Props) {
                       className="text-center font-[700] px-1.5 py-2.5 min-w-[52px] tracking-wide"
                       title={`Préfixe JS ${p}`}
                     >
-                      {p}
+                      <button
+                        type="button"
+                        onClick={() => setPending({ kind: "prefix", prefix: p })}
+                        className="w-full hover:text-[#fecaca] hover:underline underline-offset-2 transition-colors cursor-pointer"
+                        title={`Retirer le préfixe « ${p} » de tous les agents qui le possèdent`}
+                      >
+                        {p}
+                      </button>
                     </th>
                   ))}
                 </tr>
@@ -344,9 +415,14 @@ export default function ReservistesInactiviteTable({ data }: Props) {
                         style={{ left: 0, width: COL_AGENT_W, minWidth: COL_AGENT_W, background: rowBg }}
                         className="sticky z-10 px-3 py-2 font-[600] text-[#0f1b4c] border-r border-[#e2e8f5]"
                       >
-                        <div className="truncate">
+                        <button
+                          type="button"
+                          onClick={() => setPending({ kind: "agent", agent: row })}
+                          className="text-left truncate w-full hover:text-[#dc2626] hover:underline underline-offset-2 transition-colors cursor-pointer"
+                          title="Vider toutes les habilitations de cet agent"
+                        >
                           {row.nom} {row.prenom}
-                        </div>
+                        </button>
                       </td>
                       <td
                         style={{ left: STICKY_MAT_LEFT, width: COL_MAT_W, minWidth: COL_MAT_W, background: rowBg }}
@@ -379,12 +455,15 @@ export default function ReservistesInactiviteTable({ data }: Props) {
                             className="text-center px-0.5 py-1"
                             title={formatCellTooltip(c, p)}
                           >
-                            <span
-                              className="inline-flex items-center justify-center min-w-[42px] px-1.5 py-0.5 rounded-md font-[600] text-[10.5px] leading-tight"
+                            <button
+                              type="button"
+                              onClick={() => setPending({ kind: "cellule", agent: row, prefix: p })}
+                              className="inline-flex items-center justify-center min-w-[42px] px-1.5 py-0.5 rounded-md font-[600] text-[10.5px] leading-tight cursor-pointer hover:ring-2 hover:ring-[#dc2626] hover:ring-offset-1 transition-shadow"
                               style={cellStyle(c.joursInactivite, data.seuilAlerteJours)}
+                              title={`Retirer le préfixe « ${p} » des habilitations de ${row.nom} ${row.prenom}`}
                             >
                               {formatCellLabel(c)}
-                            </span>
+                            </button>
                           </td>
                         );
                       })}
@@ -397,8 +476,109 @@ export default function ReservistesInactiviteTable({ data }: Props) {
         </div>
         </>
       )}
+
+      {pending && (
+        <ConfirmDialog
+          action={pending}
+          busy={busy}
+          error={actionError}
+          onCancel={() => {
+            if (!busy) {
+              setPending(null);
+              setActionError(null);
+            }
+          }}
+          onConfirm={executeAction}
+        />
+      )}
     </div>
   );
+}
+
+function ConfirmDialog({
+  action,
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  action: PendingAction;
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const { title, message, warning } = describeAction(action);
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="bg-white rounded-xl max-w-md w-full p-5 shadow-2xl border border-[#e2e8f5]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-[15px] font-[700] text-[#0f1b4c] mb-2">{title}</h3>
+        <p className="text-[13px] text-[#4a5580] mb-2">{message}</p>
+        {warning && (
+          <p className="text-[12px] text-[#991b1b] bg-[#fef2f2] border border-[#fecaca] rounded-md px-2.5 py-1.5 mb-3">
+            {warning}
+          </p>
+        )}
+        {error && (
+          <p className="text-[12px] text-[#991b1b] bg-[#fef2f2] border border-[#fecaca] rounded-md px-2.5 py-1.5 mb-3">
+            {error}
+          </p>
+        )}
+        <div className="flex justify-end gap-2 mt-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="px-3 py-1.5 text-[12px] font-[600] rounded-md border border-[#e2e8f5] text-[#4a5580] hover:bg-[#f1f5f9] disabled:opacity-50"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="px-3 py-1.5 text-[12px] font-[700] rounded-md bg-[#dc2626] text-white hover:bg-[#b91c1c] disabled:opacity-50"
+          >
+            {busy ? "Suppression…" : "Supprimer"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function describeAction(action: PendingAction): {
+  title: string;
+  message: string;
+  warning?: string;
+} {
+  if (action.kind === "agent") {
+    const { nom, prenom } = action.agent;
+    return {
+      title: "Vider les habilitations de l'agent",
+      message: `Toutes les habilitations de ${nom} ${prenom} vont être supprimées. L'agent restera en base mais sortira de la liste des réservistes.`,
+    };
+  }
+  if (action.kind === "cellule") {
+    const { nom, prenom } = action.agent;
+    return {
+      title: "Retirer une habilitation",
+      message: `Le préfixe « ${action.prefix} » va être retiré des habilitations de ${nom} ${prenom}.`,
+    };
+  }
+  return {
+    title: "Retirer un préfixe chez tous les agents",
+    message: `Le préfixe « ${action.prefix} » va être retiré de tous les agents qui le possèdent (réservistes et non-réservistes).`,
+    warning: "Action de masse irréversible.",
+  };
 }
 
 function LegendSwatch({ days, label, seuil }: { days: number; label: string; seuil: number }) {

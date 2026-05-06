@@ -29,7 +29,8 @@ export type AuditAction =
   | "CREATE_ZERO_LOAD_PREFIX"
   | "UPDATE_ZERO_LOAD_PREFIX"
   | "DELETE_ZERO_LOAD_PREFIX"
-  | "PURGE_HABILITATIONS";
+  | "PURGE_HABILITATIONS"
+  | "STRIP_HABILITATION_PREFIX";
 
 export async function logAudit(
   action: AuditAction,

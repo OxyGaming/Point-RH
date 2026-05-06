@@ -104,3 +104,44 @@ export async function purgeHabilitations(scope: PurgeScope): Promise<PurgeResult
   });
   return { agentsUpdated: res.count, scope: { type: "all" } };
 }
+
+/**
+ * Retire un préfixe d'habilitation chez tous les agents actifs qui le possèdent.
+ * Le champ `habilitations` est un JSON string ; on doit donc parser, filtrer et
+ * réécrire pour chaque agent concerné. Idempotent : agents sans le préfixe
+ * ne sont pas touchés.
+ */
+export async function stripPrefixFromAllAgents(
+  rawPrefix: string,
+): Promise<{ agentsUpdated: number; prefix: string }> {
+  const prefix = rawPrefix.trim();
+  if (prefix.length === 0) {
+    throw new Error("Préfixe requis.");
+  }
+
+  const agents = await prisma.agent.findMany({
+    where: { deletedAt: null },
+    select: { id: true, habilitations: true },
+  });
+
+  let agentsUpdated = 0;
+  for (const a of agents) {
+    let arr: unknown;
+    try {
+      arr = JSON.parse(a.habilitations);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(arr)) continue;
+    const next = arr.filter((x) => x !== prefix);
+    if (next.length !== arr.length) {
+      await prisma.agent.update({
+        where: { id: a.id },
+        data: { habilitations: JSON.stringify(next) },
+      });
+      agentsUpdated++;
+    }
+  }
+
+  return { agentsUpdated, prefix };
+}

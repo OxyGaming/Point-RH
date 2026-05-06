@@ -2071,6 +2071,51 @@ pm2 restart pointrh</pre>
     <li><strong>Solutions DECONSEILLEE remontées comme pertinentes</strong> par les utilisateurs — le seuil est paramétrable (constante <code>SEUIL_SCORE_DECONSEILLE</code>)</li>
     <li><strong>Charge</strong> : si <code>budgetTotal</code> dépasse régulièrement 5000, augmenter <code>CASCADE_EVAL_BUDGET</code> ou réduire <code>maxSolutionsParJs</code></li>
   </ul>
+
+  <h3>Procédure de déploiement en production</h3>
+
+  <div class="callout ok">
+    <div class="callout-title">✓ Pas de migration DB</div>
+    Le solveur unifié n'introduit ni nouveau schéma Prisma ni nouvelle table. La sortie API
+    reste rétrocompatible — les nouveaux champs (<code>unifiedReport</code>, <code>scenarioReserveOnlyCascade*</code>)
+    sont optionnels. Un déploiement de code seul, flags désactivés, ne change <strong>rien</strong> au comportement
+    perçu par l'utilisateur.
+  </div>
+
+  <h4 style="margin-top:14px">Phase 1 — Déploiement code (zéro risque)</h4>
+  <p>Sur le VPS, lancer le script standard&nbsp;:</p>
+  <pre style="margin:6px 0;padding:10px 12px;background:#0f172a;color:#e2e8f0;border-radius:6px;font-size:12px;font-family:'Consolas',monospace">cd /var/www/Point-RH
+./deploy-rh.sh</pre>
+  <p>Build + restart PM2. Test de fumée recommandé&nbsp;: ouvrir une simulation multi-JS connue et vérifier que <strong>8 scénarios</strong> apparaissent (au lieu de 6 — les deux nouveaux scénarios <em>Réserve × Cascade</em>). Aucun onglet "Solveur unifié ⚗" ne doit être visible à ce stade.</p>
+
+  <h4 style="margin-top:14px">Phase 2 — Activation shadow (logs serveur uniquement)</h4>
+  <pre style="margin:6px 0;padding:10px 12px;background:#0f172a;color:#e2e8f0;border-radius:6px;font-size:12px;font-family:'Consolas',monospace">./toggle-unified.sh shadow on</pre>
+  <p>Active <code>UNIFIED_SHADOW=1</code> et redémarre PM2. Le solveur tourne en parallèle de l'allocator legacy, écrit ses agrégats dans la console serveur. <strong>Aucun impact UI</strong>. À surveiller pendant 24-48h via <code>pm2 logs pointrh | grep UNIFIED</code>.</p>
+
+  <h4 style="margin-top:14px">Phase 3 — Bascule UI (visible utilisateurs)</h4>
+  <pre style="margin:6px 0;padding:10px 12px;background:#0f172a;color:#e2e8f0;border-radius:6px;font-size:12px;font-family:'Consolas',monospace">./toggle-unified.sh ui on</pre>
+  <p>Active <code>FEATURE_UNIFIED_PRIMARY=1</code>. L'onglet <strong>"Solveur unifié ⚗"</strong> apparaît sur les scénarios cascade (multi-JS) et sur le panneau d'analyse d'imprévu (simulation simple). Le legacy reste mode par défaut sur tous les autres onglets.</p>
+
+  <div class="callout warn" style="margin-top:10px">
+    <div class="callout-title">↩ Rollback immédiat (à tout moment)</div>
+    Une seule commande désactive l'UI, en gardant le shadow pour audit&nbsp;:
+    <pre style="margin:8px 0;padding:8px 12px;background:#0f172a;color:#e2e8f0;border-radius:6px;font-size:12px;font-family:'Consolas',monospace">./toggle-unified.sh ui off</pre>
+    Pour un rollback complet (UI + shadow), utiliser <code>./toggle-unified.sh full off</code>. Le restart PM2 est automatique. L'onglet disparaît instantanément.
+  </div>
+
+  <h4 style="margin-top:14px">Vérification de l'état des flags</h4>
+  <pre style="margin:6px 0;padding:10px 12px;background:#0f172a;color:#e2e8f0;border-radius:6px;font-size:12px;font-family:'Consolas',monospace">./toggle-unified.sh status</pre>
+  <p>Affiche l'état actuel des deux flags sans rien modifier.</p>
+
+  <table style="margin-top:14px">
+    <thead><tr><th>Commande</th><th>Effet</th></tr></thead>
+    <tbody>
+      <tr><td><code>./toggle-unified.sh status</code></td><td>Lecture seule — affiche les flags actifs</td></tr>
+      <tr><td><code>./toggle-unified.sh shadow on / off</code></td><td>Active / désactive les logs serveur</td></tr>
+      <tr><td><code>./toggle-unified.sh ui on / off</code></td><td>Active / désactive l'onglet UI</td></tr>
+      <tr><td><code>./toggle-unified.sh full on / off</code></td><td>Bascule les deux flags simultanément</td></tr>
+    </tbody>
+  </table>
 </section>
 
 <!-- ══════════════════════════════════════════ UI AGENTS -->

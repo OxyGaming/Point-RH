@@ -162,6 +162,29 @@ export async function POST(req: NextRequest) {
       console.log(logLine);
     }
 
+    // ─── Solveur unifié (sous flag) ────────────────────────────────────────────
+    // Mirror de l'intégration multi-JS : enrichit la réponse avec un rapport
+    // unifié sans rien modifier au comportement legacy. Activé uniquement par
+    // FEATURE_UNIFIED_PRIMARY=1 côté serveur.
+    if (process.env.FEATURE_UNIFIED_PRIMARY === "1") {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const unifiedShadow = require("@/lib/simulation/unified/shadow") as typeof import("@/lib/simulation/unified/shadow");
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const buildUnified = require("@/lib/simulation/unified/jsSimulationAdapter") as typeof import("@/lib/simulation/unified/jsSimulationAdapter");
+        const report = buildUnified.runUnifiedForSingleJs({
+          jsCible: body.jsCible,
+          imprevu: body.imprevu,
+          agents,
+        });
+        resultat.unifiedReport = unifiedShadow.adapterShadowReportPourUI(report);
+      } catch (err) {
+        // Le solveur unifié ne doit jamais interrompre la simulation legacy.
+        // eslint-disable-next-line no-console
+        console.error("[js-simulation/unified]", err);
+      }
+    }
+
     return NextResponse.json(resultat, { status: 200 });
   } catch (err) {
     console.error("[API/js-simulation]", err);

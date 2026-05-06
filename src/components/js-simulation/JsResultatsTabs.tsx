@@ -4,7 +4,9 @@ import type { ComponentType, SVGProps } from "react";
 import { useState } from "react";
 import CandidatCard from "./CandidatCard";
 import ScenarioCard from "./ScenarioCard";
+import UnifiedSolutionsPanel from "@/components/multi-js/UnifiedSolutionsPanel";
 import type { JsSimulationResultatDouble, JsSimulationResultat } from "@/types/js-simulation";
+import type { UnifiedReportUI } from "@/types/multi-js-simulation";
 import {
   IconCheckCircle,
   IconAlertTriangle,
@@ -12,7 +14,7 @@ import {
   IconClipboard,
 } from "@/components/icons/Icons";
 
-type Tab = "candidats" | "vigilance" | "refuses" | "scenarios";
+type Tab = "candidats" | "vigilance" | "refuses" | "scenarios" | "unified";
 type Mode = "sans" | "avec";
 
 const TABS: { id: Tab; label: string }[] = [
@@ -27,16 +29,32 @@ const TAB_BADGE: Record<Tab, string> = {
   vigilance: "bg-yellow-100 text-yellow-700",
   refuses: "bg-red-100 text-red-700",
   scenarios: "bg-blue-100 text-blue-700",
+  unified: "bg-purple-100 text-purple-700",
 };
 
-function ResultPanel({ resultat }: { resultat: JsSimulationResultat }) {
+function ResultPanel({
+  resultat,
+  unifiedReport,
+}: {
+  resultat: JsSimulationResultat;
+  unifiedReport?: UnifiedReportUI;
+}) {
   const [activeTab, setActiveTab] = useState<Tab>("candidats");
 
+  // L'onglet "Solveur unifié ⚗" n'apparaît que si le rapport est exposé
+  // par l'API (= FEATURE_UNIFIED_PRIMARY=1 côté serveur).
+  const showUnifiedTab = unifiedReport !== undefined;
+  const tabsToShow: { id: Tab; label: string }[] = showUnifiedTab
+    ? [...TABS, { id: "unified", label: "Solveur unifié ⚗" }]
+    : TABS;
+
+  const nbUnifiedSolutions = unifiedReport?.jsAnalyses[0]?.solutions.length ?? 0;
   const counts: Record<Tab, number> = {
     candidats: resultat.directsUtilisables.length,
     vigilance: resultat.vigilance.length,
     refuses: resultat.refuses.length,
     scenarios: resultat.scenarios.length,
+    unified: nbUnifiedSolutions,
   };
 
   return (
@@ -52,7 +70,7 @@ function ResultPanel({ resultat }: { resultat: JsSimulationResultat }) {
 
       {/* Tabs */}
       <div className="flex border-b border-gray-200 bg-white">
-        {TABS.map((tab) => (
+        {tabsToShow.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
@@ -139,6 +157,10 @@ function ResultPanel({ resultat }: { resultat: JsSimulationResultat }) {
             )}
           </>
         )}
+
+        {activeTab === "unified" && unifiedReport && (
+          <UnifiedSolutionsPanel report={unifiedReport} />
+        )}
       </div>
     </>
   );
@@ -199,7 +221,7 @@ export default function JsResultatsTabs({ resultat }: { resultat: JsSimulationRe
         )}
       </div>
 
-      <ResultPanel resultat={current} />
+      <ResultPanel resultat={current} unifiedReport={resultat.unifiedReport} />
     </div>
   );
 }

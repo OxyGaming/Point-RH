@@ -245,4 +245,9 @@ export interface JsSimulationResultat {
 export interface JsSimulationResultatDouble {
   sansFigeage: JsSimulationResultat;
   avecFigeage: JsSimulationResultat;
+  /**
+   * Rapport du solveur unifié appliqué à la JS imprévue (FEATURE_UNIFIED_PRIMARY=1
+   * uniquement). Mirror de l'intégration multi-JS — onglet additionnel UI.
+   */
+  unifiedReport?: import("./multi-js-simulation").UnifiedReportUI;
 }

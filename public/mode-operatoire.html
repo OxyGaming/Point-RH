@@ -2116,6 +2116,12 @@ pm2 restart pointrh</pre>
       <tr><td><code>./toggle-unified.sh full on / off</code></td><td>Bascule les deux flags simultanément</td></tr>
     </tbody>
   </table>
+
+  <h4 style="margin-top:14px">Mode "thorough" (analyse approfondie ponctuelle)</h4>
+  <p>Par défaut, le solveur unifié tourne en mode <strong>léger</strong> (5 solutions par JS, budget 3000, sans phase exhaustive) pour ne pas peser plus de quelques secondes par simulation cascade. Pour activer le mode <strong>complet</strong> (12 solutions, budget 12000, exhaustif activé, diagnostics nominatifs Chennouf-Brouillat-Leguay et test de séquence forcée), ajouter la variable&nbsp;:</p>
+  <pre style="margin:6px 0;padding:10px 12px;background:#0f172a;color:#e2e8f0;border-radius:6px;font-size:12px;font-family:'Consolas',monospace">echo "UNIFIED_THOROUGH=1" >> /var/www/Point-RH/.env
+pm2 restart pointrh --update-env</pre>
+  <p>Réservé aux situations d'investigation — ce mode peut prendre <strong>1-3 minutes par simulation</strong> selon la taille du dataset, contre quelques secondes en mode léger. Sur la prod permanente, <strong>laisser cette variable absente</strong>.</p>
 </section>
 
 <!-- ══════════════════════════════════════════ UI AGENTS -->

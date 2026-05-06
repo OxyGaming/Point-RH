@@ -166,16 +166,23 @@ export async function POST(req: NextRequest) {
     // Mirror de l'intégration multi-JS : enrichit la réponse avec un rapport
     // unifié sans rien modifier au comportement legacy. Activé uniquement par
     // FEATURE_UNIFIED_PRIMARY=1 côté serveur.
+    //
+    // Mode "thorough" (UNIFIED_THOROUGH=1) : caps complets pour analyse fine.
+    // Sans ce flag : caps légers pour rester sous quelques secondes en prod.
     if (process.env.FEATURE_UNIFIED_PRIMARY === "1") {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const unifiedShadow = require("@/lib/simulation/unified/shadow") as typeof import("@/lib/simulation/unified/shadow");
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const buildUnified = require("@/lib/simulation/unified/jsSimulationAdapter") as typeof import("@/lib/simulation/unified/jsSimulationAdapter");
+        const thorough = process.env.UNIFIED_THOROUGH === "1";
         const report = buildUnified.runUnifiedForSingleJs({
           jsCible: body.jsCible,
           imprevu: body.imprevu,
           agents,
+          maxSolutionsParJs: thorough ? 12 : 5,
+          budget: thorough ? 12000 : 3000,
+          exhaustif: thorough,
         });
         resultat.unifiedReport = unifiedShadow.adapterShadowReportPourUI(report);
       } catch (err) {

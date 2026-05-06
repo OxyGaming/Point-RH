@@ -1118,6 +1118,12 @@ export function allouerJsMultiple(
         (j) => j.codeJs === "GIC006R" && j.date === "2026-05-03"
       ) ?? null;
 
+      // Mode "thorough" (analyse approfondie) : opt-in via UNIFIED_THOROUGH=1.
+      // Sans ce flag, on tourne en mode "léger" pour rester sous quelques
+      // secondes de surcoût en prod. Avec, on retrouve les caps complets
+      // pour analyse fine sur un cas problématique.
+      const thorough = process.env.UNIFIED_THOROUGH === "1";
+
       const report = runShadowComparison({
         scenarioId: id,
         scenarioTitre: titre,
@@ -1131,14 +1137,18 @@ export function allouerJsMultiple(
         importId: cascadeContext.importId,
         remplacement,
         deplacement,
-        maxSolutionsParJs: 12,
+        maxSolutionsParJs: thorough ? 12 : 5,
+        budgetParJs: thorough ? 12000 : 3000,
+        exhaustif: thorough,
         sequenceCibleNoms: ["CHENNOUF", "BROUILLAT", "LEGUAY"],
-        diagnosticTargetN1: "CHENNOUF",
-        diagnosticAgentsACompararer: ["BROUILLAT", "CHAMINADE", "OLLIER"],
-        diagnosticAgentN2: "BROUILLAT",
-        diagnosticAgentsN3: ["LEGUAY", "PINQUE", "MENDI", "ACHILLE"],
-        sequenceForceeJsRacine: jsRacineSeq,
-        sequenceForceeASim: jsRacineSeq
+        // Diagnostics désactivés en mode léger — purement audit, coûteux
+        // (chacun appelle evaluerImpactComplet sur 3-4 agents nommés).
+        diagnosticTargetN1: thorough ? "CHENNOUF" : null,
+        diagnosticAgentsACompararer: thorough ? ["BROUILLAT", "CHAMINADE", "OLLIER"] : [],
+        diagnosticAgentN2: thorough ? "BROUILLAT" : undefined,
+        diagnosticAgentsN3: thorough ? ["LEGUAY", "PINQUE", "MENDI", "ACHILLE"] : [],
+        sequenceForceeJsRacine: thorough ? jsRacineSeq : null,
+        sequenceForceeASim: (thorough && jsRacineSeq)
           ? [
               { agentName: "CHENNOUF",  jsCodeAttendu: "GIC006R" },
               { agentName: "BROUILLAT", jsCodeAttendu: "BAD015R" },

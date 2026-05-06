@@ -352,8 +352,12 @@ export interface RunShadowParams {
   deplacement: boolean;
 
   // Paramétrage shadow
-  /** Cap sur le nombre de solutions énumérées par JS. */
+  /** Cap sur le nombre de solutions énumérées par JS. Défaut : 5 (perf-friendly). */
   maxSolutionsParJs?: number;
+  /** Budget d'évaluations par JS. Défaut : 3000 (perf-friendly). 12000 en mode complet. */
+  budgetParJs?: number;
+  /** Active la phase 3 (mode exhaustif). Défaut : false (perf-friendly). */
+  exhaustif?: boolean;
   /** Séquence cible à détecter (noms d'agents). null = pas de check. */
   sequenceCibleNoms?: readonly string[] | null;
   /**
@@ -389,6 +393,8 @@ export interface RunShadowParams {
 
 export function runShadowComparison(params: RunShadowParams): ShadowReport {
   const maxSolutionsParJs = params.maxSolutionsParJs ?? 5;
+  const budgetParJs = params.budgetParJs ?? 3000;
+  const exhaustif = params.exhaustif ?? false;
   const sequenceCible = params.sequenceCibleNoms ?? null;
 
   const diffsParJs: ShadowDiffParJs[] = [];
@@ -404,6 +410,7 @@ export function runShadowComparison(params: RunShadowParams): ShadowReport {
       importId: params.importId,
       remplacement: params.remplacement,
       deplacement: params.deplacement,
+      budget: budgetParJs,
     });
 
     const besoin = besoinRacineFromJs(js);
@@ -412,7 +419,7 @@ export function runShadowComparison(params: RunShadowParams): ShadowReport {
     try {
       solutions = enumererSolutions(besoin, etat, maxSolutionsParJs, {
         diversification: "MULTI_NIVEAU",
-        exhaustif: true,
+        exhaustif,
         maxCandidatsExhaustif: 30,
       });
     } catch (err) {
@@ -422,7 +429,7 @@ export function runShadowComparison(params: RunShadowParams): ShadowReport {
       raisonSiVide = "AUCUNE_SOLUTION";
     }
 
-    budgetTotal += etat.budget.remaining < 0 ? 0 : (12000 - etat.budget.remaining);
+    budgetTotal += budgetParJs - etat.budget.remaining;
 
     const resumes = solutions.map(aplatirSolutionPourLog);
     const legacy = resumeLegacy(js.planningLigneId, params.legacyAffectations);
@@ -451,7 +458,7 @@ export function runShadowComparison(params: RunShadowParams): ShadowReport {
       legacy,
       unified: {
         nbSolutions: resumes.length,
-        budgetConsomme: 12000 - etat.budget.remaining,
+        budgetConsomme: budgetParJs - etat.budget.remaining,
         raisonSiVide,
         solutions: resumes,
       },

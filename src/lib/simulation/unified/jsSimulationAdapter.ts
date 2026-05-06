@@ -21,8 +21,12 @@ interface RunUnifiedSingleJsArgs {
   jsCible: JsCible;
   imprevu: ImpreuvuConfig;
   agents: AgentDataMultiJs[];
-  /** Cap solutions par défaut 12 — aligné avec le multi-JS. */
+  /** Cap solutions. Défaut : 5 (perf-friendly). */
   maxSolutionsParJs?: number;
+  /** Budget d'évaluations. Défaut : 3000 (perf-friendly), 12000 en mode complet. */
+  budget?: number;
+  /** Active la phase 3 (mode exhaustif). Défaut : false. */
+  exhaustif?: boolean;
 }
 
 /**
@@ -34,7 +38,9 @@ interface RunUnifiedSingleJsArgs {
  */
 export function runUnifiedForSingleJs(args: RunUnifiedSingleJsArgs): ShadowReport {
   const { jsCible, imprevu, agents } = args;
-  const maxSolutionsParJs = args.maxSolutionsParJs ?? 12;
+  const maxSolutionsParJs = args.maxSolutionsParJs ?? 5;
+  const budget = args.budget ?? 3000;
+  const exhaustif = args.exhaustif ?? false;
 
   const agentsMap = new Map(agents.map((a) => [a.context.id, a]));
   const index = buildCoverageIndex(agents);
@@ -48,12 +54,13 @@ export function runUnifiedForSingleJs(args: RunUnifiedSingleJsArgs): ShadowRepor
     importId: jsCible.importId,
     remplacement,
     deplacement,
+    budget,
   });
 
   const besoin = besoinRacineFromJs(jsCible);
   const solutions = enumererSolutions(besoin, etat, maxSolutionsParJs, {
     diversification: "MULTI_NIVEAU",
-    exhaustif: true,
+    exhaustif,
     maxCandidatsExhaustif: 30,
   });
 
@@ -74,7 +81,7 @@ export function runUnifiedForSingleJs(args: RunUnifiedSingleJsArgs): ShadowRepor
     },
     unified: {
       nbSolutions: solutions.length,
-      budgetConsomme: 12000 - etat.budget.remaining,
+      budgetConsomme: budget - etat.budget.remaining,
       raisonSiVide: solutions.length === 0 ? "AUCUNE_SOLUTION" : undefined,
       solutions: solutions.map((sol) => {
         // Index parent → conséquence (par planningLigneId de jsImpactee) pour
@@ -202,7 +209,7 @@ export function runUnifiedForSingleJs(args: RunUnifiedSingleJsArgs): ShadowRepor
       nbUnifiedSeul: 0,
       nbLegacySeul: 0,
       nbSequenceCibleTrouvee: 0,
-      budgetTotal: 12000 - etat.budget.remaining,
+      budgetTotal: budget - etat.budget.remaining,
     },
     diagnostics: [],
   };

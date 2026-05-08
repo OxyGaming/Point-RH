@@ -1097,15 +1097,20 @@ export function allouerJsMultiple(
   }));
 
   // ─── Solveur unifié en parallèle ─────────────────────────────────────────────
-  //  - UNIFIED_SHADOW=1            : rapport en logs serveur uniquement
-  //  - FEATURE_UNIFIED_PRIMARY=1   : rapport en logs + exposition UI (champ
-  //    unifiedReport sur le scenario). L'UI peut alors afficher un onglet
-  //    "Solveur unifié (expérimental)". Aucun écrasement du legacy.
+  //  - UNIFIED_SHADOW=1                          : rapport en logs serveur uniquement
+  //  - FEATURE_UNIFIED_PRIMARY=1
+  //    + UNIFIED_PRIMARY_ALIGNMENT_DONE=1        : rapport en logs + exposition UI
+  //      (champ unifiedReport sur le scenario). L'UI peut alors afficher un onglet
+  //      "Solveur unifié (expérimental)". Aucun écrasement du legacy.
+  //  - FEATURE_UNIFIED_PRIMARY=1 sans alignment  : run en shadow (logs only) +
+  //    warning. Garde-fou tant que les divergences C1/C2 ne sont pas arbitrées,
+  //    cf. docs/unified-solver-divergences.md.
   //
   // Activé uniquement pour les scénarios cascade (cascadeContext !== null).
   let unifiedReport: import("@/types/multi-js-simulation").UnifiedReportUI | undefined;
-  const shadowActif =
-    process.env.UNIFIED_SHADOW === "1" || process.env.FEATURE_UNIFIED_PRIMARY === "1";
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { isUnifiedPrimaryEnabled, isUnifiedShadowEnabled } = require("@/lib/simulation/unified/featureFlag") as typeof import("@/lib/simulation/unified/featureFlag");
+  const shadowActif = isUnifiedShadowEnabled();
 
   if (shadowActif && cascadeContext !== null) {
     // Import dynamique pour éviter d'embarquer le module si flags off.
@@ -1158,8 +1163,9 @@ export function allouerJsMultiple(
       });
       emitShadowReport(report, logger);
 
-      // Bascule UI : exposer le rapport SI FEATURE_UNIFIED_PRIMARY est actif.
-      if (process.env.FEATURE_UNIFIED_PRIMARY === "1") {
+      // Bascule UI : exposer le rapport SI FEATURE_UNIFIED_PRIMARY est actif
+      // ET que l'alignement C1/C2 a été déclaré (UNIFIED_PRIMARY_ALIGNMENT_DONE=1).
+      if (isUnifiedPrimaryEnabled()) {
         unifiedReport = adapterShadowReportPourUI(report);
       }
     } catch (err) {

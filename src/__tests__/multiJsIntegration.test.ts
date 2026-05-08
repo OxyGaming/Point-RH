@@ -32,6 +32,10 @@ jest.mock("@/lib/simulation/jsTypeFlexibiliteLoader", () => ({
   loadJsTypeFlexibiliteMap: jest.fn().mockResolvedValue(new Map()),
 }));
 
+jest.mock("@/lib/simulation/zeroLoadPrefixLoader", () => ({
+  loadZeroLoadPrefixes: jest.fn().mockResolvedValue([]),
+}));
+
 jest.mock("@/lib/deplacement/loadLpaContext", () => ({
   loadLpaContext: jest.fn().mockResolvedValue({
     lpas: [],

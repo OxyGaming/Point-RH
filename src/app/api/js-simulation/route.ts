@@ -164,12 +164,16 @@ export async function POST(req: NextRequest) {
 
     // ─── Solveur unifié (sous flag) ────────────────────────────────────────────
     // Mirror de l'intégration multi-JS : enrichit la réponse avec un rapport
-    // unifié sans rien modifier au comportement legacy. Activé uniquement par
-    // FEATURE_UNIFIED_PRIMARY=1 côté serveur.
+    // unifié sans rien modifier au comportement legacy. Active uniquement quand
+    // FEATURE_UNIFIED_PRIMARY=1 ET UNIFIED_PRIMARY_ALIGNMENT_DONE=1 côté serveur
+    // (cf. docs/unified-solver-divergences.md — divergences C1/C2 à arbitrer
+    // avant de surfacer le rapport unifié côté UI).
     //
     // Mode "thorough" (UNIFIED_THOROUGH=1) : caps complets pour analyse fine.
     // Sans ce flag : caps légers pour rester sous quelques secondes en prod.
-    if (process.env.FEATURE_UNIFIED_PRIMARY === "1") {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { isUnifiedPrimaryEnabled } = require("@/lib/simulation/unified/featureFlag") as typeof import("@/lib/simulation/unified/featureFlag");
+    if (isUnifiedPrimaryEnabled()) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const unifiedShadow = require("@/lib/simulation/unified/shadow") as typeof import("@/lib/simulation/unified/shadow");

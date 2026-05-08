@@ -46,17 +46,22 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      # Pousse le schéma sur la DB SQLite avant tests + build. Les tests Jest sont
+      # censés mocker tous les loaders Prisma (cf. patterns dans __tests__/),
+      # mais un oubli de mock ferait tomber le test sur la vraie DB. Avec le
+      # schéma en place, l'oubli produit au pire un résultat vide (`findMany`
+      # retourne []) plutôt qu'un crash P2021 "table does not exist" — défense
+      # en profondeur contre les régressions de test setup.
+      # Conserve aussi l'usage initial : `next build` prérend des pages qui
+      # appellent prisma.*.findMany() (ex. /agents).
+      - name: Create SQLite schema
+        run: npx prisma db push --accept-data-loss
+
       - name: TypeScript typecheck
         run: npx tsc --noEmit
 
       - name: Unit tests (Jest)
         run: npm test -- --ci
-
-      # `next build` prérend certaines pages (ex. /agents) qui appellent
-      # prisma.*.findMany(). Sans schéma en place sur la DB CI, l'export échoue
-      # avec P2021 "table does not exist". `db push` crée les tables vides.
-      - name: Create SQLite schema
-        run: npx prisma db push --accept-data-loss
 
       - name: Build (next build)
         run: npm run build

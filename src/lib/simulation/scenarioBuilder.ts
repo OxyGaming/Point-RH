@@ -5,13 +5,12 @@
 
 import { resoudreTousConflits } from "./cascadeResolver";
 import { scorerScenario, determinerConformiteFinale } from "./scenarioScorer";
+import { generateScenarioId } from "./scenarioId";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { CandidatResult, Scenario, ModificationPlanning } from "@/types/js-simulation";
 import type { JsCible, ImpreuvuConfig } from "@/types/js-simulation";
 import type { LpaContext } from "@/types/deplacement";
 import { DEFAULT_WORK_RULES_MINUTES, type WorkRulesMinutes } from "@/lib/rules/workRules";
-
-let scenarioCounter = 0;
 
 /**
  * Construit les scénarios à partir des candidats ayant des conflits résolvables.
@@ -24,7 +23,6 @@ export function construireScenarios(
   lpaContext?: LpaContext,
   rules: WorkRulesMinutes = DEFAULT_WORK_RULES_MINUTES
 ): Scenario[] {
-  scenarioCounter = 0;
   const scenarios: Scenario[] = [];
 
   // Scénario pour chaque candidat direct sans conflits
@@ -79,9 +77,8 @@ export function construireScenarios(
     const allModifications = [modPrincipale, ...modifications];
     const score = scorerScenario(conformiteFinale, allModifications.length, profondeurMax, nbConflitsResidus);
 
-    scenarioCounter++;
     const scenario: Scenario = {
-      id: `scenario-${scenarioCounter}`,
+      id: generateScenarioId(),
       titre: buildScenarioTitre(candidat, modifications),
       score,
       agentPrincipalId: candidat.agentId,
@@ -114,7 +111,6 @@ function buildScenarioDirect(
   jsCible: JsCible,
   imprevu: ImpreuvuConfig
 ): Scenario {
-  scenarioCounter++;
   const score = scorerScenario("CONFORME", 1, 0, 0);
 
   const titreZSuffix = candidat.surJsZ ? ` (libéré de JS Z : ${candidat.codeJsZOrigine})` : "";
@@ -129,7 +125,7 @@ function buildScenarioDirect(
     : "";
 
   return {
-    id: `scenario-${scenarioCounter}`,
+    id: generateScenarioId(),
     titre: `${candidat.nom} ${candidat.prenom} reprend directement la JS${titreZSuffix}${titreFigeageSuffix}`,
     score,
     agentPrincipalId: candidat.agentId,

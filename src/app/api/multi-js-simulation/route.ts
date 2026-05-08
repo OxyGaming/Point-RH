@@ -18,6 +18,30 @@ export const runtime = "nodejs";
 
 const SIMULATION_RATE_LIMIT = { max: 30, windowMs: 60 * 1000 };
 
+// Garde-fous volume : multi-JS produit 8 scénarios (vs 2 pour single-JS) sur
+// le même dataset, donc à un coût ~4× supérieur. Un import trop gros bloque
+// l'event loop Node ⇒ nginx timeout ⇒ 504 pour tous les utilisateurs.
+// Cf. incident encryptionKey 2026-04-24 (mémoire infrastructure pointrh).
+// Variables d'env distinctes du single-JS pour pouvoir abaisser la limite
+// multi-JS sans rebuild si nécessaire.
+//
+// Parsing sécurisé : `Number(process.env.X ?? d)` retourne NaN si la variable
+// est mal formatée ("foo"), et `42000 > NaN === false` ferait passer toutes
+// les requêtes — autrement dit, un typo dans .env.local désactiverait
+// silencieusement le garde-fou. parsePositiveIntEnv tombe sur le fallback
+// dans ce cas, et un test au démarrage est inutile car les fallbacks sont
+// suffisants pour la prod.
+function parsePositiveIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const MAX_LIGNES_MULTI = parsePositiveIntEnv("MULTI_SIM_MAX_LIGNES", 40000);
+const MAX_AGENTS_MULTI = parsePositiveIntEnv("MULTI_SIM_MAX_AGENTS", 1500);
+const MULTI_SLOW_WARN_MS = parsePositiveIntEnv("MULTI_SIM_SLOW_WARN_MS", 15000);
+
 export async function POST(req: NextRequest) {
   const auth = checkAuth(req);
   if (!auth.ok) return auth.response;
@@ -53,6 +77,19 @@ export async function POST(req: NextRequest) {
       }),
       prisma.jsType.findMany({ select: { code: true, heureDebutStandard: true, heureFinStandard: true } }),
     ]);
+
+    // Garde-fou volume — refuser avant lancement du calcul synchrone (8 scénarios)
+    if (lignes.length > MAX_LIGNES_MULTI) {
+      return NextResponse.json(
+        {
+          error:
+            `Import trop volumineux (${lignes.length.toLocaleString("fr-FR")} lignes) ` +
+            `pour une simulation multi-JS. Maximum autorisé : ${MAX_LIGNES_MULTI.toLocaleString("fr-FR")}. ` +
+            `Réduisez la période ou le périmètre lors de l'import.`,
+        },
+        { status: 413 }
+      );
+    }
 
     function resolveJsType(codeJs: string | null, typeJs: string | null) {
       if (typeJs) {
@@ -130,6 +167,19 @@ export async function POST(req: NextRequest) {
 
     const agents = Array.from(agentsMap.values());
 
+    if (agents.length > MAX_AGENTS_MULTI) {
+      return NextResponse.json(
+        {
+          error:
+            `Trop d'agents dans cet import (${agents.length}) pour une simulation multi-JS. ` +
+            `Maximum autorisé : ${MAX_AGENTS_MULTI}. ` +
+            `Filtrez le périmètre ou la période avant analyse.`,
+        },
+        { status: 413 }
+      );
+    }
+
+    const simStart = Date.now();
     const resultat = await executerSimulationMultiJs(
       jsSelectionnees,
       agents,
@@ -137,6 +187,15 @@ export async function POST(req: NextRequest) {
       remplacement,
       deplacement
     );
+    const simDuration = Date.now() - simStart;
+
+    // Télémétrie : log systématique + alerte sur simulations lentes pour identifier les cas pathologiques.
+    const logLine = `[multi-js-simulation] user=${auth.user.id} agents=${agents.length} lignes=${lignes.length} jsCibles=${jsSelectionnees.length} duration=${simDuration}ms`;
+    if (simDuration > MULTI_SLOW_WARN_MS) {
+      console.warn(`${logLine} SLOW`);
+    } else {
+      console.log(logLine);
+    }
 
     return NextResponse.json(resultat, { status: 200 });
   } catch (err) {

@@ -41,15 +41,7 @@ import type { MultiJsExclusion } from "@/types/multi-js-simulation";
 import type { LogCollector } from "@/engine/logger";
 import type { ChaineContexte } from "./chaineRemplacement";
 import { tenterChaineRemplacement, enumererChainesRemplacement } from "./chaineRemplacement";
-
-/**
- * Génère un identifiant de scénario unique et thread-safe.
- * Pas de compteur global — chaque appel produit un ID distinct
- * même en cas d'exécutions parallèles.
- */
-function generateScenarioId(): string {
-  return `scenario-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-}
+import { generateScenarioId } from "@/lib/simulation/scenarioId";
 
 /**
  * Détermine ce que l'agent remplaçant avait initialement prévu

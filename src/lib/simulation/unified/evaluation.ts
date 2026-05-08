@@ -36,13 +36,18 @@ import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveServi
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 
 // ─── Règles fatales (jamais récupérables par cascade) ────────────────────────
+//
+// IMPORTANT — Alignement C1/C2 (cf. docs/unified-solver-divergences.md) :
+// REGLES_FATALES doit rester un sous-ensemble de REGLES_BLOQUANTES (engine).
+// Une règle qui produit VIGILANCE côté engine ne doit pas rendre l'agent
+// faisable=false côté unifié. Le test src/__tests__/unifiedAlignment.test.ts
+// vérifie cet invariant en CI.
 
-const REGLES_FATALES = new Set<string>([
+export const REGLES_FATALES = new Set<string>([
   "PREFIXE_JS",
   "NUIT_HABILITATION",
   "DEPLACEMENT_HABILITATION",
   "TRAJET_ABSENT",
-  "MIN_REGIME_BC",
   "AMPLITUDE",            // amplitude individuelle — irrecouvrable par libération
   "TRAVAIL_EFFECTIF",     // idem
 ]);
@@ -51,9 +56,29 @@ const REGLES_RECUPERABLES_TYPE: Record<string, ConsequenceType> = {
   REPOS_JOURNALIER: "INDUCED_REPOS",
   GPT_MAX: "INDUCED_GPT",
   TE_GPT_48H: "INDUCED_TE_48H",
-  GPT_NUIT_CONSECUTIVES: "INDUCED_NUITS",
   // INDUCED_RP : géré séparément via gptRpAnalyse, pas via violations[]
+  // GPT_NUIT_CONSECUTIVES : volontairement absente — voir REGLES_VIGILANCE_PURE.
+  //   Aucune heuristique fiable pour identifier la JS de la GPT nuit précédente
+  //   à libérer ; le moteur historique laisse passer en VIGILANCE, on s'aligne.
 };
+
+// ─── Règles VIGILANCE pure (alignement C1/C2) ─────────────────────────────────
+//
+// Règles qui :
+//  - ne rendent pas l'agent fatal (mobilisable côté engine en VIGILANCE seule)
+//  - ne sont pas non plus récupérables par cascade (pas d'heuristique terrain
+//    fiable, ou règle qui ne dépend pas d'une JS spécifique à libérer)
+//
+// Comportement : violation acceptée comme VIGILANCE, le solveur ne tente
+// AUCUNE cascade, le statut RH passe à VIGILANCE et le décideur arbitre
+// humainement — exactement ce que fait `evaluerMobilisabilite`.
+//
+// MIN_REGIME_BC          — décision métier 2026-05-08 : VIGILANCE acceptée
+// GPT_NUIT_CONSECUTIVES  — décision métier 2026-05-08 : VIGILANCE acceptée
+export const REGLES_VIGILANCE_PURE = new Set<string>([
+  "MIN_REGIME_BC",
+  "GPT_NUIT_CONSECUTIVES",
+]);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -163,11 +188,14 @@ function buildSimulationInput(
  * Mappe les violations renvoyées par evaluerMobilisabilite en Consequences.
  *
  * Retourne :
- *  - `consequences` : une consequence par violation récupérable (avec
+ *  - `consequences`  : une consequence par violation récupérable (avec
  *    jsImpactee identifiée).
  *  - `irrecuperable` : true si au moins une violation fatale est présente
  *    OU une violation récupérable sans jsImpactee identifiable.
- *  - `raisonRejet` : message diagnostic en cas d'irrecuperable=true.
+ *  - `vigilancePure` : true si au moins une violation est de type VIGILANCE
+ *    pure (cf. REGLES_VIGILANCE_PURE) — l'agent reste mobilisable, statut
+ *    forcé à VIGILANCE par le caller.
+ *  - `raisonRejet`   : message diagnostic en cas d'irrecuperable=true.
  */
 export function mapViolationsToConsequences(
   violations: readonly RegleViolation[],
@@ -178,17 +206,27 @@ export function mapViolationsToConsequences(
 ): {
   consequences: Consequence[];
   irrecuperable: boolean;
+  vigilancePure: boolean;
   raisonRejet?: string;
 } {
   const consequences: Consequence[] = [];
+  let vigilancePure = false;
 
   for (const v of violations) {
     if (REGLES_FATALES.has(v.regle)) {
       return {
         consequences: [],
         irrecuperable: true,
+        vigilancePure: false,
         raisonRejet: `${v.regle}: ${v.description}`,
       };
+    }
+
+    if (REGLES_VIGILANCE_PURE.has(v.regle)) {
+      // Violation acceptée comme VIGILANCE pure — pas de cascade tentée,
+      // l'agent reste mobilisable. Aligné sur le moteur historique.
+      vigilancePure = true;
+      continue;
     }
 
     const type = REGLES_RECUPERABLES_TYPE[v.regle];
@@ -197,6 +235,7 @@ export function mapViolationsToConsequences(
       return {
         consequences: [],
         irrecuperable: true,
+        vigilancePure: false,
         raisonRejet: `Règle non récupérable: ${v.regle}`,
       };
     }
@@ -214,13 +253,14 @@ export function mapViolationsToConsequences(
       return {
         consequences: [],
         irrecuperable: true,
+        vigilancePure: false,
         raisonRejet: `JS impactée non identifiable pour ${v.regle}`,
       };
     }
     consequences.push(conseq);
   }
 
-  return { consequences, irrecuperable: false };
+  return { consequences, irrecuperable: false, vigilancePure };
 }
 
 function mapViolationToConsequence(
@@ -285,10 +325,13 @@ function mapViolationToConsequence(
       };
     }
     case "INDUCED_NUITS":
-      // INDUCED_NUITS : une heuristique fiable ("quelle JS de quelle GPT nuit
-      // libérer ?") nécessite une donnée terrain pour calibrer. Pour l'instant
-      // on rejette la candidature (NON_RECUPERABLE) plutôt que de proposer une
-      // solution potentiellement non valide.
+      // Branche dead-code conservée par défense : depuis l'alignement C2
+      // (2026-05-08), GPT_NUIT_CONSECUTIVES est traité en VIGILANCE pure
+      // (cf. REGLES_VIGILANCE_PURE) et ne passe plus jamais ici. Si un jour
+      // une heuristique fiable est calibrée pour identifier la JS à libérer,
+      // remettre GPT_NUIT_CONSECUTIVES dans REGLES_RECUPERABLES_TYPE et
+      // implémenter le mapping ; en attendant, retour null = NON_RECUPERABLE
+      // au cas où cette branche serait à nouveau atteinte par accident.
       return null;
     default:
       return null;
@@ -469,8 +512,13 @@ export function evaluerImpactComplet(
     ...mapping.consequences,
     ...forwardMapping.consequences,
   ];
+  // VIGILANCE pure : violation acceptée comme telle par alignement C1/C2
+  // (MIN_REGIME_BC, GPT_NUIT_CONSECUTIVES — backward via mapping ou forward
+  // via forwardMapping). Force le statut à VIGILANCE même sans consequence,
+  // pour que l'agent reste mobilisable comme dans le moteur historique.
+  const hasVigilancePure = mapping.vigilancePure || forwardMapping.vigilancePure;
   const statut: "DIRECT" | "VIGILANCE" =
-    resultat.statut === "VIGILANCE" || allConsequences.length > 0
+    resultat.statut === "VIGILANCE" || allConsequences.length > 0 || hasVigilancePure
       ? "VIGILANCE"
       : "DIRECT";
 
@@ -527,7 +575,10 @@ function syntheticImprevuEvent(
  *    dans la même GPT). Le solveur tentera ensuite de la libérer via cascade.
  *  - TE_GPT_48H : non émis par detecterConflitsInduits (uniquement détecté en
  *    backward par evaluerMobilisabilite).
- *  - NUIT_CONSEC (resolvable) → INDUCED_NUITS, JS identifiée par date.
+ *  - GPT_NUIT_CONSECUTIVES (alignement C2) : flagué `vigilancePure=true`,
+ *    aucune consequence émise — le statut RH passe en VIGILANCE comme côté
+ *    moteur historique. Pas de cascade tentée (pas d'heuristique fiable pour
+ *    identifier la JS de la GPT nuit précédente à libérer).
  *
  * Les conflits dont la JS ne porte pas de planningLigneId, ou dont la JS est
  * déjà dans consequencesPreEval (HORAIRE_CONFLICT déjà traité), sont sautés.
@@ -541,7 +592,12 @@ function mapForwardConflicts(
   detail: DetailCalcul,
   etat: EtatCascade,
   jsDejaCouvertes: ReadonlySet<string>
-): { consequences: Consequence[]; irrecuperable: boolean; raisonRejet?: string } {
+): {
+  consequences: Consequence[];
+  irrecuperable: boolean;
+  vigilancePure: boolean;
+  raisonRejet?: string;
+} {
   const imprevuEvent = syntheticImprevuEvent(besoin, simulationInput);
   const eventsAvecImprevu = [...eventsHypothetiques, imprevuEvent].sort(
     (a, b) => a.dateDebut.getTime() - b.dateDebut.getTime()
@@ -556,8 +612,17 @@ function mapForwardConflicts(
   );
 
   const consequences: Consequence[] = [];
+  let vigilancePure = false;
 
   for (const c of conflits) {
+    // Alignement C2 : GPT_NUIT_CONSECUTIVES forward = VIGILANCE pure, pas de
+    // cascade tentée. Cohérent avec REGLES_VIGILANCE_PURE et avec le moteur
+    // historique qui laisse passer cette violation seule en VIGILANCE.
+    if (REGLES_VIGILANCE_PURE.has(c.regleCode)) {
+      vigilancePure = true;
+      continue;
+    }
+
     // Le legacy marque GPT_MAX en resolvable=false par prudence — pour le
     // solveur unifié, on étend le mapping si une JS libérable est identifiable.
     // Si non identifiable, on retombe sur le rejet conservatif comme demandé
@@ -567,6 +632,7 @@ function mapForwardConflicts(
       return {
         consequences: [],
         irrecuperable: true,
+        vigilancePure: false,
         raisonRejet: `${c.regleCode}: ${c.description}`,
       };
     }
@@ -587,7 +653,7 @@ function mapForwardConflicts(
         );
       }
     } else {
-      // Mapping standard via date+heureDebut (REPOS_INSUFFISANT, NUIT_CONSEC)
+      // Mapping standard via date+heureDebut (REPOS_INSUFFISANT)
       event = eventsEffectifs.find(
         (e) =>
           e.jsNpo === "JS" &&
@@ -600,6 +666,7 @@ function mapForwardConflicts(
       return {
         consequences: [],
         irrecuperable: true,
+        vigilancePure: false,
         raisonRejet: `${c.regleCode}: JS impactée non identifiable (${c.description})`,
       };
     }
@@ -612,6 +679,7 @@ function mapForwardConflicts(
       return {
         consequences: [],
         irrecuperable: true,
+        vigilancePure: false,
         raisonRejet: `${c.regleCode}: conversion JsCible impossible`,
       };
     }
@@ -621,9 +689,7 @@ function mapForwardConflicts(
         ? "INDUCED_REPOS"
         : c.regleCode === "GPT_MAX"
           ? "INDUCED_GPT"
-          : c.regleCode === "GPT_NUIT_CONSECUTIVES"
-            ? "INDUCED_NUITS"
-            : "INDUCED_REPOS";
+          : "INDUCED_REPOS";
 
     consequences.push({
       type: consequenceType,
@@ -635,7 +701,7 @@ function mapForwardConflicts(
     });
   }
 
-  return { consequences, irrecuperable: false };
+  return { consequences, irrecuperable: false, vigilancePure };
 }
 
 // ─── DetailCalcul vide (pour les rejets précoces) ────────────────────────────

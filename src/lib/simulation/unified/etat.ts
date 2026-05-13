@@ -49,7 +49,8 @@ export function creerEtatInitial(params: EtatInitialParams): EtatCascade {
     remplacement: params.remplacement ?? true,
     deplacement: params.deplacement ?? false,
     importId: params.importId,
-    profondeurMax: params.profondeurMax ?? SOLVER_DEFAULTS.CASCADE_MAX_DEPTH,
+    // C7 : profondeur lue depuis rules (3 par défaut, vs 4 hardcoded pré-C7).
+    profondeurMax: params.profondeurMax ?? params.rules.cascade.profondeurMax,
     affectationsCourantes: new Map(params.affectationsInitiales ?? []),
     jsLibereesDansBranche: new Set(),
     agentsEngagesBranche: new Set(),

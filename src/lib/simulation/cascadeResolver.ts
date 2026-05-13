@@ -23,18 +23,10 @@ import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveServi
 import type { LpaContext } from "@/types/deplacement";
 import { DEFAULT_WORK_RULES_MINUTES, type WorkRulesMinutes } from "@/lib/rules/workRules";
 
-/**
- * Profondeur maximale de cascade.
- *
- * Réduite à 3 (ancien : 10) : au-delà, l'exploration combinatoire dégénère —
- * avec ~230 agents, depth=10 peut déclencher des dizaines de milliers d'appels
- * à evaluerMobilisabilite et bloquer l'event loop Node ≫ 60s (timeout nginx).
- *
- * Métier : une chaîne de 3 remplacements (A← B← C← D) reste gérable
- * humainement ; au-delà personne ne la valide en pratique. Le gain perf
- * l'emporte sur la perte de scénarios exotiques.
- */
-export const CASCADE_MAX_DEPTH = Number(process.env.CASCADE_MAX_DEPTH ?? 3);
+// Profondeur maximale de cascade : déplacée dans WorkRules.cascade.profondeurMax
+// (C7) — source unique pour single-JS / multi-JS / unified. Valeur métier par
+// défaut : 3 niveaux (A ← B ← C ← D). Lue depuis `rules.cascade.profondeurMax`
+// dans `tenterResolutionCascade` ci-dessous.
 
 /**
  * Budget global d'appels à evaluerMobilisabilite par construction de scénarios.
@@ -141,7 +133,7 @@ function trouverEvenementCausant(
  * libre pour reprendre l'événement conflictuel.
  *
  * Si l'agent candidat est lui-même bloqué par un conflit de repos, la fonction
- * s'appelle récursivement (depth+1) jusqu'à CASCADE_MAX_DEPTH.
+ * s'appelle récursivement (depth+1) jusqu'à `rules.cascade.profondeurMax`.
  *
  * @param agentsEngages - Agents déjà engagés dans la chaîne (anti-cycle)
  */
@@ -160,7 +152,7 @@ export function tenterResolutionCascade(
     resolu: false, agentRemplagant: null, modifications: [], impactsCascade: [], profondeur: depth,
   };
 
-  if (depth > CASCADE_MAX_DEPTH || !conflictingEvent) return echec;
+  if (depth > rules.cascade.profondeurMax || !conflictingEvent) return echec;
   if (budget.epuise) return echec;
 
   const jsDebut = conflictingEvent.dateDebut;
@@ -270,7 +262,7 @@ export function tenterResolutionCascade(
     // ── Tentative de cascade profonde si repos insuffisant ────────────────
     if (
       resultat.statut === "NON_CONFORME" &&
-      depth < CASCADE_MAX_DEPTH
+      depth < rules.cascade.profondeurMax
     ) {
       const violationRepos = resultat.detail.violations.find(
         (v) => v.regle === "REPOS_JOURNALIER"

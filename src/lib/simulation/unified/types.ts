@@ -248,7 +248,7 @@ export interface ResolutionOptions {
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
 export const SOLVER_DEFAULTS = {
-  CASCADE_MAX_DEPTH: 4,
+  // CASCADE_MAX_DEPTH retiré en C7 — lecture unique via rules.cascade.profondeurMax.
   CASCADE_EVAL_BUDGET: 12000,
   MAX_CANDIDATS_PAR_NIVEAU: 8,
   MAX_SOLUTIONS_ENUMEREES: 5,

@@ -118,7 +118,9 @@ export async function executerSimulationMultiJs(
         effectiveServiceMap,
         zeroLoadPrefixes,
         agentAssignments: new Map(),
-        profondeurMax: 2,
+        // C7 : valeur unique depuis rules (3 par défaut, vs 2 hardcoded pré-C7).
+        // L'écart marginal de combinatoire est borné par le budget ci-dessous.
+        profondeurMax: rules.cascade.profondeurMax,
         budget: { remaining: budgetBase },
         importId: importIdSimu,
       };

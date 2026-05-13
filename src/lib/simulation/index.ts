@@ -55,18 +55,18 @@ export async function executerSimulationJS(
     },
   });
 
-  // Charger les règles dynamiques (fallback sur défauts si base vide)
-  const rules = await loadWorkRules();
-
-  // ─── Chargement des codes NPO exclus des simulations ─────────────────────────
-  const npoExclusionCodes = await loadNpoExclusionCodes();
-
-  // ─── Chargement des préfixes additionnels assimilés JS Z ─────────────────────
-  const zeroLoadPrefixes = await loadZeroLoadPrefixes();
-
-  // ─── Chargement du contexte LPA ──────────────────────────────────────────────
+  // ─── Chargement parallèle du contexte (règles, codes, LPA, flexibilité) ──────
+  // Ces 5 loaders sont indépendants — Promise.all évite ~30-50 ms cumulés.
   const agentIds = agents.map((a) => a.context.id);
-  const lpaContext = await loadLpaContext(agentIds);
+  const tLoad = Date.now();
+  const [rules, npoExclusionCodes, zeroLoadPrefixes, lpaContext, jsTypeFlexibiliteMap] = await Promise.all([
+    loadWorkRules(),
+    loadNpoExclusionCodes(),
+    loadZeroLoadPrefixes(),
+    loadLpaContext(agentIds),
+    loadJsTypeFlexibiliteMap(),
+  ]);
+  console.log(`[sim-trace] CONTEXT_PARALLEL_LOAD ${Date.now() - tLoad}ms`);
   mark("CONTEXT_LOADED");
 
   // ─── Calcul du service effectif par agent (LPA-based) ────────────────────────
@@ -237,7 +237,7 @@ export async function executerSimulationJS(
 
   // ─── Étape 2bis : candidats libérés par figeage (DERNIER_RECOURS) ─────────────
   // Toujours calculé (pour les deux résultats sansFigeage / avecFigeage).
-  const jsTypeFlexibiliteMap = await loadJsTypeFlexibiliteMap();
+  // jsTypeFlexibiliteMap chargé en parallèle plus haut (CONTEXT_PARALLEL_LOAD).
   const candidatsFigeage = trouverCandidatsParFigeage(exclus, jsCible, imprevu, jsTypeFlexibiliteMap, zeroLoadPrefixes);
 
   logger.info("FIGEAGE_CANDIDATS", {

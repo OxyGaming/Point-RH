@@ -11,7 +11,8 @@
 import { loadWorkRules } from "@/lib/rules/workRulesLoader";
 import { loadNpoExclusionCodes } from "@/lib/simulation/npoExclusionLoader";
 import { loadZeroLoadPrefixes } from "@/lib/simulation/zeroLoadPrefixLoader";
-import type { JsCible, FlexibiliteJs } from "@/types/js-simulation";
+import { loadJsTypeFlexibiliteMap } from "@/lib/simulation/jsTypeFlexibiliteLoader";
+import type { JsCible } from "@/types/js-simulation";
 import type { MultiJsSimulationResultat, CandidateScope } from "@/types/multi-js-simulation";
 import { trouverCandidatsPourJs } from "./multiJsCandidateFinder";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
@@ -40,18 +41,20 @@ export async function executerSimulationMultiJs(
     data: { nbJs: jsSelectionnees.length, nbAgents: agents.length, remplacement, deplacement },
   });
 
-  const rules = await loadWorkRules();
-  const npoExclusionCodes = await loadNpoExclusionCodes();
-  const zeroLoadPrefixes = await loadZeroLoadPrefixes();
-
-  // Toujours charger la map de flexibilité pour les scénarios avec figeage
-  const jsTypeFlexibiliteMap: Map<string, FlexibiliteJs> =
-    await (await import("@/lib/simulation/jsTypeFlexibiliteLoader")).loadJsTypeFlexibiliteMap();
+  // ─── Chargement parallèle du contexte (règles, codes, LPA, flexibilité) ──────
+  // Ces 5 loaders sont indépendants — Promise.all évite ~30-50 ms cumulés.
+  const agentIds = agents.map((a) => a.context.id);
+  const tLoad = Date.now();
+  const [rules, npoExclusionCodes, zeroLoadPrefixes, jsTypeFlexibiliteMap, lpaContext] = await Promise.all([
+    loadWorkRules(),
+    loadNpoExclusionCodes(),
+    loadZeroLoadPrefixes(),
+    loadJsTypeFlexibiliteMap(),
+    loadLpaContext(agentIds),
+  ]);
+  console.log(`[multi-sim-trace] CONTEXT_PARALLEL_LOAD ${Date.now() - tLoad}ms`);
 
   const agentsMap = new Map(agents.map((a) => [a.context.id, a]));
-
-  const agentIds = agents.map((a) => a.context.id);
-  const lpaContext = await loadLpaContext(agentIds);
 
   // Pré-calcul du service effectif (partagé entre tous les scénarios)
   const effectiveServiceMap = new Map<string, EffectiveServiceInfo>();

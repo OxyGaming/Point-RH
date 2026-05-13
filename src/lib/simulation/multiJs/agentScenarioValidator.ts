@@ -8,7 +8,8 @@
  *   2. L'ensemble de ses affectations cumulées reste conforme aux règles RH
  */
 
-import { combineDateTime, isJsDeNuit, getDateFinJs } from "@/lib/utils";
+import { combineDateTime, getDateFinJs } from "@/lib/utils";
+import { isJsDeNuitFromRules } from "@/lib/rules/nightThreshold";
 import { evaluerMobilisabilite } from "@/engine/rules";
 import type { WorkRulesMinutes } from "@/lib/rules/workRules";
 import type { JsCible } from "@/types/js-simulation";
@@ -72,7 +73,7 @@ export function canAssignJsToAgentInScenario(
 
   // ─── 3. Évaluer la nouvelle JS sur ce planning simulé ────────────────────────
   const imprevuNew = buildImprevu(newJs, remplacement, deplacement);
-  const isNuitJs = isJsDeNuit(newJs.heureDebut, newJs.heureFin);
+  const isNuitJs = isJsDeNuitFromRules(newJs.heureDebut, newJs.heureFin, rules);
 
   // Service effectif LPA-based
   const effectiveService = effectiveServiceMap?.get(`${agentData.context.id}:${newJs.planningLigneId}`) ?? null;

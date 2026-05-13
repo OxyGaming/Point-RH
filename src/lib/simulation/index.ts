@@ -5,7 +5,8 @@
 
 import { evaluerMobilisabilite } from "@/engine/rules";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
-import { combineDateTime, diffMinutes, isJsDeNuit, getDateFinJs } from "@/lib/utils";
+import { combineDateTime, diffMinutes, getDateFinJs } from "@/lib/utils";
+import { isJsDeNuitFromRules } from "@/lib/rules/nightThreshold";
 import { loadWorkRules } from "@/lib/rules/workRulesLoader";
 import { preFilterCandidats, injecterJsDansPlanning, trouverCandidatsParFigeage } from "./candidateFinder";
 import { loadJsTypeFlexibiliteMap } from "./jsTypeFlexibiliteLoader";
@@ -69,6 +70,10 @@ export async function executerSimulationJS(
   console.log(`[sim-trace] CONTEXT_PARALLEL_LOAD ${Date.now() - tLoad}ms`);
   mark("CONTEXT_LOADED");
 
+  // Classification nuit de la JS cible — seuils dynamiques (rules.periodeNocturne),
+  // pas le pré-calculé jsCible.isNuit qui ignore les overrides admin.
+  const isNuitJsCible = isJsDeNuitFromRules(jsCible.heureDebut, jsCible.heureFin, rules);
+
   // ─── Calcul du service effectif par agent (LPA-based) ────────────────────────
   // Calculé une fois pour tous les agents (y compris les futurs exclus)
   // pour une utilisation cohérente dans preFilterCandidats et evaluerMobilisabilite.
@@ -84,7 +89,7 @@ export async function executerSimulationJS(
         // (qui incluent ses trajets propres). Chaque candidat applique ensuite ses propres trajets.
         heureDebut: jsCible.heureDebutJsType ?? jsCible.heureDebut,
         heureFin:   jsCible.heureFinJsType   ?? jsCible.heureFin,
-        estNuit: jsCible.isNuit,
+        estNuit: isNuitJsCible,
       },
       lpaContext,
       { remplacement: imprevu.remplacement }
@@ -97,7 +102,7 @@ export async function executerSimulationJS(
   // ─── Étape 1 : pré-filtre ────────────────────────────────────────────────────
   const agentInitialId = jsCible.agentId;
   const { eligible, exclus } = preFilterCandidats(
-    agents, jsCible, imprevu, agentInitialId, effectiveServiceMap, npoExclusionCodes, zeroLoadPrefixes
+    agents, jsCible, imprevu, agentInitialId, rules, effectiveServiceMap, npoExclusionCodes, zeroLoadPrefixes
   );
   mark("PREFILTER_DONE", { nbEligible: eligible.length, nbExclus: exclus.length });
 
@@ -118,7 +123,7 @@ export async function executerSimulationJS(
   const finImprevu = combineDateTime(getDateFinJs(jsCible.date, imprevu.heureDebutReel, imprevu.heureFinEstimee), imprevu.heureFinEstimee);
   const amplitudeImprevu = Math.max(0, diffMinutes(debutImprevu, finImprevu));
 
-  const isNuitImprevu = isJsDeNuit(imprevu.heureDebutReel, imprevu.heureFinEstimee);
+  const isNuitImprevu = isJsDeNuitFromRules(imprevu.heureDebutReel, imprevu.heureFinEstimee, rules);
 
   for (const { context, events } of eligible) {
     // ─── Détection JS Z ────────────────────────────────────────────────────────
@@ -159,7 +164,7 @@ export async function executerSimulationJS(
       codeJs: jsCible.codeJs,
       remplacement: imprevu.remplacement,
       deplacement: deplacementEffectif,
-      posteNuit: isNuitImprevu || jsCible.isNuit,
+      posteNuit: isNuitImprevu || isNuitJsCible,
     };
 
     // Pour les agents en JS Z : exclure la JS Z du planning avant évaluation
@@ -275,7 +280,7 @@ export async function executerSimulationJS(
       codeJs: jsCible.codeJs,
       remplacement: imprevu.remplacement,
       deplacement: deplacementEffectif,
-      posteNuit: isNuitImprevu || jsCible.isNuit,
+      posteNuit: isNuitImprevu || isNuitJsCible,
     };
 
     const eventsEffectifs = surJsZ
@@ -348,7 +353,7 @@ export async function executerSimulationJS(
       codeJs: jsCible.codeJs,
       remplacement: imprevu.remplacement,
       deplacement: imprevu.deplacement,
-      posteNuit: isNuitImprevu || jsCible.isNuit,
+      posteNuit: isNuitImprevu || isNuitJsCible,
     };
     const resultat = evaluerMobilisabilite(agent.context, agent.events, simulationInput, rules, effectiveService);
 

@@ -4,7 +4,9 @@
  */
 
 import { combineDateTime, diffMinutes, timeToMinutes, getDateFinJs } from "@/lib/utils";
+import { isJsDeNuitFromRules } from "@/lib/rules/nightThreshold";
 import type { AgentContext, PlanningEvent } from "@/engine/rules";
+import type { WorkRulesMinutes } from "@/lib/rules/workRules";
 import type { JsCible, ImpreuvuConfig, FlexibiliteJs, JsSourceFigee } from "@/types/js-simulation";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
 import { isZeroLoadJs, isAbsenceInaptitude } from "./jsUtils";
@@ -26,12 +28,17 @@ export interface AgentWithPlanning {
  * effectiveServiceMap (optionnel) : résultats pré-calculés de computeEffectiveService
  * par agentId. Si fourni, le filtre déplacement utilise la logique LPA-based.
  * Sinon, fallback sur imprevu.deplacement (ancien comportement).
+ *
+ * rules : seuils dynamiques (notamment `periodeNocturne`) consommés pour
+ * classifier la JS comme nuit. Garantit l'alignement avec evaluerMobilisabilite
+ * — pas de divergence si l'admin modifie debutSoir/finMatin/seuilJsNuit.
  */
 export function preFilterCandidats(
   agents: AgentWithPlanning[],
   jsCible: JsCible,
   imprevu: ImpreuvuConfig,
   agentInitialId: string,
+  rules: WorkRulesMinutes,
   effectiveServiceMap?: Map<string, EffectiveServiceInfo>,
   npoExclusionCodes: string[] = [],
   zeroLoadPrefixes: readonly string[] = []
@@ -41,6 +48,7 @@ export function preFilterCandidats(
 
   const debutImprevu = combineDateTime(jsCible.date, imprevu.heureDebutReel);
   const finImprevu = combineDateTime(getDateFinJs(jsCible.date, imprevu.heureDebutReel, imprevu.heureFinEstimee), imprevu.heureFinEstimee);
+  const isNuitJsCible = isJsDeNuitFromRules(jsCible.heureDebut, jsCible.heureFin, rules);
 
   for (const a of agents) {
     // Exclure l'agent initial
@@ -66,8 +74,9 @@ export function preFilterCandidats(
       }
     }
 
-    // Vérifier habilitation nuit
-    if (jsCible.isNuit && !a.context.peutFaireNuit) {
+    // Vérifier habilitation nuit (seuils issus de rules.periodeNocturne,
+    // jamais le pré-calculé jsCible.isNuit qui ignore les overrides admin)
+    if (isNuitJsCible && !a.context.peutFaireNuit) {
       exclus.push({ agent: a, raison: "Non habilité poste de nuit" });
       continue;
     }

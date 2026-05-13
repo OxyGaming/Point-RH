@@ -14,7 +14,8 @@ import type { JsCible, ImpreuvuConfig, FlexibiliteJs, JsSourceFigee } from "@/ty
 import type { CandidatMultiJs, CandidateScope, MultiJsExclusion } from "@/types/multi-js-simulation";
 import { isZeroLoadJs, isAbsenceInaptitude } from "@/lib/simulation/jsUtils";
 import { scorerCandidat } from "@/lib/simulation/scenarioScorer";
-import { isJsDeNuit, diffMinutes } from "@/lib/utils";
+import { diffMinutes } from "@/lib/utils";
+import { isJsDeNuitFromRules } from "@/lib/rules/nightThreshold";
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 import { injecterJsDansPlanning, resolveFlexibiliteEvent } from "@/lib/simulation/candidateFinder";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
@@ -72,7 +73,7 @@ export function trouverCandidatsPourJs(
   const imprevu = buildImprevu(js, remplacement, deplacement);
   const debutImprevu = combineDateTime(js.date, js.heureDebut);
   const finImprevu = combineDateTime(getDateFinJs(js.date, imprevu.heureDebutReel, imprevu.heureFinEstimee), imprevu.heureFinEstimee);
-  const isNuitJs = isJsDeNuit(js.heureDebut, js.heureFin);
+  const isNuitJs = isJsDeNuitFromRules(js.heureDebut, js.heureFin, rules);
 
   const candidats: CandidatMultiJs[] = [];
   const exclusions: MultiJsExclusion[] = [];

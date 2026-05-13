@@ -10,6 +10,7 @@ import type { WorkRulesMinutes } from "@/lib/rules/workRules";
 import type { JsCible, ImpreuvuConfig, FlexibiliteJs, JsSourceFigee } from "@/types/js-simulation";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
 import { isZeroLoadJs, isAbsenceInaptitude } from "./jsUtils";
+import { isDeplacementManuelBloquant } from "./deplacementPrefilter";
 import { isJourTravailleGPT } from "@/lib/gptUtils";
 
 // ─── Constante de raison d'exclusion ─────────────────────────────────────────
@@ -81,27 +82,14 @@ export function preFilterCandidats(
       continue;
     }
 
-    // Vérifier habilitation déplacement
-    // Système LPA : une JS hors LPA est autorisée — le trajet est ajouté à l'amplitude
-    // et l'évaluation fine (evaluerMobilisabilite) vérifiera l'amplitude résultante.
-    // On ne bloque ici que le cas du déplacement MANUEL (fallback) non autorisé.
-    if (effectiveServiceMap) {
-      const effSvc = effectiveServiceMap.get(a.context.id);
-      const lpaCompute = effSvc && effSvc.estEnDeplacement !== null;
-      if (!lpaCompute) {
-        // Pas de contexte LPA déterminable → fallback booléen
-        if (imprevu.deplacement && !a.context.peutEtreDeplace) {
-          exclus.push({ agent: a, raison: "Non autorisé déplacement (mode manuel)" });
-          continue;
-        }
-      }
-      // Si LPA a calculé le déplacement : pas de blocage ici, l'amplitude jugera
-    } else {
-      // Aucune effectiveServiceMap → ancien système (fallback)
-      if (imprevu.deplacement && !a.context.peutEtreDeplace) {
-        exclus.push({ agent: a, raison: "Non autorisé déplacement" });
-        continue;
-      }
+    // Vérifier habilitation déplacement — helper partagé avec multi-JS (C4)
+    // Système LPA : une JS hors LPA est autorisée — le trajet est ajouté à
+    // l'amplitude et l'évaluation fine (evaluerMobilisabilite) vérifiera
+    // l'amplitude résultante. On ne bloque ici que le cas du déplacement
+    // MANUEL (fallback) non autorisé.
+    if (isDeplacementManuelBloquant(a.context, imprevu.deplacement, effectiveServiceMap?.get(a.context.id))) {
+      exclus.push({ agent: a, raison: "Non autorisé déplacement (mode manuel)" });
+      continue;
     }
 
     // Vérifier absence pour inaptitude (codes configurés par l'admin)

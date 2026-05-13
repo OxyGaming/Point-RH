@@ -177,8 +177,18 @@ export function resoudreBesoin(
   }
 
   // ─── Pré-filtre structurel ─────────────────────────────────────
-  // isNuit recalculé depuis etat.rules — le pré-calculé besoin.jsCible.isNuit
-  // peut diverger des overrides admin sur periodeNocturne.
+  // C3 — isNuit recalculé depuis etat.rules : le pré-calculé
+  // besoin.jsCible.isNuit peut diverger des overrides admin sur
+  // periodeNocturne (cf. helper isJsDeNuitFromRules).
+  //
+  // C4 — Le pré-filtre indexé reste statique (consulte uniquement
+  // index.byPeutEtreDeplace, pas l'effectiveServiceMap LPA-aware). Le
+  // helper isDeplacementManuelBloquant des moteurs legacy n'est pas
+  // appliqué ici car l'index unifié est pré-calculé hors-état. La
+  // décision finale d'amplitude reste prise par evaluerImpactComplet
+  // qui consulte etat.lpaContext — donc pas de faux négatif côté
+  // décision RH, seul le périmètre de candidats explorés diffère
+  // marginalement par rapport au moteur legacy.
   const eligibles = findEligibleAgentsForJs(
     etat.index,
     besoin.jsCible.codeJs,

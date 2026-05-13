@@ -18,6 +18,7 @@ import { diffMinutes } from "@/lib/utils";
 import { isJsDeNuitFromRules } from "@/lib/rules/nightThreshold";
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 import { injecterJsDansPlanning, resolveFlexibiliteEvent } from "@/lib/simulation/candidateFinder";
+import { isDeplacementManuelBloquant } from "@/lib/simulation/deplacementPrefilter";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
 import type { Exclusion } from "@/engine/ruleTypes";
 
@@ -129,8 +130,11 @@ export function trouverCandidatsPourJs(
       continue;
     }
 
-    // Habilitation déplacement
-    if (deplacement && !context.peutEtreDeplace) {
+    // Habilitation déplacement — helper LPA-aware partagé avec single-JS (C4)
+    // Si LPA peut juger l'amplitude, on laisse passer (evaluerMobilisabilite
+    // tranchera). On ne bloque que le fallback manuel non autorisé.
+    const effSvcDeplacement = effectiveServiceMap?.get(`${context.id}:${js.planningLigneId}`);
+    if (isDeplacementManuelBloquant(context, deplacement, effSvcDeplacement)) {
       exclure(context, "Non autorisé pour déplacement (mode manuel)", "DEPLACEMENT_HABILITATION");
       continue;
     }

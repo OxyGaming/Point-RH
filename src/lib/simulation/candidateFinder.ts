@@ -264,3 +264,81 @@ export function injecterJsDansPlanning(
     (a, b) => a.dateDebut.getTime() - b.dateDebut.getTime()
   );
 }
+
+/**
+ * Variante batch d'`injecterJsDansPlanning` — injecte N JS en une passe avec
+ * UN SEUL tri final (P6).
+ *
+ * Avant : chaque appel séquentiel filtrait + re-triait tout le planning.
+ * Pour un agent qui accumule 3 JS, c'était 3 × O(N log N) au lieu d'un seul.
+ *
+ * Équivalence stricte avec la boucle séquentielle :
+ *   eventsSimules = events;
+ *   for (const inj of injections) {
+ *     eventsSimules = injecterJsDansPlanning(eventsSimules, inj.jsCible, inj.imprevu);
+ *   }
+ * et
+ *   injecterJsListeDansPlanning(events, injections)
+ * produisent EXACTEMENT le même résultat (même contenu, même ordre).
+ *
+ * Préservation de la sémantique « la JS la plus récente gagne en cas de
+ * chevauchement entre injections » : si deux JS de `injections` se chevauchent,
+ * seule celle d'index supérieur (la plus tardive dans la boucle séquentielle)
+ * est conservée — c'est ce que faisait la boucle où chaque appel à
+ * `injecterJsDansPlanning` retirait les jours travaillés (JS ou NPO C)
+ * chevauchant la nouvelle injection, y compris les JS injectées précédemment.
+ */
+export function injecterJsListeDansPlanning(
+  events: PlanningEvent[],
+  injections: ReadonlyArray<{ jsCible: JsCible; imprevu: ImpreuvuConfig }>
+): PlanningEvent[] {
+  if (injections.length === 0) return events;
+
+  // 1. Convertir chaque injection en PlanningEvent
+  const jsAInjecter: PlanningEvent[] = injections.map(({ jsCible, imprevu }) => {
+    const dateDebut = combineDateTime(jsCible.date, imprevu.heureDebutReel);
+    const dateFin = combineDateTime(
+      getDateFinJs(jsCible.date, imprevu.heureDebutReel, imprevu.heureFinEstimee),
+      imprevu.heureFinEstimee,
+    );
+    const amplitudeMin = Math.max(0, diffMinutes(dateDebut, dateFin));
+    return {
+      dateDebut,
+      dateFin,
+      heureDebut: imprevu.heureDebutReel,
+      heureFin: imprevu.heureFinEstimee,
+      amplitudeMin,
+      dureeEffectiveMin: amplitudeMin,
+      jsNpo: "JS",
+      codeJs: jsCible.codeJs,
+      typeJs: jsCible.typeJs,
+    };
+  });
+
+  // 2. Résoudre les chevauchements internes : la JS la plus tardive dans la
+  // liste gagne (équivalence avec l'écrasement progressif de la boucle).
+  // Parcours en sens inverse + on garde l'injection si elle ne chevauche
+  // aucune des injections déjà conservées.
+  const jsResolus: PlanningEvent[] = [];
+  for (let i = jsAInjecter.length - 1; i >= 0; i--) {
+    const candidate = jsAInjecter[i];
+    const overlap = jsResolus.some(
+      (kept) => kept.dateDebut < candidate.dateFin && kept.dateFin > candidate.dateDebut,
+    );
+    if (!overlap) jsResolus.unshift(candidate);
+  }
+
+  // 3. Filtrer les events existants chevauchant L'UNE des JS injectées
+  // résolues — même règle que injecterJsDansPlanning (JS + NPO C remplacés).
+  const eventsFiltres = events.filter((e) => {
+    if (!isJourTravailleGPT(e)) return true;
+    return !jsResolus.some(
+      (js) => e.dateDebut < js.dateFin && e.dateFin > js.dateDebut,
+    );
+  });
+
+  // 4. Concat + UN SEUL tri final
+  return [...eventsFiltres, ...jsResolus].sort(
+    (a, b) => a.dateDebut.getTime() - b.dateDebut.getTime(),
+  );
+}

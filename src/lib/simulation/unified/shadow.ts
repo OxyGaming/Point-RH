@@ -27,6 +27,7 @@ import { creerEtatInitial } from "./etat";
 import { besoinRacineFromJs, enumererSolutions } from "./solveur";
 import { evaluerImpactComplet } from "./evaluation";
 import { scorerCandidatDetail } from "@/lib/simulation/scenarioScorer";
+import { isJsDeNuitFromRules } from "@/lib/rules/nightThreshold";
 import type {
   Besoin,
   ConsequenceType,
@@ -768,10 +769,12 @@ export function comparerAgentsSurBesoin(
   agentNames: readonly string[],
   contexte: string
 ): BesoinDiagnostic {
+  // isNuit recalculé depuis etat.rules — le pré-calculé besoin.jsCible.isNuit
+  // peut diverger des overrides admin sur periodeNocturne.
   const eligibles = findEligibleAgentsForJs(
     etat.index,
     besoin.jsCible.codeJs,
-    besoin.jsCible.isNuit,
+    isJsDeNuitFromRules(besoin.jsCible.heureDebut, besoin.jsCible.heureFin, etat.rules),
     etat.deplacement
   );
 

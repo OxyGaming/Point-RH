@@ -14,6 +14,7 @@
 
 import { findEligibleAgentsForJs } from "@/lib/simulation/multiJs/chaineCache";
 import { scorerCandidat } from "@/lib/simulation/scenarioScorer";
+import { isJsDeNuitFromRules } from "@/lib/rules/nightThreshold";
 import { evaluerImpactComplet } from "./evaluation";
 import {
   enrichirEtat,
@@ -176,10 +177,12 @@ export function resoudreBesoin(
   }
 
   // ─── Pré-filtre structurel ─────────────────────────────────────
+  // isNuit recalculé depuis etat.rules — le pré-calculé besoin.jsCible.isNuit
+  // peut diverger des overrides admin sur periodeNocturne.
   const eligibles = findEligibleAgentsForJs(
     etat.index,
     besoin.jsCible.codeJs,
-    besoin.jsCible.isNuit,
+    isJsDeNuitFromRules(besoin.jsCible.heureDebut, besoin.jsCible.heureFin, etat.rules),
     etat.deplacement
   );
 

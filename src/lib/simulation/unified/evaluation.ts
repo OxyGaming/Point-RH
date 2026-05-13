@@ -32,6 +32,7 @@ import type {
 } from "./types";
 import { cacheKey, planningEffectif } from "./etat";
 import { combineDateTime, diffMinutes, isJsDeNuit } from "@/lib/utils";
+import { isJsDeNuitFromRules } from "@/lib/rules/nightThreshold";
 import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 
@@ -379,8 +380,14 @@ export function evaluerImpactComplet(
     }
   }
 
-  // 4. Pré-filtre nuit
-  if (besoin.jsCible.isNuit && !agent.peutFaireNuit) {
+  // 4. Pré-filtre nuit — seuils issus de etat.rules.periodeNocturne,
+  // pas le pré-calculé besoin.jsCible.isNuit qui ignore les overrides admin.
+  const isNuitBesoin = isJsDeNuitFromRules(
+    besoin.jsCible.heureDebut,
+    besoin.jsCible.heureFin,
+    etat.rules
+  );
+  if (isNuitBesoin && !agent.peutFaireNuit) {
     const result: ImpactEvaluation = {
       faisable: false,
       raisonRejet: "NUIT_HABILITATION: agent non habilité nuit",

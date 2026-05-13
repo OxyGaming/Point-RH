@@ -29,7 +29,7 @@ import { canAssignJsToAgentInScenario } from "./agentScenarioValidator";
 import { POIDS_SCORE_SCENARIO_MULTI } from "@/lib/simulation/scenarioScorer";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
-import { injecterJsDansPlanning } from "@/lib/simulation/candidateFinder";
+import { injecterJsDansPlanning, injecterJsListeDansPlanning } from "@/lib/simulation/candidateFinder";
 import { excludeEvent } from "@/lib/simulation/eventFilter";
 import { resoudreTousConflits } from "@/lib/simulation/cascadeResolver";
 import { buildImprevu } from "./multiJsCandidateFinder";
@@ -221,13 +221,15 @@ export function allouerJsMultiple(
       const imprevu = buildImprevu(js, remplacement, deplacement);
       const finImprevu = combineDateTime(getDateFinJs(js.date, imprevu.heureDebutReel, imprevu.heureFinEstimee), imprevu.heureFinEstimee);
 
-      // Construire le planning simulé avec les JS déjà affectées
-      let eventsSimules = [...agentData.events];
-      for (const jsAff of existingAssignments) {
-        const imprevuAff = buildImprevu(jsAff, remplacement, deplacement);
-        eventsSimules = injecterJsDansPlanning(eventsSimules, jsAff, imprevuAff);
-      }
-      const eventsAvecJs = injecterJsDansPlanning(eventsSimules, js, imprevu);
+      // Construire le planning simulé avec les JS déjà affectées + la JS courante.
+      // Batch : un seul tri final au lieu de (N+1) tris séquentiels.
+      const eventsAvecJs = injecterJsListeDansPlanning(agentData.events, [
+        ...existingAssignments.map((jsAff) => ({
+          jsCible: jsAff,
+          imprevu: buildImprevu(jsAff, remplacement, deplacement),
+        })),
+        { jsCible: js, imprevu },
+      ]);
       const conflitsInduits = detecterConflitsInduits(
         eventsAvecJs,
         finImprevu,
@@ -569,13 +571,14 @@ export function allouerJsMultiple(
         );
         if (!compat.compatible) continue;
 
-        // Conflits induits éventuels
-        let eventsSimules = [...candidatLibere.events];
-        for (const jsAff of dejaAff) {
-          const imprevuAff = buildImprevu(jsAff, remplacement, deplacement);
-          eventsSimules = injecterJsDansPlanning(eventsSimules, jsAff, imprevuAff);
-        }
-        const eventsAvecJs = injecterJsDansPlanning(eventsSimules, jsNonCouverte, imprevuCible);
+        // Conflits induits éventuels — batch : un seul tri final.
+        const eventsAvecJs = injecterJsListeDansPlanning(candidatLibere.events, [
+          ...dejaAff.map((jsAff) => ({
+            jsCible: jsAff,
+            imprevu: buildImprevu(jsAff, remplacement, deplacement),
+          })),
+          { jsCible: jsNonCouverte, imprevu: imprevuCible },
+        ]);
         const conflitsInduits = detecterConflitsInduits(
           eventsAvecJs,
           finCible,
@@ -656,13 +659,16 @@ export function allouerJsMultiple(
     if (!agentData) continue;
 
     // Construire le planning simulé de l'agent : base + toutes ses JS déjà affectées
-    // (agentAssignments contient la JS courante, ajoutée ligne 134)
+    // (agentAssignments contient la JS courante, ajoutée ligne 134).
+    // Batch : un seul tri final au lieu de N tris séquentiels.
     const existingAssignments = agentAssignments.get(aff.agentId) ?? [];
-    let eventsSimules = [...agentData.events];
-    for (const jsAff of existingAssignments) {
-      const imprevuAff = buildImprevu(jsAff, remplacement, deplacement);
-      eventsSimules = injecterJsDansPlanning(eventsSimules, jsAff, imprevuAff);
-    }
+    const eventsSimules = injecterJsListeDansPlanning(
+      agentData.events,
+      existingAssignments.map((jsAff) => ({
+        jsCible: jsAff,
+        imprevu: buildImprevu(jsAff, remplacement, deplacement),
+      })),
+    );
 
     // Agents candidats pour la cascade : TOUS les agents sauf l'agent principal,
     // scope respecté. Les agents déjà assignés dans le scénario sont inclus —
@@ -677,11 +683,14 @@ export function allouerJsMultiple(
       .map((a) => {
         const jsScenario = agentAssignments.get(a.context.id);
         if (!jsScenario || jsScenario.length === 0) return a;
-        let eventsAvecScenario = [...a.events];
-        for (const jsAff of jsScenario) {
-          const imp = buildImprevu(jsAff, remplacement, deplacement);
-          eventsAvecScenario = injecterJsDansPlanning(eventsAvecScenario, jsAff, imp);
-        }
+        // Batch : un seul tri final pour les N JS du scénario.
+        const eventsAvecScenario = injecterJsListeDansPlanning(
+          a.events,
+          jsScenario.map((jsAff) => ({
+            jsCible: jsAff,
+            imprevu: buildImprevu(jsAff, remplacement, deplacement),
+          })),
+        );
         return { ...a, events: eventsAvecScenario };
       });
 

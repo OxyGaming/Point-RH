@@ -13,7 +13,7 @@ import { isJsDeNuitFromRules } from "@/lib/rules/nightThreshold";
 import { evaluerMobilisabilite } from "@/engine/rules";
 import type { WorkRulesMinutes } from "@/lib/rules/workRules";
 import type { JsCible } from "@/types/js-simulation";
-import { injecterJsDansPlanning } from "@/lib/simulation/candidateFinder";
+import { injecterJsListeDansPlanning } from "@/lib/simulation/candidateFinder";
 import { buildImprevu } from "./multiJsCandidateFinder";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
@@ -65,11 +65,14 @@ export function canAssignJsToAgentInScenario(
   }
 
   // ─── 2. Construire le planning simulé : base + toutes les JS déjà affectées ──
-  let eventsSimules = [...agentData.events];
-  for (const jsAffectee of jsDejaAffectees) {
-    const imprevuAffectee = buildImprevu(jsAffectee, remplacement, deplacement);
-    eventsSimules = injecterJsDansPlanning(eventsSimules, jsAffectee, imprevuAffectee);
-  }
+  // Batch : un seul tri final au lieu de N tris séquentiels.
+  const eventsSimules = injecterJsListeDansPlanning(
+    agentData.events,
+    jsDejaAffectees.map((jsAffectee) => ({
+      jsCible: jsAffectee,
+      imprevu: buildImprevu(jsAffectee, remplacement, deplacement),
+    })),
+  );
 
   // ─── 3. Évaluer la nouvelle JS sur ce planning simulé ────────────────────────
   const imprevuNew = buildImprevu(newJs, remplacement, deplacement);

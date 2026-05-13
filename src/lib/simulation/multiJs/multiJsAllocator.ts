@@ -1088,84 +1088,9 @@ export function allouerJsMultiple(
     exclusions: exclusionsPerJs.get(js.planningLigneId) ?? [],
   }));
 
-  // ─── Solveur unifié en parallèle ─────────────────────────────────────────────
-  //  - UNIFIED_SHADOW=1                          : rapport en logs serveur uniquement
-  //  - FEATURE_UNIFIED_PRIMARY=1
-  //    + UNIFIED_PRIMARY_ALIGNMENT_DONE=1        : rapport en logs + exposition UI
-  //      (champ unifiedReport sur le scenario). L'UI peut alors afficher un onglet
-  //      "Solveur unifié (expérimental)". Aucun écrasement du legacy.
-  //  - FEATURE_UNIFIED_PRIMARY=1 sans alignment  : run en shadow (logs only) +
-  //    warning. Garde-fou tant que les divergences C1/C2 ne sont pas arbitrées,
-  //    cf. docs/unified-solver-divergences.md.
-  //
-  // Activé uniquement pour les scénarios cascade (cascadeContext !== null).
-  let unifiedReport: import("@/types/multi-js-simulation").UnifiedReportUI | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { isUnifiedPrimaryEnabled, isUnifiedShadowEnabled } = require("@/lib/simulation/unified/featureFlag") as typeof import("@/lib/simulation/unified/featureFlag");
-  const shadowActif = isUnifiedShadowEnabled();
-
-  if (shadowActif && cascadeContext !== null) {
-    // Import dynamique pour éviter d'embarquer le module si flags off.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { runShadowComparison, emitShadowReport, adapterShadowReportPourUI } = require("@/lib/simulation/unified/shadow") as typeof import("@/lib/simulation/unified/shadow");
-    try {
-      // Trouver la JS du 03/05 si elle est sélectionnée — utilisée comme racine
-      // de la séquence forcée Chennouf → Brouillat → Leguay.
-      const jsRacineSeq = jsCibles.find(
-        (j) => j.codeJs === "GIC006R" && j.date === "2026-05-03"
-      ) ?? null;
-
-      // Mode "thorough" (analyse approfondie) : opt-in via UNIFIED_THOROUGH=1.
-      // Sans ce flag, on tourne en mode "léger" pour rester sous quelques
-      // secondes de surcoût en prod. Avec, on retrouve les caps complets
-      // pour analyse fine sur un cas problématique.
-      const thorough = process.env.UNIFIED_THOROUGH === "1";
-
-      const report = runShadowComparison({
-        scenarioId: id,
-        scenarioTitre: titre,
-        jsCibles,
-        legacyAffectations: affectations,
-        agentsMap,
-        index: cascadeContext.index,
-        rules,
-        lpaContext,
-        npoExclusionCodes,
-        importId: cascadeContext.importId,
-        remplacement,
-        deplacement,
-        maxSolutionsParJs: thorough ? 12 : 5,
-        budgetParJs: thorough ? 12000 : 3000,
-        exhaustif: thorough,
-        sequenceCibleNoms: ["CHENNOUF", "BROUILLAT", "LEGUAY"],
-        // Diagnostics désactivés en mode léger — purement audit, coûteux
-        // (chacun appelle evaluerImpactComplet sur 3-4 agents nommés).
-        diagnosticTargetN1: thorough ? "CHENNOUF" : null,
-        diagnosticAgentsACompararer: thorough ? ["BROUILLAT", "CHAMINADE", "OLLIER"] : [],
-        diagnosticAgentN2: thorough ? "BROUILLAT" : undefined,
-        diagnosticAgentsN3: thorough ? ["LEGUAY", "PINQUE", "MENDI", "ACHILLE"] : [],
-        sequenceForceeJsRacine: thorough ? jsRacineSeq : null,
-        sequenceForceeASim: (thorough && jsRacineSeq)
-          ? [
-              { agentName: "CHENNOUF",  jsCodeAttendu: "GIC006R" },
-              { agentName: "BROUILLAT", jsCodeAttendu: "BAD015R" },
-              { agentName: "LEGUAY",    jsCodeAttendu: "GIC015"  },
-            ]
-          : undefined,
-      });
-      emitShadowReport(report, logger);
-
-      // Bascule UI : exposer le rapport SI FEATURE_UNIFIED_PRIMARY est actif
-      // ET que l'alignement C1/C2 a été déclaré (UNIFIED_PRIMARY_ALIGNMENT_DONE=1).
-      if (isUnifiedPrimaryEnabled()) {
-        unifiedReport = adapterShadowReportPourUI(report);
-      }
-    } catch (err) {
-      // Le solveur unifié ne doit JAMAIS interrompre le scénario legacy.
-      // eslint-disable-next-line no-console
-      console.error("[UNIFIED] erreur (ignorée pour préserver le legacy):", err);
-    }
-  }
+  // Solveur unifié — déplacé au niveau de l'orchestrateur multi-JS (P3).
+  // Un run unique par appel multi-JS (vs 4 avant) — le meilleur scénario
+  // cascade sert de référence legacy. Voir multiJs/index.ts.
 
   return {
     id,
@@ -1190,6 +1115,5 @@ export function allouerJsMultiple(
     nbCascadesNonResolues: nbCascadesNonResoluesTotal,
     exclusionsParJs,
     alternativesParJs,
-    unifiedReport,
   };
 }

@@ -498,11 +498,6 @@ export interface MultiJsScenario {
    * du retenu, avec raison métier. Permet de reproduire la lisibilité de la PJ.
    */
   alternativesParJs: AlternativesParJs[];
-  /**
-   * Rapport du solveur unifié (FEATURE_UNIFIED_PRIMARY uniquement).
-   * Exposé pour comparaison côté UI sans modifier les autres champs.
-   */
-  unifiedReport?: UnifiedReportUI;
 }
 
 // ─── Résultat global de la simulation multi-JS ───────────────────────────────
@@ -536,6 +531,14 @@ export interface MultiJsSimulationResultat {
    * Utile pour l'audit post-événement et le debug.
    */
   auditLog: LogEntry[];
+  /**
+   * Rapport du solveur unifié (FEATURE_UNIFIED_PRIMARY uniquement).
+   * Calculé UNE SEULE FOIS par appel multi-JS (vs un par scénario cascade
+   * avant P3) — le scénario cascade au meilleur score sert de référence
+   * legacy. L'UI affiche ce rapport dans un onglet "Solveur unifié ⚗",
+   * indépendant du scénario actuellement sélectionné.
+   */
+  unifiedReport?: UnifiedReportUI;
 }
 
 // ─── Ligne JS pour l'affichage timeline ──────────────────────────────────────

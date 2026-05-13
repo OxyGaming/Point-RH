@@ -3,7 +3,8 @@
 /**
  * Panneau d'affichage du solveur unifié — onglet "Solveur unifié (expérimental)"
  * dans MultiJsResultsPanel. Activé uniquement si FEATURE_UNIFIED_PRIMARY=1
- * côté serveur (le scenario.unifiedReport est alors présent).
+ * côté serveur (le resultat.unifiedReport est alors présent — rapport global,
+ * un seul par appel multi-JS depuis P3, indépendant du scénario actif).
  *
  * Règles d'affichage :
  *  - Solutions OK / VIGILANCE en zone principale (= recommandations).

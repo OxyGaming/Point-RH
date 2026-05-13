@@ -24,6 +24,9 @@ import { loadLpaContext } from "@/lib/deplacement/loadLpaContext";
 import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
 import { createLogger } from "@/engine/logger";
+import { isUnifiedPrimaryEnabled, isUnifiedShadowEnabled } from "@/lib/simulation/unified/featureFlag";
+import { runShadowComparison, emitShadowReport, adapterShadowReportPourUI } from "@/lib/simulation/unified/shadow";
+import type { UnifiedReportUI, AffectationJs, MultiJsScenario } from "@/types/multi-js-simulation";
 
 export type { AgentDataMultiJs };
 
@@ -190,6 +193,80 @@ export async function executerSimulationMultiJs(
 
   const meilleur = scenarios[0] ?? null;
 
+  // ─── Solveur unifié — un seul run par appel multi-JS (P3) ────────────────────
+  //  - UNIFIED_SHADOW=1                       : rapport en logs serveur uniquement
+  //  - FEATURE_UNIFIED_PRIMARY=1
+  //    + UNIFIED_PRIMARY_ALIGNMENT_DONE=1     : rapport en logs + exposition UI
+  //  - FEATURE_UNIFIED_PRIMARY=1 sans alignment : run shadow + warning (cf.
+  //    docs/unified-solver-divergences.md).
+  //
+  // Avant P3, le shadow tournait 4× (un par scénario cascade) — 100 % redondant
+  // car les 4 partagent les mêmes JS racines et le même solveur. On choisit ici
+  // le scénario cascade au meilleur score comme référence legacy et on lance
+  // runShadowComparison une seule fois.
+  let unifiedReport: UnifiedReportUI | undefined;
+  if (isUnifiedShadowEnabled()) {
+    const cascadeRef = [
+      scenarioReserveOnlyCascade,
+      scenarioReserveOnlyCascadeFigeage,
+      scenarioTousAgentsCascade,
+      scenarioTousAgentsCascadeFigeage,
+    ].reduce<MultiJsScenario>((best, current) => (current.score > best.score ? current : best), scenarioTousAgentsCascade);
+
+    try {
+      // Trouver la JS du 03/05 si elle est sélectionnée — racine de la séquence
+      // forcée Chennouf → Brouillat → Leguay (diagnostic ciblé en mode thorough).
+      const jsRacineSeq = jsSelectionnees.find(
+        (j) => j.codeJs === "GIC006R" && j.date === "2026-05-03",
+      ) ?? null;
+      const thorough = process.env.UNIFIED_THOROUGH === "1";
+
+      const legacyAffectations = new Map<string, AffectationJs>(
+        cascadeRef.affectations.map((a) => [a.jsId, a]),
+      );
+
+      const report = runShadowComparison({
+        scenarioId:     cascadeRef.id,
+        scenarioTitre:  cascadeRef.titre,
+        jsCibles:       jsSelectionnees,
+        legacyAffectations,
+        agentsMap,
+        index:          coverageIndex,
+        rules,
+        lpaContext,
+        npoExclusionCodes,
+        importId:       importIdSimu,
+        remplacement,
+        deplacement,
+        maxSolutionsParJs: thorough ? 12 : 5,
+        budgetParJs:       thorough ? 12000 : 3000,
+        exhaustif:         thorough,
+        sequenceCibleNoms: ["CHENNOUF", "BROUILLAT", "LEGUAY"],
+        diagnosticTargetN1:           thorough ? "CHENNOUF" : null,
+        diagnosticAgentsACompararer:  thorough ? ["BROUILLAT", "CHAMINADE", "OLLIER"] : [],
+        diagnosticAgentN2:            thorough ? "BROUILLAT" : undefined,
+        diagnosticAgentsN3:           thorough ? ["LEGUAY", "PINQUE", "MENDI", "ACHILLE"] : [],
+        sequenceForceeJsRacine:       thorough ? jsRacineSeq : null,
+        sequenceForceeASim: (thorough && jsRacineSeq)
+          ? [
+              { agentName: "CHENNOUF",  jsCodeAttendu: "GIC006R" },
+              { agentName: "BROUILLAT", jsCodeAttendu: "BAD015R" },
+              { agentName: "LEGUAY",    jsCodeAttendu: "GIC015"  },
+            ]
+          : undefined,
+      });
+      emitShadowReport(report, logger);
+
+      if (isUnifiedPrimaryEnabled()) {
+        unifiedReport = adapterShadowReportPourUI(report);
+      }
+    } catch (err) {
+      // Le solveur unifié ne doit JAMAIS interrompre le scénario legacy.
+      // eslint-disable-next-line no-console
+      console.error("[UNIFIED] erreur (ignorée pour préserver le legacy):", err);
+    }
+  }
+
   // Métriques cascade : nb total de chaînes construites sur les 4 scénarios Cascade
   const nbChainesCascade =
     (scenarioReserveOnlyCascade.affectations.filter((a) => a.chaineRemplacement !== null).length) +
@@ -221,5 +298,6 @@ export async function executerSimulationMultiJs(
     scenarioTousAgentsCascadeFigeage,
     nbAgentsAnalyses: agents.length,
     auditLog: logger.all(),
+    unifiedReport,
   };
 }

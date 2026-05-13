@@ -815,9 +815,7 @@ describe("besoinRacineFromJs", () => {
 // ─── 14. SOLVER_DEFAULTS : valeurs validées par l'utilisateur ────────────────
 
 describe("SOLVER_DEFAULTS", () => {
-  it("profondeur max = 4", () => {
-    expect(SOLVER_DEFAULTS.CASCADE_MAX_DEPTH).toBe(4);
-  });
+  // CASCADE_MAX_DEPTH retiré en C7 — couvert par cascadeDepthUnified.test.ts
   it("budget = 12000", () => {
     expect(SOLVER_DEFAULTS.CASCADE_EVAL_BUDGET).toBe(12000);
   });

@@ -67,6 +67,15 @@ export const DEFAULT_WORK_RULES = {
     seuilJsNuit: 2.5,  // h — chevauchement minimum pour qualifier une JS de "nuit"
     seuilGptNuit: 4,   // h — fenêtre [00h → X] pour qualifier une GPT de "nuit"
   },
+  cascade: {
+    // Valeur métier validée : 3 niveaux suffisent (A ← B ← C ← D). Au-delà,
+    // l'exploration combinatoire dégénère sans valeur métier ajoutée — personne
+    // ne valide humainement une chaîne > 3 remplacements. Le budget global
+    // d'évaluations (CASCADE_EVAL_BUDGET) borne par ailleurs le pire-cas.
+    // Cette valeur unique remplace les trois constantes divergentes pré-C7 :
+    // 3 (single-JS), 2 (multi-JS), 4 (unified).
+    profondeurMax: 3,  // niveaux — profondeur cascade maximale, tous moteurs confondus
+  },
 } as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -114,6 +123,9 @@ export type WorkRules = {
     seuilJsNuit: number;
     seuilGptNuit: number;
   };
+  cascade: {
+    profondeurMax: number;
+  };
 };
 
 /** Valeurs converties en minutes pour le moteur de règles */
@@ -159,6 +171,9 @@ export interface WorkRulesMinutes {
     finMatin: number;     // minutes — fin plage nocturne (390 = 06h30)
     seuilJsNuit: number;  // minutes — seuil chevauchement pour JS de nuit (150 = 2h30)
     seuilGptNuit: number; // minutes — borne fenêtre GPT nuit (240 = 04h00)
+  };
+  cascade: {
+    profondeurMax: number; // niveaux — compteur entier, pas de conversion h → min
   };
 }
 
@@ -211,6 +226,9 @@ export function rulesHeuresToMinutes(rules: WorkRules): WorkRulesMinutes {
       finMatin: h(rules.periodeNocturne.finMatin),
       seuilJsNuit: h(rules.periodeNocturne.seuilJsNuit),
       seuilGptNuit: h(rules.periodeNocturne.seuilGptNuit),
+    },
+    cascade: {
+      profondeurMax: rules.cascade.profondeurMax, // compteur entier, pass-through
     },
   };
 }

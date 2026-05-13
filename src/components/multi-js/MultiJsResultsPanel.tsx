@@ -1420,9 +1420,12 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
     activeKey === "reserveCascadeFigeage";
   const showCascadeTab = isCascadeKey && affectationsAvecChaine.length > 0;
 
-  // L'onglet "Solveur unifié (expérimental)" n'apparaît que si le scenario
+  // L'onglet "Solveur unifié (expérimental)" n'apparaît que si la simulation
   // expose un unifiedReport (= FEATURE_UNIFIED_PRIMARY=1 côté serveur).
-  const showUnifiedTab = scenario.unifiedReport !== undefined;
+  // Depuis P3 : le rapport est calculé une seule fois par appel multi-JS et
+  // attaché au résultat global (pas par scénario) — l'onglet est donc
+  // indépendant du scénario actif.
+  const showUnifiedTab = resultat.unifiedReport !== undefined;
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "resume", label: "Résumé" },
@@ -1436,7 +1439,7 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
     { id: "conflits", label: "Conflits", count: scenario.conflitsDetectes.length },
     { id: "exclusions", label: "Exclusions", count: nbExclusions },
     ...(showUnifiedTab
-      ? [{ id: "unified" as Tab, label: "Solveur unifié ⚗", count: scenario.unifiedReport!.jsAnalyses.length }]
+      ? [{ id: "unified" as Tab, label: "Solveur unifié ⚗", count: resultat.unifiedReport!.jsAnalyses.length }]
       : []),
   ];
 
@@ -1617,9 +1620,9 @@ export default function MultiJsResultsPanel({ resultat }: Props) {
             <AlternativesPanel alternativesParJs={scenario.alternativesParJs} />
           )}
 
-          {/* Solveur unifié (expérimental) */}
-          {activeTab === "unified" && scenario.unifiedReport && (
-            <UnifiedSolutionsPanel report={scenario.unifiedReport} />
+          {/* Solveur unifié (expérimental) — rapport global, indépendant du scénario actif */}
+          {activeTab === "unified" && resultat.unifiedReport && (
+            <UnifiedSolutionsPanel report={resultat.unifiedReport} />
           )}
 
           {/* JS non couvertes */}

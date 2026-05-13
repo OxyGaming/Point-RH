@@ -11,6 +11,7 @@ import type { JsCible, ImpreuvuConfig, FlexibiliteJs, JsSourceFigee } from "@/ty
 import type { EffectiveServiceInfo } from "@/types/deplacement";
 import { isZeroLoadJs, isAbsenceInaptitude } from "./jsUtils";
 import { isDeplacementManuelBloquant } from "./deplacementPrefilter";
+import { excludeEvent } from "./eventFilter";
 import { isJourTravailleGPT } from "@/lib/gptUtils";
 
 // ─── Constante de raison d'exclusion ─────────────────────────────────────────
@@ -210,8 +211,9 @@ export function trouverCandidatsParFigeage(
       justification:   `JS ${jsConflictuelle.codeJs ?? "source"} (DERNIER_RECOURS) figée — ${agent.context.nom} ${agent.context.prenom} libéré vers ${jsCible.codeJs ?? "JS cible"} le ${jsCible.date}`,
     };
 
-    // Planning sans la JS figée : l'agent est traité comme libre
-    const eventsAvecFigeage = agent.events.filter((e) => e !== jsConflictuelle);
+    // Planning sans la JS figée : l'agent est traité comme libre.
+    // Filtrage stable (planningLigneId) — robuste aux clones d'event.
+    const eventsAvecFigeage = excludeEvent(agent.events, jsConflictuelle);
 
     result.push({ agent, jsSourceFigee, eventsAvecFigeage });
   }

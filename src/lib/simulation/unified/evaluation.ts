@@ -35,6 +35,7 @@ import { combineDateTime, diffMinutes, isJsDeNuit } from "@/lib/utils";
 import { isJsDeNuitFromRules } from "@/lib/rules/nightThreshold";
 import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
+import { excludeEvent } from "@/lib/simulation/eventFilter";
 
 // ─── Règles fatales (jamais récupérables par cascade) ────────────────────────
 //
@@ -451,7 +452,7 @@ export function evaluerImpactComplet(
       description: `Conflit horaire avec JS ${eventConflit.codeJs ?? "?"} ${jsImpactee.heureDebut}–${jsImpactee.heureFin}`,
     });
     // Évaluation RH hypothétique : on retire le conflit
-    eventsHypothetiques = eventsEffectifs.filter((e) => e !== eventConflit);
+    eventsHypothetiques = excludeEvent(eventsEffectifs, eventConflit);
   }
 
   // 7. Appel evaluerMobilisabilite sur le planning hypothétique

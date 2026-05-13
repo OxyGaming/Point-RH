@@ -19,6 +19,7 @@ import { isJsDeNuitFromRules } from "@/lib/rules/nightThreshold";
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 import { injecterJsDansPlanning, resolveFlexibiliteEvent } from "@/lib/simulation/candidateFinder";
 import { isDeplacementManuelBloquant } from "@/lib/simulation/deplacementPrefilter";
+import { excludeEvent } from "@/lib/simulation/eventFilter";
 import type { EffectiveServiceInfo } from "@/types/deplacement";
 import type { Exclusion } from "@/engine/ruleTypes";
 
@@ -176,7 +177,7 @@ export function trouverCandidatsPourJs(
             agentId: context.id,
             justification: `JS ${conflitEvent.codeJs ?? "source"} (DERNIER_RECOURS) figée — ${context.nom} ${context.prenom} libéré vers ${js.codeJs ?? "JS cible"} le ${js.date}`,
           };
-          eventsBase = events.filter((e) => e !== conflitEvent);
+          eventsBase = excludeEvent(events, conflitEvent);
         }
       }
       if (!figeable) {
@@ -197,8 +198,8 @@ export function trouverCandidatsPourJs(
     }) ?? null;
     const surJsZ = jsZOrigine !== null;
 
-    const eventsEffectifs = surJsZ
-      ? eventsBase.filter((e) => e !== jsZOrigine)
+    const eventsEffectifs = surJsZ && jsZOrigine
+      ? excludeEvent(eventsBase, jsZOrigine)
       : eventsBase;
 
     // ─── Service effectif LPA-based ────────────────────────────────────────────

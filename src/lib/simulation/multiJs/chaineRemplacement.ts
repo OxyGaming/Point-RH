@@ -18,6 +18,7 @@ import type { MaillonChaine, ChaineRemplacement } from "@/types/multi-js-simulat
 import { isJsDeNuit, combineDateTime } from "@/lib/utils";
 import { canAssignJsToAgentInScenario } from "./agentScenarioValidator";
 import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
+import { excludeEvent } from "@/lib/simulation/eventFilter";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
 import type { AgentCoverageIndex } from "./chaineCache";
 import { findEligibleAgentsForJs } from "./chaineCache";
@@ -232,7 +233,7 @@ export function chercherMaillons(
     // Le candidat peut-il prendre le trou en supposant qu'il a libéré son conflit ?
     const candidatSansConflit: AgentDataMultiJs = {
       context: candidat.context,
-      events: candidat.events.filter((e) => e !== conflit),
+      events: excludeEvent(candidat.events, conflit),
     };
     const dejaAff = ctx.agentAssignments.get(candidatId) ?? [];
     const compat = canAssignJsToAgentInScenario(

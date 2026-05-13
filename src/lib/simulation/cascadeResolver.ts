@@ -18,6 +18,7 @@ import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { ImpactCascade, ModificationPlanning, ConflitInduit } from "@/types/js-simulation";
 import type { SimulationInput } from "@/types/simulation";
 import { isAbsenceInaptitude } from "./jsUtils";
+import { excludeEvent } from "./eventFilter";
 import { computeEffectiveService } from "@/lib/deplacement/computeEffectiveService";
 import type { LpaContext } from "@/types/deplacement";
 import { DEFAULT_WORK_RULES_MINUTES, type WorkRulesMinutes } from "@/lib/rules/workRules";
@@ -325,7 +326,7 @@ export function tenterResolutionCascade(
         return echec;
       }
 
-      const eventsLiberes = autre.events.filter((e) => e !== eventCausant);
+      const eventsLiberes = excludeEvent(autre.events, eventCausant);
       const resultatLibere = evaluerMobilisabilite(
         autre.context, eventsLiberes, simulationInput, rules, effectiveService ?? undefined
       );

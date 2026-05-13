@@ -30,6 +30,7 @@ import { POIDS_SCORE_SCENARIO_MULTI } from "@/lib/simulation/scenarioScorer";
 import type { AgentDataMultiJs } from "./multiJsCandidateFinder";
 import { detecterConflitsInduits } from "@/lib/simulation/conflictDetector";
 import { injecterJsDansPlanning } from "@/lib/simulation/candidateFinder";
+import { excludeEvent } from "@/lib/simulation/eventFilter";
 import { resoudreTousConflits } from "@/lib/simulation/cascadeResolver";
 import { buildImprevu } from "./multiJsCandidateFinder";
 import { combineDateTime, getDateFinJs, isJsDeNuit } from "@/lib/utils";
@@ -554,7 +555,7 @@ export function allouerJsMultiple(
         // Vérifier que le candidat (libéré) peut effectivement prendre la JS cible
         const candidatLibere: AgentDataMultiJs = {
           context: candidat.context,
-          events: candidat.events.filter((e) => e !== eventConflit),
+          events: excludeEvent(candidat.events, eventConflit),
         };
         const dejaAff = agentAssignments.get(candidatId) ?? [];
         const compat = canAssignJsToAgentInScenario(

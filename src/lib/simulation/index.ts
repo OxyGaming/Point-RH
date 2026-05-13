@@ -9,6 +9,7 @@ import { combineDateTime, diffMinutes, getDateFinJs } from "@/lib/utils";
 import { isJsDeNuitFromRules } from "@/lib/rules/nightThreshold";
 import { loadWorkRules } from "@/lib/rules/workRulesLoader";
 import { preFilterCandidats, injecterJsDansPlanning, trouverCandidatsParFigeage } from "./candidateFinder";
+import { excludeEvent } from "./eventFilter";
 import { loadJsTypeFlexibiliteMap } from "./jsTypeFlexibiliteLoader";
 import { detecterConflitsInduits } from "./conflictDetector";
 import { construireScenarios } from "./scenarioBuilder";
@@ -169,8 +170,8 @@ export async function executerSimulationJS(
 
     // Pour les agents en JS Z : exclure la JS Z du planning avant évaluation
     // (elle est "consommée" par la réaffectation, pas de conflit à générer sur elle)
-    const eventsEffectifs = surJsZ
-      ? events.filter((e) => e !== jsZOrigine)
+    const eventsEffectifs = surJsZ && jsZOrigine
+      ? excludeEvent(events, jsZOrigine)
       : events;
 
     const resultat = evaluerMobilisabilite(context, eventsEffectifs, simulationInput, rules, effectiveService);
@@ -283,8 +284,8 @@ export async function executerSimulationJS(
       posteNuit: isNuitImprevu || isNuitJsCible,
     };
 
-    const eventsEffectifs = surJsZ
-      ? eventsAvecFigeage.filter((e) => e !== jsZOrigine)
+    const eventsEffectifs = surJsZ && jsZOrigine
+      ? excludeEvent(eventsAvecFigeage, jsZOrigine)
       : eventsAvecFigeage;
 
     const resultat = evaluerMobilisabilite(context, eventsEffectifs, simulationInput, rules, effectiveService);

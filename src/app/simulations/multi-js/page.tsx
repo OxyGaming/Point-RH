@@ -42,6 +42,101 @@ function groupByDate(jsList: JsTimeline[]): [string, JsTimeline[]][] {
 
 const SS_KEY = "pointrh_multiJs_resultat";
 
+// ─── Empty state ──────────────────────────────────────────────────────────
+// Distingue trois causes d'écran vide :
+//  1. allJs.length === 0                              → import sans JS
+//  2. userFilter actif et coupe tout                  → aucun agent du filtre n'a de JS
+//  3. allJs > 0 mais filtreJs = 0 (plage date hors)   → données hors plage,
+//     on affiche la plage des données + un bouton d'étendre.
+function EmptyState({
+  allJs,
+  userFilterActive,
+  userFilterIds,
+  filters,
+  onExtendToDataRange,
+}: {
+  allJs: JsTimeline[];
+  userFilterActive: boolean;
+  userFilterIds: Set<string>;
+  filters: FiltersState;
+  onExtendToDataRange: (min: string, max: string) => void;
+}) {
+  const fmt = (d: string) =>
+    formatInTimeZone(new Date(`${d}T00:00:00`), "Europe/Paris", "dd MMM yyyy", { locale: fr });
+
+  if (allJs.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 bg-white rounded-xl border border-slate-200 text-center px-4">
+        <p className="text-3xl mb-2">📭</p>
+        <p className="text-sm font-medium text-slate-600">Aucune JS dans cet import</p>
+        <p className="text-xs text-slate-400 mt-1">
+          Sélectionnez un planning contenant des JS.
+        </p>
+      </div>
+    );
+  }
+
+  const userFiltered =
+    userFilterActive && userFilterIds.size > 0
+      ? allJs.filter((js) => js.agentId !== null && userFilterIds.has(js.agentId))
+      : allJs;
+
+  if (userFiltered.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 bg-white rounded-xl border border-slate-200 text-center px-4">
+        <p className="text-3xl mb-2">📭</p>
+        <p className="text-sm font-medium text-slate-600">Aucune JS trouvée</p>
+        <p className="text-xs text-slate-400 mt-1 max-w-md">
+          <strong>{allJs.length}</strong> JS dans l&apos;import, mais aucune ne concerne les{" "}
+          {userFilterIds.size} agent{userFilterIds.size > 1 ? "s" : ""} de l&apos;affichage
+          personnalisé. Désactivez le filtre agents pour les voir.
+        </p>
+      </div>
+    );
+  }
+
+  // Plage de dates effective des données disponibles (après user filter)
+  let minDate = userFiltered[0].date;
+  let maxDate = userFiltered[0].date;
+  for (const js of userFiltered) {
+    if (js.date < minDate) minDate = js.date;
+    if (js.date > maxDate) maxDate = js.date;
+  }
+
+  const rangeBornee = Boolean(filters.dateDebut || filters.dateFin);
+
+  return (
+    <div className="flex flex-col items-center justify-center py-16 bg-white rounded-xl border border-slate-200 text-center px-4">
+      <p className="text-3xl mb-2">📭</p>
+      <p className="text-sm font-medium text-slate-600">Aucune JS trouvée</p>
+      {rangeBornee ? (
+        <>
+          <p className="text-xs text-slate-500 mt-1 max-w-md">
+            <strong>{userFiltered.length}</strong> JS disponibles
+            {userFilterActive && userFilterIds.size > 0 ? " (filtre agents actif)" : ""}, mais
+            aucune entre le <strong>{fmt(filters.dateDebut)}</strong> et le{" "}
+            <strong>{fmt(filters.dateFin)}</strong>.
+          </p>
+          <p className="text-xs text-slate-400 mt-1">
+            Plage des données : {fmt(minDate)} → {fmt(maxDate)}
+          </p>
+          <button
+            type="button"
+            onClick={() => onExtendToDataRange(minDate, maxDate)}
+            className="mt-3 text-xs text-blue-600 hover:underline font-medium"
+          >
+            Étendre la plage à toutes les données
+          </button>
+        </>
+      ) : (
+        <p className="text-xs text-slate-400 mt-1">
+          Essayez de modifier les filtres (code, agent, nuit, JS Z).
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function MultiJsPage() {
   // ─── Import sélectionné ───────────────────────────────────────────────────
   const [imports, setImports] = useState<PlanningImport[]>([]);
@@ -110,12 +205,17 @@ export default function MultiJsPage() {
   }, [resultat]);
 
   // ─── Charger les imports disponibles ─────────────────────────────────────
+  // Aligné sur la page Planning : on prend l'import marqué actif en priorité,
+  // sinon le plus récent (data[0]). Évite que Multi-JS charge un import récent
+  // mais non activé (test, planning historique, etc.) qui afficherait 0 JS.
   useEffect(() => {
     fetch("/api/import")
       .then((r) => r.json())
       .then((data: PlanningImport[]) => {
+        if (!Array.isArray(data)) return;
         setImports(data);
-        if (data[0]) setImportId(data[0].id);
+        const active = data.find((d) => d.isActive) ?? data[0];
+        if (active) setImportId(active.id);
       })
       .catch(() => {});
   }, []);
@@ -321,15 +421,15 @@ export default function MultiJsPage() {
               </div>
             </div>
           ) : filteredJs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 bg-white rounded-xl border border-slate-200 text-center">
-              <p className="text-3xl mb-2">📭</p>
-              <p className="text-sm font-medium text-slate-600">Aucune JS trouvée</p>
-              <p className="text-xs text-slate-400 mt-1">
-                {allJs.length > 0
-                  ? "Essayez de modifier les filtres"
-                  : "Sélectionnez un planning contenant des JS"}
-              </p>
-            </div>
+            <EmptyState
+              allJs={allJs}
+              userFilterActive={userFilterActive}
+              userFilterIds={userFilterIds}
+              filters={filters}
+              onExtendToDataRange={(min, max) =>
+                setFilters((f) => ({ ...f, dateDebut: min, dateFin: max }))
+              }
+            />
           ) : (
             <div className="space-y-4">
               {grouped.map(([date, jsList]) => (

@@ -1,8 +1,13 @@
 /**
  * GET /api/multi-js-simulation/js-list?importId=xxx
  *
- * Retourne toutes les lignes JS (jsNpo = "JS") d'un import,
- * enrichies des infos agent, pour alimenter la timeline de la vue multi-JS.
+ * Retourne les lignes JS (jsNpo = "JS") enrichies des infos agent, pour
+ * alimenter la timeline de la vue multi-JS.
+ *
+ * Phase 1 du correctif d'import : `importId` ne sert plus qu'à délimiter la
+ * PÉRIODE affichée. Les lignes chargées couvrent tous les agents de cette
+ * période, quel que soit l'import qui les a écrites — PlanningLigne est
+ * consolidé par la contrainte @@unique([matricule, jourPlanning]).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -11,6 +16,7 @@ import { checkAuth } from "@/lib/session";
 import { isJsDeNuit } from "@/lib/utils";
 import { isZeroLoadJs } from "@/lib/simulation/jsUtils";
 import { loadZeroLoadPrefixes } from "@/lib/simulation/zeroLoadPrefixLoader";
+import { logFenetrePlanning } from "@/lib/simulation/planningWindow";
 import type { JsTimeline } from "@/types/multi-js-simulation";
 
 export const runtime = "nodejs";
@@ -25,11 +31,25 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Délimiter la période à partir de l'import demandé, puis charger TOUTES
+    // les lignes de cette période (lecture consolidée, sans filtre importId).
+    const bornes = await prisma.planningLigne.aggregate({
+      where: { importId },
+      _min: { jourPlanning: true },
+      _max: { jourPlanning: true },
+    });
+    const gte = bornes._min.jourPlanning;
+    const lte = bornes._max.jourPlanning;
+    if (!gte || !lte) {
+      // Import sans ligne (vide, ou lignes purgées par la rétention).
+      return NextResponse.json([], { status: 200 });
+    }
+
     const [lignes, jsTypes, zeroLoadPrefixes] = await Promise.all([
       prisma.planningLigne.findMany({
         where: {
-          importId,
           jsNpo: "JS",
+          jourPlanning: { gte, lte },
         },
         include: { agent: true },
         orderBy: [{ dateDebutPop: "asc" }, { heureDebutPop: "asc" }],
@@ -104,6 +124,13 @@ export async function GET(req: NextRequest) {
         flexibilite: jsType?.flexibilite ?? "OBLIGATOIRE",
         libelle: jsType?.libelle ?? null,
       };
+    });
+
+    logFenetrePlanning({
+      source: "js-list",
+      fenetre: { gte, lte },
+      loadedAgents: new Set(lignes.map((l) => l.agentId).filter(Boolean)).size,
+      loadedLines: lignes.length,
     });
 
     return NextResponse.json(result, { status: 200 });

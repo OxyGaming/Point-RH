@@ -5,6 +5,11 @@ import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { JsSimulationRequest, JsSimulationResultatDouble } from "@/types/js-simulation";
 import { checkAuth } from "@/lib/session";
 import { rateLimit } from "@/lib/rateLimit";
+import {
+  fenetreSimulation,
+  logFenetrePlanning,
+  type FenetrePlanning,
+} from "@/lib/simulation/planningWindow";
 
 export const runtime = "nodejs";
 
@@ -35,19 +40,37 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as JsSimulationRequest;
     const { jsCible, imprevu } = body;
 
-    if (!jsCible?.importId || !jsCible?.agentId || !imprevu) {
+    if (!jsCible?.agentId || !jsCible?.date || !imprevu) {
       return NextResponse.json({ error: "Paramètres manquants" }, { status: 400 });
     }
 
-    // Charger tous les agents liés à cet import
+    // Chargement par fenêtre temporelle dérivée de la JS cible. `jsCible.importId`
+    // n'est plus utilisé pour filtrer (PlanningLigne est consolidé) : on charge
+    // tous les agents de la période — marges incluses pour le moteur de règles.
+    let fenetre: FenetrePlanning;
+    try {
+      fenetre = fenetreSimulation([jsCible.date]);
+    } catch {
+      return NextResponse.json({ error: "Date de la JS cible invalide" }, { status: 400 });
+    }
+
+    // Charger tous les agents ayant du planning sur la fenêtre
     const [lignes, jsTypes] = await Promise.all([
       prisma.planningLigne.findMany({
-        where: { importId: jsCible.importId },
+        where: { jourPlanning: { gte: fenetre.gte, lte: fenetre.lte } },
         include: { agent: true },
         orderBy: { dateDebutPop: "asc" },
       }),
       prisma.jsType.findMany({ select: { code: true, heureDebutStandard: true, heureFinStandard: true } }),
     ]);
+
+    logFenetrePlanning({
+      source: "single-js",
+      jsCount: 1,
+      fenetre,
+      loadedAgents: new Set(lignes.map((l) => l.agentId).filter(Boolean)).size,
+      loadedLines: lignes.length,
+    });
 
     // Refuser les imports trop gros avant de lancer le calcul synchrone.
     // Sans ce garde-fou, un import massif peut bloquer Node ~1 min → 504 pour tous.

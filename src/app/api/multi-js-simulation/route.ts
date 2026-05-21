@@ -13,6 +13,11 @@ import type { AgentContext, PlanningEvent } from "@/engine/rules";
 import type { MultiJsSimulationRequest } from "@/types/multi-js-simulation";
 import { executerSimulationMultiJs } from "@/lib/simulation/multiJs";
 import { rateLimit } from "@/lib/rateLimit";
+import {
+  fenetreSimulation,
+  logFenetrePlanning,
+  type FenetrePlanning,
+} from "@/lib/simulation/planningWindow";
 
 export const runtime = "nodejs";
 
@@ -58,25 +63,43 @@ export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as MultiJsSimulationRequest;
     const {
-      importId,
       jsSelectionnees,
       deplacement = false,
       remplacement = true,
     } = body;
 
-    if (!importId || !jsSelectionnees?.length) {
+    if (!jsSelectionnees?.length) {
       return NextResponse.json({ error: "Paramètres manquants" }, { status: 400 });
     }
 
-    // ─── Charger tous les agents + leur planning pour cet import ─────────────────
+    // Chargement par fenêtre temporelle dérivée des JS cibles. `importId` du
+    // body n'est plus utilisé pour filtrer (conservé dans le contrat pour
+    // compat client) : PlanningLigne étant consolidé, on charge tous les
+    // agents de la période — marges incluses pour le moteur de règles.
+    let fenetre: FenetrePlanning;
+    try {
+      fenetre = fenetreSimulation(jsSelectionnees.map((js) => js.date));
+    } catch {
+      return NextResponse.json({ error: "Dates des JS cibles invalides" }, { status: 400 });
+    }
+
+    // ─── Charger tous les agents + leur planning sur la fenêtre ─────────────────
     const [lignes, jsTypes] = await Promise.all([
       prisma.planningLigne.findMany({
-        where: { importId },
+        where: { jourPlanning: { gte: fenetre.gte, lte: fenetre.lte } },
         include: { agent: true },
         orderBy: { dateDebutPop: "asc" },
       }),
       prisma.jsType.findMany({ select: { code: true, heureDebutStandard: true, heureFinStandard: true } }),
     ]);
+
+    logFenetrePlanning({
+      source: "multi-js",
+      jsCount: jsSelectionnees.length,
+      fenetre,
+      loadedAgents: new Set(lignes.map((l) => l.agentId).filter(Boolean)).size,
+      loadedLines: lignes.length,
+    });
 
     // Garde-fou volume — refuser avant lancement du calcul synchrone (8 scénarios)
     if (lignes.length > MAX_LIGNES_MULTI) {
